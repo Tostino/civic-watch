@@ -27,6 +27,19 @@ COPY web/ /app/web/
 ENV HF_HOME=/models
 RUN mkdir -p /models && chown -R nobody:nogroup /models
 
+# admin.init() writes a fresh token into <root>/.admin_token on EVERY process
+# start, and /app is root-owned, so as `nobody` the server died on boot with
+# PermissionError before serving a single request. The file has to exist and be
+# owned by the runtime user first: O_CREAT cannot create it in a directory
+# `nobody` may not write, but O_WRONLY|O_TRUNC on a file it owns is fine, and so
+# is the chmod that follows.
+#
+# The console is unreachable here by design (it refuses non-loopback peers and
+# the edge 404s /admin), so this token is never used — but the server calls
+# init() unconditionally, and a reader-only container still has to boot.
+RUN touch /app/.admin_token && chown nobody:nogroup /app/.admin_token \
+ && chmod 600 /app/.admin_token
+
 # The query encoder runs on the CPU here. This variable is load-bearing: with
 # it unset, retrieve.DEVICE falls back to cuda:1, the model fails to load, and
 # tools.warm() swallows the failure by design — leaving a server that answers
