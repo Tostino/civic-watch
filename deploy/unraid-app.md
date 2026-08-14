@@ -14,31 +14,37 @@ Compose Manager — a plain Unraid template runs it.
 superseded; a fresh GHCR package starts **private**, so make `civic-watch`
 public the same way you did those two, or Unraid cannot pull it.
 
-## 1. Add Container
+## 1. Install the template, then Add Container
 
-Unraid → DOCKER → ADD CONTAINER, Advanced view.
+**Use `deploy/unraid-civicwatch.xml`.** A blank Add Container form has no rows
+to fill in: every port, path and variable has to be added one at a time through
+*"Add another Path, Port, Variable, Label or Device"* — eleven dialogs for this
+container, and eleven chances to mistype an environment variable name that then
+fails silently. The template arrives pre-filled instead.
 
-| field | value |
+Copy it to the Unraid box:
+
+```
+/boot/config/plugins/dockerMan/templates-user/my-civicwatch.xml
+```
+
+(over SMB that is the `flash` share, `config/plugins/dockerMan/templates-user/`
+— create the folder if it is not there. No reboot needed.)
+
+Then **DOCKER → ADD CONTAINER → Template → `civicwatch`**. Everything is filled
+in except the two secrets:
+
+| you supply | |
 |---|---|
-| Name | `civicwatch` |
-| Repository | `ghcr.io/tostino/civic-watch:latest` |
-| Network Type | `bridge` |
-| Port | container `3000` → host `3000` |
-| Path | container `/models` → host `/mnt/user/appdata/civicwatch/models` |
-| Extra Parameters | `--init` |
-| Variable | `PASCO_DSN` = `postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings` |
-| Variable | `SITE_URL` = `https://pasco.watch` |
-| Variable | `SITE_CONTACT` = `contact@pasco.watch` |
-| Variable | `ASK_TRUST_PROXY` = `1` |
-| Variable | `ASK_DAILY_MAX` = `400` |
-| Variable | `ASK_PER_IP` = `6` |
-| Variable | `LLM_API_KEY` = *your key* |
-| Variable | `INFERENCE_API_BASE` = *the base URL* |
-| Variable | `LLM_MODEL_AGENT` = *the model name* |
-| Variable | `TZ` = `America/New_York` |
+| `PASCO_DSN` | `postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings` |
+| `LLM_API_KEY` | your inference key — `/api/ask` only; everything else works without it |
 
-`--init` gives the container a real PID 1 for signal handling and zombie
-reaping, which matters because this image runs two processes.
+Both are masked in the UI. `INFERENCE_API_BASE` and `LLM_MODEL_AGENT` are under
+*Show more settings*, also `/api/ask` only.
+
+The template sets `--init` as an Extra Parameter, which gives the container a
+real PID 1 for signal handling and zombie reaping — that matters because this
+image runs two processes.
 
 **`ASK_TRUST_PROXY=1` because NPM is in front.** At `0`, `client_ip()` sees the
 proxy for every visitor and the whole internet shares one rate-limit bucket

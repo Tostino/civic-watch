@@ -1,0 +1,98 @@
+<?xml version="1.0"?>
+<!--
+  Unraid template for civic-watch.
+
+  Copy to the Unraid box at:
+      /boot/config/plugins/dockerMan/templates-user/my-civicwatch.xml
+
+  Then DOCKER -> ADD CONTAINER -> Template -> "civicwatch". Every port, path
+  and variable below arrives pre-filled; you supply the two secrets.
+
+  This exists because a blank Add Container form has no rows to fill in - each
+  port, path and variable has to be added one at a time through "Add another
+  Path, Port, Variable, Label or Device", which is ten dialogs for this
+  container and ten chances to typo an env var name that fails silently.
+-->
+<Container version="2">
+  <Name>civicwatch</Name>
+  <Repository>ghcr.io/tostino/civic-watch:latest</Repository>
+  <Registry>https://github.com/Tostino/civic-watch/pkgs/container/civic-watch</Registry>
+  <Project>https://github.com/Tostino/civic-watch</Project>
+  <Support>https://github.com/Tostino/civic-watch/issues</Support>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Category>Productivity: Tools:</Category>
+  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <Icon/>
+  <ExtraParams>--init</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>A Postgres 18 + pgvector container holding the archive. See deploy/postgres-unraid.md.</Requires>
+  <Overview>
+    A searchable, speaker-attributed archive of local government meetings, with
+    an agent that answers questions and cites the moment in the recording.
+
+    One container: the reader API and the reading surfaces together. The UI
+    reaches the API over 127.0.0.1 inside the container, so the API is never on
+    the network and the curation console is not reachable through this
+    container at all.
+
+    Put a reverse proxy in front for TLS. After it starts, check the log for
+    "dense retrieval READY" - if it says UNAVAILABLE, the model cache path
+    below is not writable by uid 65534 and search is running on BM25 alone.
+  </Overview>
+
+  <Config Name="WebUI" Target="3000" Default="3000" Mode="tcp"
+          Description="The site. Point the reverse proxy here."
+          Type="Port" Display="always" Required="true" Mask="false">3000</Config>
+
+  <Config Name="Model cache" Target="/models"
+          Default="/mnt/user/appdata/civicwatch/models" Mode="rw"
+          Description="Where the 0.6B embedding model is cached. MUST be writable by uid 65534 - the container runs as nobody. Run: mkdir -p /mnt/user/appdata/civicwatch/models &amp;&amp; chown -R 65534:65534 /mnt/user/appdata/civicwatch/models. Get this wrong and the model never loads, search silently degrades to BM25 only, and the container still looks healthy."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/civicwatch/models</Config>
+
+  <Config Name="PASCO_DSN" Target="PASCO_DSN" Default=""
+          Description="Postgres connection string, e.g. postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings"
+          Type="Variable" Display="always" Required="true" Mask="true"/>
+
+  <Config Name="SITE_URL" Target="SITE_URL" Default="https://pasco.watch"
+          Description="The public origin. Read at run time by the sitemap, robots.txt, canonical links and Open Graph tags. Nothing is baked into the image, which is what lets one image serve any county."
+          Type="Variable" Display="always" Required="true" Mask="false">https://pasco.watch</Config>
+
+  <Config Name="SITE_CONTACT" Target="SITE_CONTACT" Default="contact@pasco.watch"
+          Description="Where a reader sends a correction. /about shows it only when set, and never offers a dead link."
+          Type="Variable" Display="always" Required="false" Mask="false">contact@pasco.watch</Config>
+
+  <Config Name="ASK_TRUST_PROXY" Target="ASK_TRUST_PROXY" Default="1"
+          Description="1 when a reverse proxy is in front. At 0 behind a proxy, every visitor looks like one address and the whole internet shares a single rate-limit bucket. Only set it with a proxy actually in front - at 1 with nothing forwarding, a caller can forge their address."
+          Type="Variable" Display="always" Required="true" Mask="false">1</Config>
+
+  <Config Name="ASK_DAILY_MAX" Target="ASK_DAILY_MAX" Default="400"
+          Description="Questions per 24h across all callers. This is a MONEY ceiling: about $3.60/day typical, $30/day worst case."
+          Type="Variable" Display="always" Required="false" Mask="false">400</Config>
+
+  <Config Name="ASK_PER_IP" Target="ASK_PER_IP" Default="6"
+          Description="Questions per address per 10 minutes."
+          Type="Variable" Display="advanced" Required="false" Mask="false">6</Config>
+
+  <Config Name="LLM_API_KEY" Target="LLM_API_KEY" Default=""
+          Description="Inference key. Used ONLY by /api/ask. Search, browse and the published record are local and work without it."
+          Type="Variable" Display="always" Required="false" Mask="true"/>
+
+  <Config Name="INFERENCE_API_BASE" Target="INFERENCE_API_BASE" Default=""
+          Description="Base URL of the inference API. /api/ask only."
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="LLM_MODEL_AGENT" Target="LLM_MODEL_AGENT" Default=""
+          Description="Model name the agent calls. /api/ask only."
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="TZ" Target="TZ" Default="America/New_York"
+          Description="Container timezone. Match the Postgres container or timestamps disagree."
+          Type="Variable" Display="advanced" Required="false" Mask="false">America/New_York</Config>
+</Container>
