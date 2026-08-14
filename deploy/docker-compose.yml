@@ -54,8 +54,10 @@ services:
       SITE_CONTACT: ${SITE_CONTACT:-}
       TZ: ${TZ:-America/New_York}
     ports:
-      # Bound to the LAN address only, because NPM is what faces the internet.
-      - "${UI_BIND:-127.0.0.1}:3000:3000"
+      # Bound to the Unraid LAN address, NOT loopback: Nginx Proxy Manager runs
+      # in its own container, so 127.0.0.1 on the host is not reachable from it.
+      # Set UI_BIND=10.0.0.6 and point the proxy host at 10.0.0.6:3000.
+      - "${UI_BIND:-10.0.0.6}:3000:3000"
     networks: [civicwatch]
 
 networks:
