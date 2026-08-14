@@ -230,6 +230,26 @@ def jsonable(o):
 # bytes it saves.
 GZIP_OVER = 4096
 
+# Seconds of silence /api/ask may go before it says something anyway.
+#
+# The gap between two events on that stream is one model turn, and a hard
+# question's turn is minutes of nothing on the wire. Every hop between here
+# and the browser arms an idle timer on that quiet: Next's rewrite proxy at 30s
+# (experimental.proxyTimeout, ui/next.config.ts), nginx at 60s unless told
+# otherwise (deploy/nginx-proxy-manager.md), and whatever a tunnel or CDN adds
+# if one is ever put in front. Raising each of them is necessary and is not
+# sufficient - the next hop somebody adds has its own default, and the failure
+# it produces is silent and looks like the archive breaking under exactly the
+# questions worth asking.
+#
+# So the stream stops being quiet. A line beginning with ':' is a comment in
+# the SSE grammar, invisible to EventSource, and it resets every idle timer in
+# the chain at once. Ten seconds is well inside the tightest default and costs
+# three bytes a beat. It is also what let ASK_DEADLINE go to seven minutes:
+# with the stream never idle, how LONG a run takes stopped being a proxy's
+# business at all.
+HEARTBEAT = 10
+
 
 class Handler(BaseHTTPRequestHandler):
     # BaseHTTPRequestHandler defaults to HTTP/1.0, and under 1.0 a response
@@ -509,8 +529,9 @@ class Handler(BaseHTTPRequestHandler):
             release()
 
     def _ask_stream(self, question):
-        """Server-sent events: the agent takes 30-90s, so what it is DOING is
-        streamed rather than leaving the page on a bare spinner (R5.5.1).
+        """Server-sent events: the agent takes minutes on a hard question, so
+        what it is DOING is streamed rather than leaving the page on a bare
+        spinner (R5.5.1).
 
         Reached only through `_ask_guarded`, which has already claimed a slot
         from web/limits.py. Refusals must happen BEFORE this method: once the
@@ -545,24 +566,47 @@ class Handler(BaseHTTPRequestHandler):
         # only one that does not depend on knowing which layer is at fault. A
         # line beginning with ':' is a comment in the SSE grammar, so this is
         # invisible to the client.
+
+        # One lock over every write to this socket. The heartbeat below runs on
+        # its own thread, and two writes interleaving would splice a comment
+        # into the middle of an event and corrupt the framing of both.
+        wlock = threading.Lock()
+
+        def write(chunk):
+            with wlock:
+                self.wfile.write(chunk)
+                self.wfile.flush()
+
         try:
-            self.wfile.write(b":" + b" " * 2048 + b"\n\n")
-            self.wfile.flush()
+            write(b":" + b" " * 2048 + b"\n\n")
         except (BrokenPipeError, ConnectionResetError):
             return
 
         def send(event, payload):
             try:
-                self.wfile.write(
-                    f"event: {event}\n"
-                    f"data: {json.dumps(payload, default=jsonable)}\n\n".encode())
-                self.wfile.flush()
+                write(f"event: {event}\n"
+                      f"data: {json.dumps(payload, default=jsonable)}\n\n".encode())
             except (BrokenPipeError, ConnectionResetError):
                 raise                    # client navigated away; stop working
 
         if not question.strip():
             return send("error", {"error": "empty question"})
         con = None
+
+        # HEARTBEAT, above, for why. It has to be a thread: the run is a
+        # sequence of blocking calls into the model, and the whole problem is
+        # the time spent inside one of them with nothing to report.
+        done = threading.Event()
+
+        def beat():
+            while not done.wait(HEARTBEAT):
+                try:
+                    write(b":\n\n")
+                except Exception:                                 # noqa: BLE001
+                    return    # gone. The run's own next write says so properly.
+
+        pulse = threading.Thread(target=beat, daemon=True)
+        pulse.start()
         try:
             import agent
             import ask as llm
@@ -589,6 +633,12 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 pass
         finally:
+            # Before the socket goes, so nothing is still writing to it. The
+            # join is bounded because a wedged write must not hold the request
+            # thread for ever; if it does time out, `beat` is a daemon whose
+            # next write raises and ends it.
+            done.set()
+            pulse.join(timeout=5)
             if con is not None:
                 con.close()
 

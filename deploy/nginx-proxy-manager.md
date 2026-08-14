@@ -113,21 +113,35 @@ entry (`10.0.0.6` : `3100`), with this in its own advanced box:
 
 ```nginx
 proxy_buffering off;
-proxy_read_timeout 300s;
+proxy_read_timeout 900s;
 ```
 
 Both are required and NPM's defaults are wrong for this route:
 
-- **`proxy_read_timeout` defaults to 60s.** The agent takes 30–90s, so a
-  question that thinks hard gets cut off mid-stream — and it would look like the
-  archive breaking under exactly the questions worth asking.
+- **`proxy_read_timeout` defaults to 60s.** A hard question runs for minutes
+  (`ASK_DEADLINE`, `web/agent.py`), so it gets cut off mid-stream — and it would
+  look like the archive breaking under exactly the questions worth asking.
 - **`proxy_buffering` defaults on**, which holds the event stream until it
   completes. The entire point of streaming the tool calls is that progress
   arrives *while* it works; buffered, the page sits silent and then paints
   everything at once, which is strictly worse than not streaming at all.
 
+**NPM is no longer the only proxy on this route.** Since the API and the UI
+became one image, `/api/ask` arrives at Next and is rewritten to the API on
+loopback — and Next proxies external rewrite destinations through httpxy, which
+arms a 30s *inactivity* timer on that socket. It is stricter than anything set
+here, and it fails the same way: silence, then a socket destroyed mid-run and a
+page that says the connection dropped. Measured: a 45s gap died at 30.1s with no
+error event. `experimental.proxyTimeout` in `ui/next.config.ts` raises it, and
+it is set to **900s — the same number as above, deliberately**. Two proxies with
+two ceilings is a trap: the tighter one wins silently, so the config an operator
+reads is not the one deciding. Change one, change both.
+
 Ask is bounded in the **app**, not here: `web/limits.py` refuses before the model
 is called and can explain itself *inside* the event stream, which a proxy cannot.
+The app also stops the stream going quiet at all — `HEARTBEAT` in
+`web/server.py` writes an SSE comment every 10s — which is what makes the next
+proxy somebody puts in front of this a non-event rather than another outage.
 
 ## What is deliberately not at the edge
 

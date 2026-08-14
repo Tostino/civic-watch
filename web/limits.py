@@ -11,7 +11,8 @@ Four bounds, cheapest checked first:
     question length   a long question inflates every prompt in the run
     per IP            a reader asks a few questions; a script asks thousands
     per day, global   the money ceiling. Set it from your cost per run.
-    concurrency       runs hold a thread and a paid call for ~40s each
+    concurrency       runs hold a thread and a paid call for their whole life,
+                      which ASK_DEADLINE now puts at up to seven minutes
 
 The daily cap is the one that actually protects the account, because the
 per-IP window bounds one client and a botnet is many clients. It is global
@@ -36,7 +37,11 @@ WINDOW = int(os.environ.get("ASK_WINDOW") or 600)          # seconds
 PER_IP = int(os.environ.get("ASK_PER_IP") or 6)            # runs per window
 DAILY_MAX = int(os.environ.get("ASK_DAILY_MAX") or 400)    # runs per 24h, global
 MAX_CONCURRENT = int(os.environ.get("ASK_MAX_CONCURRENT") or 2)
-MAX_CHARS = int(os.environ.get("ASK_MAX_CHARS") or 500)
+# 500 was sized against one-sentence questions. The ones worth the agent's new
+# budget are longer - they name the people, the years and the shape of the
+# answer they want - and the bound exists to stop a question inflating every
+# prompt in the run, which 1,000 characters does not do next to MAX_EVIDENCE.
+MAX_CHARS = int(os.environ.get("ASK_MAX_CHARS") or 1000)
 # Off by default: with no proxy in front, X-Forwarded-For is entirely
 # attacker-supplied and trusting it hands out a fresh quota per request.
 # Turn it on ONLY when a reverse proxy terminates connections for this server.

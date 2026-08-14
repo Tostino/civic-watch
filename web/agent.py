@@ -44,16 +44,28 @@ import tools as toolkit                              # noqa: E402
 # How many times round the loop. Measured on the questions in eval_votes, a
 # good run uses 2-4 tool turns; the cap exists for the pathological case where
 # the model keeps re-searching rather than committing to an answer.
-MAX_STEPS = 8
+#
+# Raised from 8 because 8 was measured against one KIND of question. "What was
+# decided about the school zone cameras" is four lookups and done. "How does
+# each commissioner argue, by year" is a lookup per commissioner per year
+# before the answer can begin, and it spent all eight steps still gathering.
+# Both are questions this archive should answer, and only one of them fits in
+# a budget shaped like the other.
+MAX_STEPS = 16
 # Total characters of tool output the model may accumulate. Past this it is
 # told to answer with what it has, because more evidence stops helping long
 # before the context runs out and every extra passage is paid for twice - once
 # to send, once as the answer gets slower.
-MAX_EVIDENCE = 90_000
+#
+# 200k chars is ~50k tokens, and ask.py's segmentation prompt establishes that
+# this model is fine with 35k in; the diminishing return is the real ceiling
+# here, not the context window. A question spanning five commissioners and
+# eight years does not diminish at 90k - it has not finished reading.
+MAX_EVIDENCE = 200_000
 # Transcript lines one `get_item` may show. A long public hearing runs to
 # hundreds and the cap on the tool itself is 2,000, which is the whole budget
 # in one call.
-LINES_SHOWN = 150
+LINES_SHOWN = 250
 
 MODEL = os.environ.get("LLM_MODEL_AGENT") or llm.MODEL_HEAVY
 
@@ -68,11 +80,33 @@ MODEL = os.environ.get("LLM_MODEL_AGENT") or llm.MODEL_HEAVY
 # and a concurrency slot for its whole life, so "how long may this take" and
 # "how many can run at once" together decide how a public endpoint behaves
 # when someone is unkind to it.
-DEADLINE = int(os.environ.get("ASK_DEADLINE") or 150)
+#
+# 150 was set when nothing could survive being slow anyway: the stream went
+# quiet during a model call and the first proxy in the chain killed it, so a
+# long budget only bought a longer wait for the same dropped connection.
+# web/server.py's HEARTBEAT removed that constraint - these are inactivity
+# timers and the stream is never idle now - which leaves the question of how
+# long a reader will WATCH, and a reader watching real lookups scroll past
+# will give a hard question minutes. What they will not give it is a spinner,
+# and that is not what this is.
+DEADLINE = int(os.environ.get("ASK_DEADLINE") or 420)
 # Never let one call eat the entire budget, and never leave so little that the
 # closing answer cannot be written.
-MIN_CALL = 20
-ANSWER_GRACE = 45
+#
+# MIN_CALL is the one that was actually wrong, and not by a little. Reaching
+# the closing answer by the TIME budget means the deadline has already passed
+# - that is what the check tests - so `left()` is always the floor, and the
+# floor was 20 seconds. ask.py measures the median call of exactly this shape,
+# a large prompt in and a long structured answer out, at 158s. Every hard
+# question was therefore guaranteed to time out while writing its answer, and
+# `retries=1` meant it got one try at an impossible number. 240 is ask.py's
+# own SLOW_CALL threshold: past this the model is not slow, it is broken.
+MIN_CALL = 240
+# The reserve and the floor are the same quantity said twice - what the closing
+# answer is held back for is exactly what it is guaranteed - so say it once.
+# They came apart before (45 held back, 20 guaranteed), which reads like a
+# considered pair of numbers and is really a promise the floor did not keep.
+ANSWER_GRACE = MIN_CALL
 
 SYS = """You research questions about Pasco County government meetings by
 calling tools, then answer from what they return.

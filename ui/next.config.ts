@@ -11,6 +11,34 @@ const nextConfig: NextConfig = {
   // `next build` emits. See deploy/Dockerfile.ui.
   output: "standalone",
 
+  experimental: {
+    // A rewrite to an external destination is proxied by httpxy, which arms
+    // `setTimeout(proxyTimeout)` on the socket to the API — an INACTIVITY
+    // timer, defaulting to 30s. See
+    // node_modules/next/dist/server/lib/router-utils/proxy-request.js.
+    //
+    // Thirty seconds is shorter than two things this API legitimately does.
+    // /api/ask is an event stream whose gap between events is one model turn,
+    // which on a question that thinks hard is well past thirty seconds of
+    // silence; the socket was destroyed mid-run, EventSource got a bare error,
+    // and the page said "The connection dropped." after a trace of 21
+    // completed lookups. /api/document also waits up to 90s on CivicClerk.
+    // This hop only became load-bearing when the API and the UI merged into
+    // one image and stopped being separately routable from the edge.
+    //
+    // 900s, the SAME number as `proxy_read_timeout` at the edge
+    // (deploy/nginx-proxy-manager.md). Two proxies with two ceilings is a trap:
+    // the tighter one wins silently, so the config an operator reads is not the
+    // one deciding. One number, both places.
+    //
+    // It is generous because it is no longer functional. web/server.py's
+    // HEARTBEAT writes every 10s, and these are INACTIVITY timers, so what a
+    // run's total length is has stopped mattering to any proxy in the chain.
+    // What is left for this to do is reclaim a socket whose upstream is wedged
+    // — and a run is bounded app-side anyway, by ASK_DEADLINE in web/agent.py.
+    proxyTimeout: 900_000,
+  },
+
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${API}/api/:path*` },
