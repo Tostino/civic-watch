@@ -7,25 +7,24 @@ Images, built by `.github/workflows/images.yml` on every push to `main`:
     ghcr.io/tostino/civic-watch-api:latest
     ghcr.io/tostino/civic-watch-ui:latest
 
-## 1. Let Unraid pull them
+## 1. Let Unraid pull them — DONE, nothing to do
 
-The packages inherit the repository's visibility, and the repo is private, so
-Unraid cannot pull them yet. Two ways, and the first is much less trouble:
+**Both packages are public**, so Unraid pulls them with no credentials and no
+`docker login`. Verified end to end on 2026-08-14 by logging out of GHCR,
+deleting the local copy and pulling anonymously — the exact path Unraid takes.
 
-**Make the packages public.** github.com → Packages → each package → Package
-settings → Change visibility → Public. The repository can stay private; package
-visibility is a separate setting. Nothing secret is in an image — the config all
-arrives as environment variables at run time.
+The repository itself stays private. Package visibility is a separate setting
+from repository visibility, and nothing secret is in an image: all config
+arrives as environment variables at run time, and `.dockerignore` keeps
+`env.local.sh`, `ui/.env.local`, `.admin_token` and the labelled ground-truth
+files out of the build context.
 
-**Or authenticate the box.** On the Unraid console, with a PAT carrying
-`read:packages`:
-
-```
-docker login ghcr.io -u Tostino
-```
-
-That writes credentials to `/root/.docker/config.json`, which does not survive
-a reboot on Unraid unless you persist it. The first option avoids the problem.
+**No personal access token is needed anywhere in this deployment.** If you ever
+make the packages private again, the fallback is `docker login ghcr.io -u
+Tostino` on the Unraid console with a token carrying `read:packages` — but that
+writes to `/root/.docker/config.json`, which does not survive a reboot on
+Unraid unless you persist it. Keeping the packages public avoids the problem
+entirely.
 
 ## 2. Deploy with Compose Manager
 
