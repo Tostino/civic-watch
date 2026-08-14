@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Mark } from "./Mark";
 import { ThemeToggle } from "./ThemeToggle";
 import s from "./SiteHeader.module.css";
 
@@ -45,7 +46,7 @@ export function SiteHeader() {
     <header className={s.header}>
       <div className={s.inner}>
         <Link href="/" className={s.brand}>
-          <span className={s.mark} aria-hidden />
+          <Mark size={22} />
           <span className={s.wordmark}>
             <span className={s.county}>Pasco County</span>
             <span className={s.what}>meeting record</span>

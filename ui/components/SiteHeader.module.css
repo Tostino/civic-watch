@@ -30,26 +30,6 @@
 /* A seal, abstracted: a filled square for the published record with a hollow
  * ring for what is inferred from it. The same two shapes the ProvenanceMark
  * uses, which is the whole idea of the archive in 16 pixels. */
-.mark {
-  width: 1.1rem;
-  height: 1.1rem;
-  border-radius: 2px;
-  background: var(--accent);
-  position: relative;
-}
-
-.mark::after {
-  content: "";
-  position: absolute;
-  right: -0.28rem;
-  bottom: -0.28rem;
-  width: 0.7rem;
-  height: 0.7rem;
-  border: 1.5px dashed var(--live);
-  border-radius: 50%;
-  background: var(--bg);
-}
-
 .wordmark {
   display: flex;
   flex-direction: column;
