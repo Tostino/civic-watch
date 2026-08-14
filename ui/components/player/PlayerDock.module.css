@@ -1,28 +1,124 @@
+/* The dock in its three arrangements. Everything below keys off data-mode,
+ * which usePlacement sets - including the narrow-window case, so the
+ * breakpoint is declared once, in the hook, and this file has no media query
+ * that could disagree with it.
+ *
+ * The card is `position: fixed` in all three. It is the iframe's permanent
+ * home (R6.1) and moving that node between containers would remount it, so the
+ * lane is made by reserving room in the page - globals.css pads <main> by
+ * --dock-lane - rather than by putting the dock inside the page's own grid. */
+
 .dock {
   position: fixed;
-  right: var(--sp-4);
-  bottom: var(--sp-4);
   z-index: 60;
-  width: min(26rem, calc(100vw - 2 * var(--sp-4)));
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
   overflow: hidden;
+  /* The transport adapts to the card, not to the window: this card is
+   * resizable, so a viewport media query would be answering the wrong
+   * question. */
+  container-type: inline-size;
   transition:
     transform var(--normal) var(--ease),
     opacity var(--normal) var(--ease);
 }
 
-/* Nothing loaded: entirely out of the way, and out of the tab order. */
+/* The width is the reader's, within a range. The floor matters as much as the
+ * ceiling: below 18rem the transport's controls start colliding.
+ *
+ * ------------------------------------------------------------------- lane
+ * Its own column at the trailing edge, clear of the header. The page is
+ * narrowed to match, so nothing is ever underneath it - and the lane may take
+ * 42% of the window and no more, because the rest of that window is the page
+ * it is standing beside. */
+.dock[data-mode="lane"] {
+  top: calc(var(--header) + var(--sp-4));
+  right: var(--sp-4);
+  width: clamp(18rem, var(--dock-w, 26vw), 42vw);
+  max-height: calc(100dvh - var(--header) - var(--sp-6));
+}
+
+/* ------------------------------------------------------------------ float
+ * The overlay, kept for readers who would rather have the width - and movable,
+ * which is the difference between an overlay and something in the way. It is
+ * only ever over the page, so the window itself is the only limit on it. */
+.dock[data-mode="float"] {
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  width: min(max(18rem, var(--dock-w, 26vw)), calc(100vw - 2 * var(--sp-4)));
+  max-height: calc(100dvh - var(--header) - var(--sp-6));
+}
+
+/* A short window is the case where max-height starts clipping, and what it
+ * clips is the transport - the controls - because the picture is above them.
+ * Capping the stage's WIDTH instead keeps 16:9 honest and pillarboxes into the
+ * frame, which is black anyway, and the card stays whole. */
+.dock[data-mode="lane"] .stage,
+.dock[data-mode="float"] .stage {
+  width: min(100%, calc((100dvh - var(--header) - 5.5rem) * 16 / 9));
+  margin-inline: auto;
+}
+
+/* Once it has been put somewhere, left/top come from the element's own style
+ * and the corner it started in must stop pulling at it. */
+.dock[data-mode="float"][data-placed="true"] {
+  right: auto;
+  bottom: auto;
+}
+
+.dock[data-mode="float"] .transport {
+  cursor: grab;
+  /* Or a touch drag scrolls the page out from under the card. */
+  touch-action: none;
+}
+
+.dock[data-gesture="move"] .transport {
+  cursor: grabbing;
+}
+
+/* Nothing should follow the pointer while the card is being dragged or
+ * resized: the transition is for arriving and leaving, not for tracking. */
+.dock[data-gesture] {
+  transition: none;
+  user-select: none;
+}
+
+/* ----------------------------------------------------------------- sheet
+ * R8.3. Too narrow to give up a column: full width, flush to the bottom edge,
+ * above the safe area. */
+.dock[data-mode="sheet"] {
+  inset-inline: 0;
+  bottom: 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-inline: 0;
+  border-bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Nothing loaded: entirely out of the way. The lane leaves sideways, because
+ * a card at the top of the window has nowhere to fall to. */
 .dock[data-active="false"] {
-  transform: translateY(calc(100% + var(--sp-5)));
   opacity: 0;
   pointer-events: none;
 }
 
+.dock[data-mode="lane"][data-active="false"] {
+  transform: translateX(calc(100% + var(--sp-5)));
+}
+
+.dock[data-mode="float"][data-active="false"],
+.dock[data-mode="sheet"][data-active="false"] {
+  transform: translateY(calc(100% + var(--sp-5)));
+}
+
+/* ----------------------------------------------------------------- video */
 .frame {
   background: #000;
+  flex: none;
 }
 
 .stage {
@@ -32,12 +128,14 @@
   transition: height var(--normal) var(--ease);
 }
 
-/* Collapsed. The iframe stays mounted and keeps playing - a meeting is often
- * something you listen to while reading the record. */
-.dock[data-expanded="false"] .stage {
-  height: 0;
-  aspect-ratio: auto;
-  overflow: hidden;
+/* A full-width 16:9 picture on a 900px window is 506px of video standing on
+ * the words. Across the bottom the picture is capped by its HEIGHT instead and
+ * centred in the frame, which is already black - so it pillarboxes, the way
+ * every video player does when the shape it is given is not the shape it has.
+ * The stage keeps its ratio, so the iframe below still just fills it. */
+.dock[data-mode="sheet"] .stage {
+  width: min(100%, calc(min(34vh, 12rem) * 16 / 9));
+  margin-inline: auto;
 }
 
 .host,
@@ -48,6 +146,17 @@
   height: 100%;
   border: 0;
   display: block;
+}
+
+/* Collapsed. The iframe stays mounted and keeps playing - a meeting is often
+ * something you listen to while reading the record.
+ *
+ * Last, deliberately: it has the same specificity as the sheet's height above
+ * and has to win over it, in every arrangement. */
+.dock[data-expanded="false"] .stage {
+  height: 0;
+  aspect-ratio: auto;
+  overflow: hidden;
 }
 
 .failed {
@@ -76,13 +185,46 @@
   background: var(--accent-soft);
 }
 
+/* ------------------------------------------------------------- transport */
 .transport {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
   background: var(--surface);
   border-top: 1px solid var(--rule);
+}
+
+/* The width separator. A thin line, a wide target: the hit area runs the full
+ * height of the bar and eats the card's padding, so it clears 24px in both
+ * directions without drawing a 24px control (WCAG 2.5.8). */
+.grab {
+  flex: none;
+  align-self: stretch;
+  position: relative;
+  width: 1.25rem;
+  margin-inline-start: calc(-1 * var(--sp-2));
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.grab::after {
+  content: "";
+  position: absolute;
+  inset-block: 25%;
+  left: calc(50% - 1px);
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--rule-strong);
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+
+.grab:hover::after,
+.grab:focus-visible::after,
+.dock[data-gesture="size"] .grab::after {
+  opacity: 1;
 }
 
 .play {
@@ -119,10 +261,13 @@
 
 .label {
   display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
   min-width: 0;
 }
 
 .title {
+  flex: 1;
   font-size: var(--text-xs);
   font-weight: 550;
   color: var(--ink-2);
@@ -213,20 +358,12 @@ a.title:hover {
   color: var(--ink);
 }
 
-/* R8.3. On a phone the dock is the full width of the screen and sits flush to
- * the bottom edge, above the safe area. */
-@media (max-width: 40rem) {
-  .dock {
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    border-inline: 0;
-    border-bottom: 0;
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-
-  .time {
+/* Narrowed by the reader rather than by the window, so this asks the card how
+ * much room it has, not the viewport. At the floor of the range the title has
+ * to go: the recording it names is also the page the reader is on, whereas the
+ * clock is the only thing here that says where in it they are. */
+@container (max-width: 20rem) {
+  .title {
     display: none;
   }
 }

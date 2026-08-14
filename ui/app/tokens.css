@@ -59,9 +59,18 @@
 
   /* --------------------------------------------------------- layout */
   --rail: 21rem;          /* context rail / agenda spine             */
-  --dock: 4.5rem;         /* collapsed player dock                   */
   --measure: 42rem;       /* readable line length for the record     */
   --header: 3.25rem;
+
+  /* The player dock is the one piece of furniture whose size is not ours to
+   * declare: it is 16:9, the reader can resize it, and it moves. So it
+   * measures itself and publishes two tokens on :root, which are 0px until a
+   * recording is open. The constant that used to stand here said 4.5rem for a
+   * dock that measures 289px.
+   *
+   *   --dock-lane  the column reserved beside the page (globals.css)
+   *   --dock-h     the strip covered at the foot of the window, for panes
+   *                that fill it (TranscriptView, MeetingView) */
 
   /* --------------------------------------------------------- motion */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);

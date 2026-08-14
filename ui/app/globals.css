@@ -25,6 +25,22 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* The player's lane. The dock is a fixed element - it is the iframe's permanent
+ * home and cannot be moved into a page's own grid without remounting it (R6.1)
+ * - so the page gives up the column instead, and the two arrive at a layout
+ * neither could reach alone. --dock-lane is published by the dock and is 0px in
+ * every other arrangement, which is why this costs nothing on a page with no
+ * recording open.
+ *
+ * The main element rather than the body, so that the masthead still runs the
+ * full width of the window. Padding the body takes the header's rule with it
+ * and leaves it stopping 26rem short of the right edge, which reads as a
+ * broken header rather than as a panel beside the page. */
+main {
+  padding-inline-end: var(--dock-lane, 0px);
+  transition: padding-inline-end var(--normal) var(--ease);
+}
+
 h1,
 h2,
 h3,

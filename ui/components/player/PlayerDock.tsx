@@ -4,12 +4,18 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef } from "react";
 import { clock } from "@/lib/format";
 import { usePlayer } from "./PlayerProvider";
+import { MAX_W, MIN_W, usePlacement } from "./usePlacement";
 import s from "./PlayerDock.module.css";
 
 /**
  * The persistent player dock. Collapsing hides the picture and keeps the
  * iframe mounted and playing - a meeting is often something you listen to
  * while reading the record.
+ *
+ * Where it sits is the reader's (see usePlacement): a lane of its own beside
+ * the page, an overlay they can move, or a sheet across the bottom of a narrow
+ * window. The default is the lane, because this page exists to be watched and
+ * read at once and the old overlay covered nearly half the transcript.
  *
  * D2: when the embed fails there is no broken frame. The dock says the
  * recording is unavailable and points at the transcript, which is held here
@@ -18,6 +24,8 @@ import s from "./PlayerDock.module.css";
 export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElement | null> }) {
   const p = usePlayer();
   const barRef = useRef<HTMLDivElement | null>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const place = usePlacement(dockRef);
 
   const scrub = useCallback(
     (clientX: number) => {
@@ -58,26 +66,55 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
 
   const pct = p.duration ? Math.min(100, (p.position / p.duration) * 100) : 0;
   const active = Boolean(p.source);
+  const { placement } = place;
 
-  /* Publish the room this dock actually occupies, so a page that fills the
-   * window can keep its last lines reachable above it. The --dock token says
-   * 4.5rem and the expanded dock measures 289px, so anything sizing itself
-   * against the token was wrong by a factor of four. Measured, not declared:
-   * the height changes when the video is collapsed. */
-  const dockRef = useRef<HTMLDivElement>(null);
+  /* Publish the room this dock takes from the page, so a page can lay itself
+   * out around it instead of underneath it.
+   *
+   *   --dock-lane  the column reserved at the trailing edge. globals.css pads
+   *                the body by it, which is what makes the lane a lane rather
+   *                than a card sitting on the text.
+   *   --dock-h     the strip covered at the bottom of the window, so a pane
+   *                that fills the window can keep its last lines reachable.
+   *                Zero in the lane, where nothing is covered - it used to
+   *                pad the transcript by 305px in every arrangement.
+   *
+   * Measured from offsets and computed style rather than getBoundingClientRect:
+   * the card slides in and out on a transform, and its rect during those 220ms
+   * is a lie about the room it occupies. The --dock token said 4.5rem and the
+   * expanded dock measures 289px, so a declared constant was never going to
+   * work either. */
+  const publish = useCallback(() => {
+    const el = dockRef.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const gapRight = parseFloat(cs.right) || 0;
+
+    const lane = active && placement === "lane" ? Math.round(w + 2 * gapRight) : 0;
+
+    /* Only a card that is actually against the bottom of the window is worth
+     * padding for. A floating one dragged to the middle covers text wherever
+     * the page ends, and the answer to that is to move it, not to leave a
+     * 300px hole at the foot of every pane. */
+    let room = 0;
+    if (active && placement !== "lane") {
+      const top = Number.isFinite(parseFloat(cs.top))
+        ? parseFloat(cs.top)
+        : window.innerHeight - h - (parseFloat(cs.bottom) || 0);
+      const below = window.innerHeight - (top + h);
+      if (below < 64) room = Math.max(0, Math.round(window.innerHeight - top));
+    }
+
+    const root = document.documentElement;
+    root.style.setProperty("--dock-lane", `${lane}px`);
+    root.style.setProperty("--dock-h", `${room}px`);
+  }, [active, placement]);
+
   useEffect(() => {
     const el = dockRef.current;
-    const root = document.documentElement;
     if (!el) return;
-    /* What it OCCUPIES, not what it measures. The dock is active whenever a
-     * recording is loaded, but it is slid out of the viewport until it is
-     * shown, so keying on `active` padded the transcript by 305px for a dock
-     * nobody could see. The overlap with the viewport is true in every state,
-     * including mid-transition, which is why transitionend re-publishes. */
-    const publish = () => {
-      const room = Math.max(0, Math.round(window.innerHeight - el.getBoundingClientRect().top));
-      root.style.setProperty("--dock-h", `${room}px`);
-    };
     publish();
     const ro = new ResizeObserver(publish);
     ro.observe(el);
@@ -87,19 +124,34 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
       ro.disconnect();
       el.removeEventListener("transitionend", publish);
       window.removeEventListener("resize", publish);
+      const root = document.documentElement;
+      root.style.removeProperty("--dock-lane");
       root.style.removeProperty("--dock-h");
     };
-  }, [active]);
+  }, [publish]);
+
+  /* Moving the card changes what it covers without changing its size, which is
+   * the one thing the observer above cannot see. */
+  useEffect(() => {
+    publish();
+  }, [publish, place.style]);
 
   return (
     <div
       ref={dockRef}
       className={s.dock}
+      style={place.style}
       data-active={active}
       data-expanded={p.expanded}
+      data-mode={placement}
+      data-placed={place.moved}
+      data-gesture={place.gesture ?? undefined}
       role="region"
       aria-label="Recording player"
       aria-hidden={!active}
+      /* Not just hidden: with nothing loaded the dock is off-screen, and its
+       * controls must leave the tab order with it. */
+      inert={!active}
     >
       <div className={s.frame}>
         {/* Always rendered. Never remounted. Collapsing resizes it. */}
@@ -119,7 +171,23 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
         ) : null}
       </div>
 
-      <div className={s.transport}>
+      <div className={s.transport} {...place.moveProps}>
+        {placement === "sheet" ? null : (
+          /* The window-splitter pattern: a separator the reader drags, and
+             which the arrow keys move when it has focus. */
+          <div
+            className={s.grab}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Player width"
+            aria-valuenow={place.width}
+            aria-valuemin={MIN_W}
+            aria-valuemax={MAX_W}
+            tabIndex={0}
+            {...place.sizeProps}
+          />
+        )}
+
         <button
           type="button"
           className={s.play}
@@ -131,6 +199,9 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
         </button>
 
         <div className={s.middle}>
+          {/* The clock sits with the title rather than beside the bar: the bar
+              is the control being aimed at, and in a card the reader can
+              narrow to 18rem it needs every pixel of that row. */}
           <div className={s.label}>
             {p.source?.href ? (
               <Link href={p.source.href} className={s.title}>
@@ -139,6 +210,11 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
             ) : (
               <span className={s.title}>{p.source?.title ?? ""}</span>
             )}
+            <div className={s.time}>
+              <span className={s.now}>{clock(p.position)}</span>
+              <span className={s.sep}>/</span>
+              <span>{clock(p.duration)}</span>
+            </div>
           </div>
           <div
             ref={barRef}
@@ -163,11 +239,38 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
           </div>
         </div>
 
-        <div className={s.time}>
-          <span className={s.now}>{clock(p.position)}</span>
-          <span className={s.sep}>/</span>
-          <span>{clock(p.duration)}</span>
-        </div>
+        {placement === "float" ? (
+          <button
+            type="button"
+            className={s.icon}
+            onClick={place.toCorner}
+            aria-label={`Move the player to the ${place.nextCorner}`}
+            /* The button walks the corners; the bar itself drags anywhere.
+               Said here because this is where someone looks for it. */
+            title="Move to the next corner — or drag the bar anywhere"
+          >
+            <GripIcon />
+          </button>
+        ) : null}
+
+        {/* Two placements, one button, and the label says where the click
+            lands rather than where the player is. On a narrow window the
+            choice is between the sheet and floating - the column is not on
+            offer, so it is not what the button offers. */}
+        <button
+          type="button"
+          className={s.icon}
+          onClick={() => place.setMode(placement === "float" ? "lane" : "float")}
+          aria-label={
+            placement !== "float"
+              ? "Float the player over the page"
+              : place.wide
+                ? "Give the player its own column"
+                : "Dock the player across the bottom"
+          }
+        >
+          {placement !== "float" ? <FloatIcon /> : place.wide ? <LaneIcon /> : <SheetIcon />}
+        </button>
 
         <button
           type="button"
@@ -183,5 +286,52 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
         </button>
       </div>
     </div>
+  );
+}
+
+/* Drawn rather than set in a glyph, for the same reasons as the archive's own
+ * mark: they inherit the theme, they cost no request, and a font that lacks the
+ * character cannot turn one into a box. Each says what the page looks like
+ * after the click, not what it looks like now. */
+
+const box = { fill: "none", stroke: "currentColor", strokeWidth: 1.3 } as const;
+
+function LaneIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden focusable="false">
+      <rect x="1.4" y="2.6" width="13.2" height="10.8" rx="1.6" {...box} />
+      <rect x="9.4" y="4.4" width="3.6" height="7.2" rx="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+function SheetIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden focusable="false">
+      <rect x="1.4" y="2.6" width="13.2" height="10.8" rx="1.6" {...box} />
+      <rect x="3.2" y="9.4" width="9.6" height="2.4" rx="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+function FloatIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden focusable="false">
+      <rect x="1.4" y="2.6" width="13.2" height="10.8" rx="1.6" {...box} />
+      <rect x="6.6" y="6.8" width="7" height="5.4" rx="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden focusable="false">
+      <circle cx="6" cy="4.6" r="1.15" fill="currentColor" />
+      <circle cx="10" cy="4.6" r="1.15" fill="currentColor" />
+      <circle cx="6" cy="8" r="1.15" fill="currentColor" />
+      <circle cx="10" cy="8" r="1.15" fill="currentColor" />
+      <circle cx="6" cy="11.4" r="1.15" fill="currentColor" />
+      <circle cx="10" cy="11.4" r="1.15" fill="currentColor" />
+    </svg>
   );
 }
