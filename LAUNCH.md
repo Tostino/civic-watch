@@ -17,8 +17,7 @@ today; nothing is from memory.
 | service | notes |
 |---|---|
 | **Postgres 18 + pgvector** | 5.8 GB. `pgvector/pgvector:pg18` — **migrated 2026-08-14**. |
-| **Reader API** (`web/server.py`) | CPU-only. `PASCO_EMBED_DEVICE=cpu`. |
-| **Next.js UI** (`next start`) | Pure Node, no native deps. |
+| **civic-watch** | One container: the reader API and the reading surfaces. `ghcr.io/tostino/civic-watch`, CPU-only. |
 | **Nginx Proxy Manager** | Already running (:80, :81, Let's Encrypt store in appdata). TLS + the public hostname — `deploy/nginx-proxy-manager.md`. |
 
 Budget ~6 GB RAM: Postgres, the 0.6B embedding model (~2.5 GB resident), Node.
