@@ -22,6 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </Link>
         <nav className={s.nav} aria-label="Console">
           <Link href="/admin">Queues</Link>
+          <Link href="/admin/redactions">Addresses</Link>
           <Link href="/admin/ops">Operations</Link>
         </nav>
         <p className={s.who}>

@@ -1,0 +1,34 @@
+# Build context hygiene. Two of these are correctness, not size.
+#
+# ui/.env.local MUST be excluded: Next reads .env files during `next build`, so
+# leaving it in the context bakes ONE instance's SITE_URL and contact address
+# into an image meant to serve any county. The image is generic; the values
+# arrive as real environment variables at run time.
+ui/.env.local
+ui/.env*.local
+
+# env.local.sh carries PASCO_DSN and LLM_API_KEY. It is gitignored, but the
+# Docker context is not git — an unignored secret still gets sent to the daemon
+# and can land in a layer.
+env.local.sh
+env.local.sh.bak
+.admin_token
+
+# Labelled corpus data: real names beside real home addresses. Never in an image.
+eval/truth_*.json
+
+# 111 GB of source recordings, and the model venvs that only the GPU box needs.
+data/
+logs/
+*-venv/
+*.dump
+*.dump.gz
+
+# Built by the image, never copied into it.
+ui/node_modules/
+ui/.next/
+__pycache__/
+**/__pycache__/
+*.pyc
+.git/
+.next/

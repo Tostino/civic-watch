@@ -24,6 +24,7 @@ top hits pile into whichever meeting discussed it most and the earliest
 occurrence never surfaces. `spread` caps hits per meeting so the timeline is
 covered instead.
 """
+import os
 import re
 
 import numpy as np
@@ -32,6 +33,19 @@ import db
 import threads
 
 MODEL_ID = "microsoft/harrier-oss-v1-0.6b"
+
+# Where the query encoder runs. `cuda:1` is this workstation; the reader
+# container sets `PASCO_EMBED_DEVICE=cpu` and has no GPU at all.
+#
+# This exists because the default used to be the literal string "cuda:1" in
+# four signatures, and `PASCO_EMBED_DEVICE` was read only by web/admin.py -
+# which is not in the read path. So a CPU deployment asked for cuda:1, failed,
+# and `tools.warm()` swallowed it by design ("a failure here is not fatal, it
+# costs the dense arm"). The server then served BM25-only search for ever,
+# having printed one line to stderr. Half the retrieval product, silently
+# absent, on a box that looked healthy. Measured on CPU before choosing the
+# default: 72 ms per query at float16, which is why the dtype is unchanged.
+DEVICE = os.environ.get("PASCO_EMBED_DEVICE", "cuda:1")
 # HNSW is approximate, so this is the dial that trades recall for latency.
 # Measured against an exact scan over 65k passages, at the depths that actually
 # reach the reader: ef=500 gives 97.5% recall@40, ef=1000 gives 98.6% at 19 ms
@@ -55,8 +69,9 @@ DENSE_FLOOR = 0.55
 _model = None
 
 
-def model(device="cuda:1"):
+def model(device=None):
     global _model
+    device = device or DEVICE
     if _model is None:
         import torch
         from sentence_transformers import SentenceTransformer
@@ -65,8 +80,8 @@ def model(device="cuda:1"):
     return _model
 
 
-def encode(query, device="cuda:1"):
-    return model(device).encode([query], prompt_name="web_search_query",
+def encode(query, device=None):
+    return model(device or DEVICE).encode([query], prompt_name="web_search_query",
                                 convert_to_numpy=True, normalize_embeddings=True,
                                 show_progress_bar=False)[0].astype(np.float32)
 
@@ -125,7 +140,7 @@ def rrf(*rankings, k=60):
 
 def search(query, limit=40, spread=None, speaker=None, kind=None,
            since=None, until=None, phase=None, case=None, outcome=None,
-           body=None, device="cuda:1", con=None):
+           body=None, device=None, con=None):
     """Return ranked passages with their meeting metadata.
 
     spread: max hits per meeting. Set it for "over time" questions so the

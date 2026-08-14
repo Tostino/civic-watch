@@ -1,0 +1,47 @@
+# The reader API — web/server.py, CPU only.
+#
+# Build from the REPOSITORY ROOT, not from deploy/:
+#     docker build -f deploy/Dockerfile.api -t civic-watch-api .
+#
+# It needs bin/ as well as web/: server.py puts <root>/bin on sys.path itself,
+# because retrieve/ask/db live with the pipeline rather than with the server.
+
+FROM python:3.12-slim AS base
+
+# torch first and from PyTorch's own CPU index. The PyPI wheel bundles CUDA —
+# ~2.5 GB of it — for a container that will never see a GPU. Same version as
+# the workstation, minus the nvidia payload.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+        torch==2.6.0
+
+COPY deploy/requirements-api.txt /tmp/requirements-api.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-api.txt && rm /tmp/requirements-api.txt
+
+WORKDIR /app
+COPY bin/ /app/bin/
+COPY web/ /app/web/
+
+# Where the 0.6B embedding model is cached. Mount a volume here or the model
+# is re-downloaded on every container recreation — ~1.2 GB, and the first
+# reader waits for it.
+ENV HF_HOME=/models
+RUN mkdir -p /models && chown -R nobody:nogroup /models
+
+# The query encoder runs on the CPU here. This variable is load-bearing: with
+# it unset, retrieve.DEVICE falls back to cuda:1, the model fails to load, and
+# tools.warm() swallows the failure by design — leaving a server that answers
+# every request with BM25-only search and says so in one line of stderr.
+# Measured on CPU: 72 ms per query encode, 375 ms for a full hybrid search.
+ENV PASCO_EMBED_DEVICE=cpu
+
+# Unbuffered, so `docker logs` shows the startup lines as they happen rather
+# than when the pipe fills. The dense-retrieval line is the one to check.
+ENV PYTHONUNBUFFERED=1
+
+USER nobody
+EXPOSE 8765
+
+# 0.0.0.0 because a container's peer is never loopback. This does NOT open the
+# admin console: admin.py refuses any non-loopback peer and any request wearing
+# a forwarding header, and the edge 404s /api/admin as well (gotcha 94).
+CMD ["python", "web/server.py", "--host", "0.0.0.0", "--port", "8765"]

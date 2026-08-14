@@ -48,12 +48,12 @@ def retrieve():
     return _retrieve
 
 
-def warm(device="cuda:1"):
+def warm(device=None):
     """Load the embedding model. Called at startup so the first reader does
     not pay for it; a failure here is not fatal, it costs the dense arm."""
     global _dense_error
     try:
-        retrieve().model(device)
+        retrieve().model(device)      # device=None -> retrieve.DEVICE
         _dense_error = None
     except Exception as e:                                   # noqa: BLE001
         _dense_error = f"{type(e).__name__}: {e}"

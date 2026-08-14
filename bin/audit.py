@@ -1033,6 +1033,49 @@ def _(con):
         "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
 
+# The other half of the guarantee. The three checks above say the address is
+# gone from everything a reader can reach; these two say it is still in the
+# record, and that what is published is exactly derivable from it.
+#
+# That is the whole point of `text_raw`: a redaction removes an address from
+# what the archive PUBLISHES without editing what the recogniser heard. If the
+# raw column were quietly rewritten too, a revert would have nothing to
+# recompute from and the archive would have destroyed part of the record to
+# protect somebody - which is not the trade anyone agreed to.
+
+
+@check("redaction.raw_preserved",
+       "the ASR still holds what a redaction removed from the publication")
+def _(con):
+    q = """FROM redaction r JOIN utterances u
+             ON u.video_id = r.video_id AND u.idx = r.idx
+           WHERE r.status = 'applied'
+             AND position(r.span in COALESCE(u.text_raw, '')) = 0"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"""
+        SELECT r.id, r.video_id, r.idx, left(r.span, 40) AS span {q} LIMIT 5""", \
+        "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
+
+
+@check("utterances.published_is_derived",
+       "an utterance with nothing applied to it publishes its ASR unchanged")
+def _(con):
+    # Stated over the 295,000 lines that have NO applied redaction, where the
+    # two columns must be identical. Those are the rows where a stray write to
+    # `text` would hide - the ones with a redaction are covered by the three
+    # checks above, and between them the pair pins down every line in the
+    # archive. text_raw IS NULL is a violation too: it means an ingest wrote
+    # the publication without recording what it was derived from.
+    q = """FROM utterances u
+           WHERE NOT EXISTS (SELECT 1 FROM redaction r
+                              WHERE r.video_id = u.video_id AND r.idx = u.idx
+                                AND r.status = 'applied')
+             AND (u.text_raw IS NULL OR u.text_raw <> u.text)"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"""
+        SELECT u.video_id, u.idx, left(u.text, 50) AS published,
+               left(COALESCE(u.text_raw, '(null)'), 50) AS raw {q} LIMIT 5""", \
+        "SELECT COUNT(*) FROM utterances"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")

@@ -253,14 +253,22 @@ def index_video(con, video_id, utterances):
     No FTS table to keep in step: utterances.tsv is a generated column, so the
     keyword index cannot drift from the text the way an explicitly maintained
     one could.
+
+    Both text columns are written here, with the same value, and this is the
+    ONLY place `text_raw` is ever written. It is the recogniser's output;
+    `text` is what the archive publishes, and after a redaction is applied the
+    two differ by the addresses that came out (bin/redact.py: republish). A
+    re-transcribe therefore resets both - which is correct, it is new ASR -
+    and `redaction.gone_from_transcript` in the audit is what catches any
+    applied redaction that a re-transcribe undid.
     """
     with con.cursor() as cur:
         cur.execute("DELETE FROM utterances WHERE video_id = %s", (video_id,))
         with cur.copy('COPY utterances (video_id, idx, start, "end", speaker, '
-                      'text) FROM STDIN') as cp:
+                      'text, text_raw) FROM STDIN') as cp:
             for i, u in enumerate(utterances):
                 cp.write_row((video_id, i, u["start"], u["end"],
-                              u.get("speaker"), u["text"]))
+                              u.get("speaker"), u["text"], u["text"]))
     con.commit()
 
 

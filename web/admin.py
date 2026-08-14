@@ -67,9 +67,43 @@ def init(root):
     return _token_path
 
 
+# Headers only a proxy adds. `x-forwarded-host` is deliberately NOT here: the
+# app's own Next rewrite adds that one on every request, including the
+# operator's on this machine, so treating it as evidence would lock the console
+# out of its own front end. Measured, not assumed - a local Next rewrite sends
+# x-forwarded-host and nothing else, and passes an incoming x-forwarded-for and
+# x-real-ip straight through.
+PROXIED = ("x-forwarded-for", "x-real-ip", "forwarded")
+
+
 def loopback(handler):
+    """Is this request genuinely from this machine?
+
+    The peer address alone cannot answer that, and believing it was the whole
+    of gotcha 94. `client_address` is the TCP peer, so ANY reverse proxy makes
+    every request on earth look like 127.0.0.1 - and this app ships with one,
+    the `/api/:path*` rewrite in ui/next.config.ts. Verified before the fix:
+    `/api/admin/session` answered 200 through the public origin and
+    `POST /api/admin/login` reached the handler and validated tokens.
+
+    So two conditions, and they answer different questions. The peer must be
+    loopback, which rules out anyone reaching the port directly. And the
+    request must carry no forwarding header, which rules out anyone who came
+    through a proxy that put itself in the peer slot. A genuinely local client
+    sends neither.
+
+    This is why it does not consult ASK_TRUST_PROXY: that flag says "believe
+    the forwarded address for rate limiting", which is a statement about
+    counting requests. Admin is not counting anything - for admin, the presence
+    of the header is itself the disqualifying fact.
+
+    The operator still reaches the console the documented way: on the machine,
+    or over an SSH tunnel to it, where no proxy sits in between.
+    """
     ip = handler.client_address[0]
-    return ip == "::1" or ip.startswith("127.")
+    if not (ip == "::1" or ip.startswith("127.")):
+        return False
+    return not any(handler.headers.get(h) for h in PROXIED)
 
 
 def session_of(handler):
@@ -469,17 +503,72 @@ def decide(con, override_id, decision):
     return out
 
 
+# ------------------------------------------------- the two legacy writers
+#
+# Recovered from web/api.py when that module was deleted (gotcha 95) and put
+# here, because `label()` and `ignore()` below are their only callers and have
+# been since /admin replaced the workbench. They are unchanged in behaviour -
+# same SQL, same return shapes - so a caller cannot tell the difference.
+#
+# `apply_label` covers assign, split and merge in one call: the only thing that
+# differs is which voices the caller selected. An empty name clears the label,
+# which is how a wrong one is taken back.
+
+
+def _apply_label(con, members, name, note):
+    """Assign `name` to the given [(video_id, local_label), ...]."""
+    with con.cursor() as cur:
+        if name:
+            cur.executemany(
+                "INSERT INTO speaker_label (video_id, local_label, name, note)"
+                " VALUES (%s,%s,%s,%s)"
+                " ON CONFLICT (video_id, local_label) DO UPDATE SET"
+                " name=EXCLUDED.name, note=EXCLUDED.note, labeled_at=now()",
+                [(v, l, name, note) for v, l in members])
+            cur.executemany(
+                "UPDATE speaker_identity SET name=%s, confidence=1.0"
+                " WHERE video_id=%s AND local_label=%s",
+                [(name, v, l) for v, l in members])
+        else:
+            cur.executemany(
+                "DELETE FROM speaker_label"
+                " WHERE video_id=%s AND local_label=%s", members)
+            cur.executemany(
+                "UPDATE speaker_identity SET name=NULL, confidence=NULL"
+                " WHERE video_id=%s AND local_label=%s", members)
+    con.commit()
+    return {"name": name, "voices": len(members)}
+
+
+def _ignore_voices(con, members, reason, undo):
+    """Mark voices as not worth naming, or restore them."""
+    with con.cursor() as cur:
+        if undo:
+            cur.executemany(
+                "DELETE FROM speaker_ignore"
+                " WHERE video_id=%s AND local_label=%s", members)
+        else:
+            cur.executemany(
+                "INSERT INTO speaker_ignore (video_id, local_label, reason)"
+                " VALUES (%s,%s,%s)"
+                " ON CONFLICT (video_id, local_label) DO UPDATE SET"
+                " reason=EXCLUDED.reason, at=now()",
+                [(v, l, reason) for v, l in members])
+    con.commit()
+    return {"ignored": 0 if undo else len(members),
+            "restored": len(members) if undo else 0}
+
+
 def label(con, body):
     """Whole-voice grain: speaker_label, the human statement about a
-    (video_id, local_label). Reuses the legacy writer, then does what it
+    (video_id, local_label). Writes the label, then does what the workbench
     never did - reach the index."""
-    import api
     members = [tuple(m) for m in body.get("members", [])]
     if not members:
         raise AdminError("members required: [[video_id, local_label], ...]")
     name = (body.get("name") or "").strip() or None
     name, normalized = canonical_name(con, members[0][0], name)
-    out = api.apply_label(con, members, name, body.get("note"))
+    out = _apply_label(con, members, name, body.get("note"))
     if normalized:
         out["normalized"] = normalized
     for vid in dict.fromkeys(v for v, _ in members):
@@ -491,12 +580,11 @@ def ignore(con, body):
     """This voice is not a person worth naming (music, noise, crosstalk).
     Changes no resolved name - speaker_ignore only removes the voice from
     the triage queues - so no re-index is needed."""
-    import api
     members = [tuple(m) for m in body.get("members", [])]
     if not members:
         raise AdminError("members required: [[video_id, local_label], ...]")
-    return api.ignore_voices(con, members, body.get("reason"),
-                             bool(body.get("undo")))
+    return _ignore_voices(con, members, body.get("reason"),
+                          bool(body.get("undo")))
 
 
 # --------------------------------------------------- re-derivation (§9.2)
@@ -890,3 +978,186 @@ def job_start(con, name, paid_ok=False):
         cwd=ROOT, start_new_session=True,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return {"started": name}
+
+
+# --------------------------------------------------------------- redaction
+#
+# The queue for members of the public's home addresses (D3). `bin/redact.py`
+# proposes them with a model and applies them safely; what it had no way to do
+# was let a person LOOK before 3,439 edits land on the public record.
+#
+# Why a person has to be in this loop at all, when the classifier is good: the
+# two ways it can be wrong are not symmetrical, and neither shows up in a count.
+# Redacting too little exposes somebody's home. Redacting too much deletes the
+# substance of a land-use hearing - "access to the site is from Clinton Avenue"
+# is the matter under discussion, not a residence - and that damage is silent,
+# because a reader cannot miss what is no longer there. So the queue shows the
+# whole line with the span marked inside it, and the line before, because
+# "3877 Alder Creek Loop" alone does not say which of the two it is and the
+# sentence around it usually does.
+
+
+def redactions(con, status="proposed", limit=50, offset=0, video=None):
+    """One page of the queue, with enough around each span to judge it."""
+    limit = max(1, min(int(limit), 200))
+    where, args = ["r.status = %s"], [status]
+    if video:
+        where.append("r.video_id = %s")
+        args.append(video)
+    clause = " AND ".join(where)
+
+    total = con.execute(
+        f"SELECT COUNT(*) FROM redaction r WHERE {clause}", args).fetchone()[0]
+    rows = con.execute(f"""
+        SELECT r.id, r.video_id, r.idx, r.span, r.kind, r.status, r.author,
+               COALESCE(u.text_raw, u.text)     AS text,
+               u.start, u.speaker,
+               COALESCE(prev.text_raw, prev.text) AS prev_text,
+               v.title, v.meeting_id,
+               mt.date                          AS meeting_date,
+               mt.body                          AS meeting_body,
+               p.phase
+          FROM redaction r
+          JOIN utterances u
+            ON u.video_id = r.video_id AND u.idx = r.idx
+          LEFT JOIN utterances prev
+            ON prev.video_id = r.video_id AND prev.idx = r.idx - 1
+          JOIN videos v ON v.id = r.video_id
+          LEFT JOIN meetings mt ON mt.id = v.meeting_id
+          LEFT JOIN passages p
+            ON p.video_id = r.video_id
+           AND p.start_idx <= r.idx AND p.end_idx >= r.idx
+         WHERE {clause}
+         ORDER BY r.video_id, r.idx, r.id
+         LIMIT %s OFFSET %s""", args + [limit, int(offset)]).fetchall()
+
+    out = []
+    for r in rows:                                      # positional: gotcha 13
+        # Indexed, never unpacked: db.Row is a Mapping, so tuple(r) hands back
+        # the COLUMN NAMES and every field below silently becomes a string
+        # (gotcha 13, which this walked into on the first run).
+        rid, video_id, idx, span, kind, st, author = (
+            r[0], r[1], r[2], r[3], r[4], r[5], r[6])
+        text, start, speaker, prev_text = r[7], r[8], r[9], r[10]
+        title, meeting_id, mdate, mbody, phase = (
+            r[11], r[12], r[13], r[14], r[15])
+        # Read from text_raw, not the published text. For a proposed row the two
+        # are identical; for an applied one `text` is already the marker, and a
+        # reviewer looking back at what was removed would be shown the removal
+        # rather than the thing removed.
+        #
+        # The span's position is sent, not just the span: the UI marks it in
+        # place rather than searching the text again and risking a different
+        # answer for a line that says the address twice.
+        at = text.find(span) if text and span else -1
+        out.append({
+            "id": rid, "video_id": video_id, "idx": idx, "span": span,
+            "kind": kind, "status": st, "author": author,
+            "text": text, "at": at, "start": start, "speaker": speaker,
+            "prev_text": prev_text, "phase": phase,
+            "video_title": title, "meeting_id": meeting_id,
+            "meeting_date": mdate, "meeting_body": mbody,
+            # Where a reviewer goes to hear it said, which is the only way to
+            # settle an ambiguous one.
+            "href": (f"/meeting/{meeting_id}?v={video_id}&t={int(start)}"
+                     if meeting_id and start is not None else None),
+        })
+
+    counts = {r[0]: r[1] for r in con.execute(
+        "SELECT status, COUNT(*) FROM redaction GROUP BY status").fetchall()}
+    return {"total": total, "limit": limit, "offset": int(offset),
+            "rows": out, "counts": counts}
+
+
+def redaction_decide(con, body):
+    """Accept or reject specific proposals, synchronously.
+
+    Accepting re-indexes each affected recording, so this is for the handful a
+    reviewer works through by hand - a page of fifty spanning fifty recordings
+    would sit here for three minutes. The whole queue goes through the job
+    below instead.
+    """
+    import redact
+    ids = [int(i) for i in body.get("ids", [])]
+    if not ids:
+        raise AdminError("ids required")
+    decision = (body.get("decision") or "").strip()
+    if decision == "reject":
+        with con.cursor() as cur:
+            cur.execute("UPDATE redaction SET status = 'rejected'"
+                        " WHERE id = ANY(%s) AND status = 'proposed'", (ids,))
+            n = cur.rowcount
+        con.commit()
+        return {"rejected": n}
+    if decision == "accept":
+        # Never in the request. Applying re-indexes every recording the batch
+        # touches, and a rebuild of one runs seconds - so even a single row can
+        # outlive a browser's patience, and 25 rows across 4 recordings did
+        # exactly that: the status flip committed, the re-index died with it,
+        # and the archive was left with the address gone from the transcript
+        # and still in the search index. The job owns the whole operation now,
+        # and the page follows it.
+        return _spawn_redact_job(con, ids)
+    if decision == "revert":
+        return {"reverted": redact.revert(con, ids)}
+    if decision == "reconsider":
+        # Back into the queue undecided. A rejected row cannot go straight to
+        # applied - apply() only ever reads 'proposed' - and that is the right
+        # shape: undoing a decision is not the same act as making the opposite
+        # one, and the queue is where decisions get made.
+        with con.cursor() as cur:
+            cur.execute("UPDATE redaction SET status = 'proposed'"
+                        " WHERE id = ANY(%s) AND status = 'rejected'", (ids,))
+            n = cur.rowcount
+        con.commit()
+        return {"reconsidering": n}
+    raise AdminError("decision must be accept, reject, revert or reconsider")
+
+
+def redaction_job_status(con):
+    """Progress of a bulk apply, in the shape the rederive panel uses."""
+    import redact_job
+    st = redact_job.read_status() or {"state": "never_run"}
+    if st.get("state") == "running" and not _alive(st.get("pid")):
+        st["state"] = "died"
+    st["proposed"] = con.execute(
+        "SELECT COUNT(*) FROM redaction WHERE status = 'proposed'").fetchone()[0]
+    try:
+        with open(redact_job.LOG) as f:
+            st["log_tail"] = f.readlines()[-20:]
+    except OSError:
+        st["log_tail"] = []
+    return st
+
+
+def _spawn_redact_job(con, ids=None):
+    """Start the detached runner, over `ids` or over everything proposed."""
+    import redact_job
+    import subprocess
+    st = redact_job.read_status()
+    if st and st.get("state") == "running" and _alive(st.get("pid")):
+        raise AdminError("a redaction run is already in progress")
+    if ids:
+        n = con.execute("SELECT COUNT(*) FROM redaction"
+                        " WHERE id = ANY(%s) AND status = 'proposed'",
+                        (list(ids),)).fetchone()[0]
+        if not n:
+            raise AdminError("none of those are still proposed")
+    else:
+        n = con.execute("SELECT COUNT(*) FROM redaction"
+                        " WHERE status = 'proposed'").fetchone()[0]
+        if not n:
+            raise AdminError("nothing is proposed - the queue is empty")
+    _refuse_if_busy(starting="redact")
+    cmd = [os.path.join(ROOT, "emb-venv", "bin", "python"),
+           os.path.join(ROOT, "bin", "redact_job.py"), "--apply-all"]
+    if ids:
+        cmd += ["--ids", *[str(int(i)) for i in ids]]
+    subprocess.Popen(cmd, cwd=ROOT, start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"started": "redact", "proposals": n}
+
+
+def redaction_apply_all(con, body=None):
+    """Spawn the detached runner over every remaining proposal."""
+    return _spawn_redact_job(con)

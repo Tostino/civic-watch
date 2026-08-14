@@ -21,16 +21,17 @@ pasco-meetings/
                         tools.py    the five retrieval tools (D9), also /api/tools
                         agent.py    the tool loop behind /api/ask
                         admin.py    the console's data layer and auth
+                        limits.py   what a public paid endpoint may spend
                         server.py   routing for all of the above
-                        api.py + *.html   the superseded hand-written pages
+                        (serves NO html: see gotcha 95)
   ui/                   the rebuilt front-end (Next 16, React 19, TypeScript)
   logs/                 worker logs
   asr-venv/             NeMo + Parakeet          (ASR)
   diar-venv/            pyannote                 (diarization)
   emb-venv/             sentence-transformers    (embeddings, agent, WEB SERVER)
 
-  catalog.sqlite        LEGACY. Pre-Postgres store, kept only as a fallback.
-  passages.npy          LEGACY. Vectors live in passages.embedding now.
+  (no catalog.sqlite, passages.npy or vec_cache.sqlite — deleted 2026-08-13,
+   811 MB of pre-Postgres stores. Nothing read them; see gotcha 95.)
 ```
 
 **Storage is Postgres 17 + pgvector 0.8.6**, database `pasco_meetings` in the
@@ -45,6 +46,84 @@ pins. The web server runs from `emb-venv` because the agent needs the embedding
 model in-process. All three carry `psycopg[binary]` and `pgvector`.
 
 ## Running it
+
+**The public domain is `pasco.watch`** (registered 2026-08-13, at Porkbun; not
+yet pointed anywhere). `SITE_URL` is set to `https://pasco.watch` in
+**`ui/.env.local`** — `ui/lib/site.ts` reads it and the sitemap, `robots.txt`,
+the canonical link and the Open Graph tags all derive from that one function.
+Nothing else should hardcode a host.
+
+It lived in `env.local.sh` until 2026-08-14 and **never reached the app**: that
+file is a shell script for the Python side, `npm --prefix ui run dev` sources
+nothing, and the running dev server's `/proc/<pid>/environ` held no `SITE_*` at
+all. The docs called it set for a day while every canonical link and all 1,255
+sitemap URLs still said `localhost:3000`. `SITE_CONTACT` and `ARCHIVE_API` moved
+with it for the same reason. **Config belongs in a file the consuming process
+reads by itself** — Next reads `.env.local` under dev, build and start alike,
+and a container's real environment still overrides it. Verify a variable at
+`/proc/<pid>/environ`, never by reading the file you think supplies it.
+
+Deliberately NOT `pascocountyfl.net`-shaped: that is the county's own domain,
+and this archive says on its own About page that it is not the official record.
+
+Two things change on the day it actually serves from there, both already built
+and neither automatic:
+
+- **`/admin` is unreachable from the internet, by design and now in two
+  layers** (gotcha 94): `admin.py` refuses any request whose peer is not
+  loopback OR which carries a forwarding header, and the edge returns 404 for
+  `/admin` and `/api/admin` (`deploy/nginx-proxy-manager.md`, Advanced tab). Reach the console over
+  an SSH tunnel - `ssh -N -L 3000:127.0.0.1:3000 <host>`, then
+  http://localhost:3000/admin - never by opening the port.
+- **Set `ASK_TRUST_PROXY=1` when a proxy goes in front**, or every request
+  arrives from 127.0.0.1, the per-address rate limit applies to the proxy, and
+  the whole internet shares one bucket (gotcha 89).
+
+**`ASK_DAILY_MAX` is 400, and it is a MONEY number rather than a traffic one.**
+Set by the maintainer on 2026-08-14, keeping the value that was already live.
+Priced against `deepseek-v4-flash` (2026-08-13: $0.0028/M cache-hit input,
+$0.14/M cache-miss, $0.28/M output), one question runs from about **$0.009 to
+$0.075** depending on how much the model reasons and how well the conversation
+prefix caches:
+
+| per question | $/q | 400 questions costs | holds $10/day at |
+|---|---|---|---|
+| typical — few turns, 2k output/turn, 80% cached | 0.009 | **$3.60** | 1,085/day |
+| heavy reasoning — 8k output/turn | 0.028 | $11.20 | 361/day |
+| heavy, and caching goes badly (50%) | 0.041 | $16.40 | 243/day |
+| pathological — 16k output/turn, 50% cached | 0.075 | $30.00 | 133/day |
+
+**So 400 is a ~$3.60/day expectation with a $30/day worst case, not a $10
+ceiling**, and that is the accepted trade: it buys a launch that does not tell
+visitors the archive is out of funding by noon. The row that would have held
+$10 at the top of the range is 130. Read the top row as what this actually
+costs and the bottom row as the exposure, and if the bill ever arrives near the
+bottom row, the fix is `max_tokens` rather than a smaller number — see below.
+
+An earlier version of this file said the value was 130. It never was; the
+change was reasoned about and never applied, so the document described an
+intention while `env.local.sh` and the running server both said 400. **A number
+in prose is not a setting.** Read it out of the environment.
+
+**The spread is 8x wide for one reason: nothing sets `max_tokens`.** Neither
+`ask.py` nor `agent.py` bounds output, and output is the expensive side. Cap it
+and the pathological row disappears, which is the move that makes 400 cheap at
+the top of the range as well as the bottom — the one lever that improves the
+worst case without serving fewer people. It is left alone deliberately
+- this is a REASONING model, `max_tokens` counts the reasoning as well as the
+answer, and a cap set too low buys a question that thinks and then never
+answers. Measure a real run's completion tokens before picking a number.
+
+Two smaller things, neither urgent:
+- Only ACCEPTED runs count against the daily total (gotcha 89), so a script
+  that keeps knocking cannot burn the budget with refusals.
+- `ASK_PER_IP=6` per 10 minutes lets ONE address take the whole day's 130 in
+  about three and a half hours. Fine while nobody knows the site exists; worth
+  a per-address daily cap if that changes.
+- From 2026-08-16 DeepSeek prices off-peak at half rate, and peak is
+  01:00-04:00 and 06:00-10:00 UTC - which is 9pm-midnight and 2-6am in Florida.
+  Almost all local daytime traffic is therefore half price. Upside, not a thing
+  to budget against: a ceiling must not depend on when the traffic arrives.
 
 ```bash
 source ./env.local.sh              # PASCO_DSN — every command below needs it
@@ -61,9 +140,8 @@ bin/catalog.py && bash bin/run.sh
 # weeks when the file was split across two repos (gotchas 87, 88).
 source ./env.local.sh
 ./emb-venv/bin/python web/server.py --port 8765
-#   /        research  — keyword search + transcripts   (superseded)
-#   /ask     agent     — natural language, SSE, cited   (superseded)
-#   /speakers workbench — name/split/merge voices       (superseded)
+#   JSON only. The five hand-written pages this used to serve are deleted
+#   (gotcha 95); "/" answers 404 saying so.
 
 # the rebuilt UI. Needs the API above running; it proxies /api to :8765.
 npm --prefix ui run dev            # http://localhost:3000
@@ -1438,9 +1516,10 @@ Numbered so code and comments can cite them, which several do — grep
       still says all of it in full, and is now one click from every page
       rather than one scroll to the bottom of every page.
 
-    `SITE_URL` and `SITE_CONTACT` are in `env.local.sh`. The /about page
-    states the correction promise whether or not an address is set, and never
-    offers a dead `mailto:`.
+    `SITE_URL` and `SITE_CONTACT` are in `ui/.env.local` (they were in
+    `env.local.sh`, where Next never saw them — see "Running it"). The /about
+    page states the correction promise whether or not an address is set, and
+    never offers a dead `mailto:`. `SITE_CONTACT` is set as of 2026-08-14.
 
 92. **The meeting page did not fit in a window, and every cause was a
     constant standing in for a measurement.** Reported by the maintainer as
@@ -1613,7 +1692,7 @@ Numbered so code and comments can cite them, which several do — grep
     would never have revealed it.** Recall is capped by CANDIDATE
     GENERATION - the model only ever adjudicates what the regex hands it - and
     the regex required digits. This is a machine transcript of speech, so the
-    ASR writes what it hears: "I reside at one four three eight two Ridgemont
+    ASR writes what it hears: "I reside at one four three eight two Ashmont
     Drive". Measured against an INDEPENDENT signal rather than the detector's
     own output: of 1,142 lines containing "I live at" or "my address is",
     **45% held no digit-address at all**. 1,480 lines carry a spelled-out
@@ -1710,11 +1789,321 @@ Numbered so code and comments can cite them, which several do — grep
     record lane sat at its darkest in 2015-2017. The API's ranking refuses to
     mix the two sources for exactly this reason; the label now agrees with it.
 
+94. **`admin.loopback()` does not survive a reverse proxy, and the whole admin
+    security model rests on it.** Found 2026-08-13 while getting ready to point
+    `pasco.watch` at this. The guard is
+
+        def loopback(handler):
+            ip = handler.client_address[0]
+            return ip == "::1" or ip.startswith("127.")
+
+    `client_address` is the TCP peer. Put ANY proxy in front - and `ui` already
+    is one, `next.config.ts` rewrites `/api/:path*` to the Python server - and
+    the peer is 127.0.0.1 for every request on earth. Reproduced end to end
+    against a real stack, not argued: through the web origin,
+    `/api/admin/session` answers **200** and `POST /api/admin/login` reaches
+    the handler and validates the token, refusing a wrong one with "that token
+    does not match this server". The door the file says "never leaves the
+    machine" opens onto the internet the moment DNS points here.
+
+    What is actually holding it: the token is `secrets.token_urlsafe(32)`, so
+    guessing is not the risk. The risks are that the documented invariant is
+    false, and that the session cookie carries **no `Secure` flag on purpose** -
+    the comment says "admin only ever answers on loopback, where the flag would
+    be a lie about the transport". Behind a public proxy that reasoning
+    inverts: the flag stops being a lie and starts being necessary.
+
+    HALF FIXED. The `/legacy/:path*` rewrite is deleted - it forwarded the
+    whole Python server, so `/legacy/speakers`, `/legacy/search`, `/legacy/ask`
+    and `/legacy/api/admin/session` all answered 200 through the public origin.
+    Its own comment justified it with "the surfaces this rebuild has not
+    reached yet (search, ask)", and both shipped as slices 3 and 4, so the
+    reason had been gone for a while. Verified after: all four now 404, and the
+    reading surfaces are untouched.
+
+    **RESOLVED 2026-08-13**, in two layers, because the app must not depend on
+    a deploy step nobody can see from the code.
+
+    `loopback()` now asks two questions rather than one. The peer must be
+    loopback, which rules out reaching the port directly; AND the request must
+    carry no `x-forwarded-for`, `x-real-ip` or `forwarded`, which rules out
+    anyone who came through a proxy that put itself in the peer slot. A
+    genuinely local client sends neither.
+
+    **What made that safe was measuring what the app's own proxy sends.** The
+    Next rewrite adds `x-forwarded-host` on every request INCLUDING the
+    operator's, and passes an incoming `x-forwarded-for` and `x-real-ip`
+    straight through. So `x-forwarded-host` is deliberately not in the list -
+    treating it as evidence would have locked the console out of its own front
+    end - and the other three cleanly separate "on the box" from "through
+    nginx". Guessing at that list rather than testing it would have shipped
+    either a hole or a lockout.
+
+    Verified on all four paths: loopback with no headers 200; each of the three
+    forwarding headers 403; the operator through the LOCAL Next proxy 200 for
+    both `session` and `login`, with the console rendering; and the same
+    request with `X-Forwarded-For` 403.
+
+    The edge is the second lock, and `deploy/nginx-proxy-manager.md` is the
+    first thing that has ever described this deployment: `/api/admin` and `/admin` return 404 (not 403 -
+    a refusal that distinguishes "exists but forbidden" tells a scanner which
+    hosts are worth another look), SSE buffering off for `/api/ask`, and the
+    `X-Forwarded-For` that `ASK_TRUST_PROXY=1` needs. The operator reaches the
+    console over an SSH tunnel, which is the one path with no proxy in it.
+
+    Note this was the same class of error as gotcha 89's `ASK_TRUST_PROXY`:
+    both are "the peer address stops meaning what it meant once something sits
+    in front".
+
+95. **The legacy UI and backend are deleted, and the thing keeping the biggest
+    piece alive was a test pointing at the wrong code.** 2026-08-13, at the
+    maintainer's direction: "any of the old legacy UI or backend need to go".
+
+    What went, and why each was safe:
+
+    - **`bin/ask.py`'s fixed pipeline** - `PLAN_SYS`/`READ_SYS`/`ANSWER_SYS`,
+      `plan`, `gather`, `who`, `official_record`, `LENSES`, `read_batch`,
+      `ask` and its CLI. 570 lines to 206. D9 retired it and slice 4 put
+      `web/agent.py` behind `/api/ask`, but it had one caller left:
+      **`bin/eval_votes.py --agent`**, whose help said "also run bin/ask.py".
+      So the project's pass/fail check for "can we reach the moment the board
+      decided" was measuring a code path no reader could reach, and STATE told
+      every returning session to run it. It runs `web/agent.py` now, and the
+      assertion got stricter with the change: the old pipeline returned
+      everything it retrieved, the agent returns only what it CITED.
+    - **`web/api.py` and five hand-written pages** - `search.html`,
+      `speakers.html`, `ask.html`, `item.html`, `case.html` - with the routes
+      that served them and `/api/agenda/*` and `/api/speakers/*` behind them.
+      Checked first that the rebuilt UI calls none of those endpoints; it does
+      not. `/admin` replaced the workbench in slice 6 with a data layer that
+      orders queues by impact, shows the evidence beside the write,
+      canonicalises a name to the surname and re-indexes per write - none of
+      which the old write endpoints did. Two write paths onto human judgement
+      was one too many.
+    - **`/legacy` leftovers**: the rewrite (gotcha 94), the `robots.txt`
+      disallow for it, and the `.away` CSS that marked the legacy nav links.
+
+    What stayed, and it matters: **the chat client**. `api_key`, `chat`,
+    `chat_raw` and `usage_report` are imported by `segment.py`,
+    `name_speakers.py`, `redact.py`, `web/agent.py` and `web/server.py`, and
+    the usage accounting is the only place this project measures what it
+    spends. Every symbol was checked for external callers before cutting.
+
+    **Three mistakes made doing it, all caught, all worth recording.**
+
+    1. **An infinite redirect on the API root.** Collapsing the dead page
+       routes left `if u.path in ("/", ...): return self._redirect("/")`. There
+       is no "/" on this server to send anyone to. It answers 404 with "this is
+       the archive's JSON API" now.
+
+    2. **`web/api.py` was deleted while `web/admin.py` still used it**, and the
+       grep that cleared it only looked at `server.py`. The console imports it
+       LAZILY, inside `label()` and `ignore()` - `import api` on a line of its
+       own, four levels indented, which no module-level import scan finds.
+       **Check for function-local imports before deleting a module**;
+       `grep -rn "import <name>"` catches them, `grep "^import"` does not.
+
+       Recovered from `web/__pycache__/api.cpython-312.pyc`: bytecode keeps
+       every string constant, so `dis` gave back the exact SQL, and the
+       disassembly gave the control flow and both return shapes. The two
+       functions live in `admin.py` now as `_apply_label` and `_ignore_voices`,
+       which is where they belonged - the console has been their only caller
+       since slice 6.
+
+    3. **Test data was committed to production while proving the recovery.**
+       The round-trip ran inside `db.connect(autocommit=False)` and ended with
+       `con.rollback()`, which looked safe and was not: both writers call
+       `con.commit()` themselves, so the rollback had nothing left to undo. It
+       left one `speaker_label` row named "Testonly" and overwrote one
+       `speaker_identity` row - `-lTQvMQ1GzQ / SPEAKER_08`, cluster 291.
+       Removed, and the voice restored to `Grey / 1.0 / chair` from what all
+       140 of its chair-anchored siblings carry, so the restore is a
+       measurement rather than a guess. Audit back to 0 failing of 45.
+
+       **A function that commits cannot be tested by wrapping it in a
+       transaction.** Use the sandbox (gotcha 80), which exists for exactly
+       this and which I did not reach for.
+
+    **The pre-Postgres stores are deleted too** - 811 MB, at the maintainer's
+    direction, after opening each one and comparing it to the live archive
+    rather than trusting the word LEGACY in a comment:
+
+    - `catalog.sqlite` + WAL (287 MB): 19 tables, and a snapshot from MID
+      INGEST - 175,289 utterances against today's 298,737, 62,779 passages
+      against 167,225. Every table a strict subset. The only irreplaceable rows
+      in it were **59 human speaker labels, and all 59 are in Postgres**,
+      checked by `(video_id, local_label, name)`.
+    - `passages.npy` (245 MB): 62,779 x 1024 float32, positional - row i was
+      passage id i. Doubly obsolete: Postgres holds 167,225 passages all
+      embedded at the same width, and ids are reassigned on every rebuild
+      (gotcha 10) so these could not be matched back even in principle.
+    - `vec_cache.sqlite` (279 MB): **orphaned, and I had recommended keeping
+      it.** Every `vec_cache` reference in the code is a POSTGRES query -
+      `con.execute("SELECT h, v FROM vec_cache …")` with `%s` placeholders. The
+      live cache is the PG table at 467,031 rows / 2,544 MB. Nothing had opened
+      the file in a long time. A filename matching a live table name is not
+      evidence that the file is the live thing.
+    - `bin/migrate_to_pg.py`: the one-shot that did the cutover. Its inputs no
+      longer exist, and a migration that has run is a script that can only do
+      harm if it runs again.
+
+    What made this safe to do rather than to defer: **all 432 videos still have
+    `transcript.json`, `audio.flac` and `diarization.json` under `data/`**, 111
+    GB of them. Postgres is not the only copy of the ASR, so the worst case is
+    a rebuild rather than a loss. Audit still 0 failing of 45 afterwards.
+
+
+96. **Two audits of the redaction detector said it was broken. Both were the
+    audit.** 2026-08-14, reviewing 3,439 proposals before launch.
+
+    - **"24 spans are just a city name, they leave the address behind."** They
+      do not. Every one is PAIRED with its own street span on the same line -
+      `[13738 Wexford Avenue]` + `[Hudson Beach]` - because the line reads
+      "13738 Wexford Avenue **in** Hudson Beach" and the prompt demands a span
+      holding only the address. One contiguous span would have to swallow the
+      connective, so splitting is the only correct move available.
+    - **"A re-run reproduces only 147 of 164 spans - a 10% variance floor."**
+      Comparing spans as exact STRINGS. By character-range overlap it is 161
+      of 164, **1.8%**, and one of the three survivors is the re-run correctly
+      declining a business address the production run had wrongly proposed.
+      The difference was trailing periods: `[3204 Ravenswood Drive.]` versus
+      `[3204 Ravenswood Drive]`.
+
+    A prompt rewrite was built on the first diagnosis and A/B'd against the
+    old prompt, two runs each, over 5 known-issue and 5 known-good sections.
+    It gained recall on **zero** of six known misses, and the worst miss found
+    (`31251 Ashmont Road`, absent from production) was caught by BOTH re-runs of
+    the UNCHANGED prompt - so that miss was variance, not wording. Reverted.
+
+    **SCORE COVERAGE, NEVER STRING COUNTS.** A span set is right when the
+    address is gone from the text, so measure the fraction of each labelled
+    address the proposals actually cover. String equality punishes a trailing
+    period; string COUNTING rewards fragmentation, because two spans covering
+    one address count double. `redact.py --sections` prints `found N` as
+    distinct strings and it is not a quality number.
+
+    **Ground truth is `eval/truth_6680.json`** - section 6680 hand-labelled
+    from the full text, 32 residences plus a `must_not_be_proposed` list, all
+    spans verified verbatim. It is the hardest section in the archive: a clerk
+    reads a 13-name roster, the mic fails, and he reads the whole roster again
+    with different ASR (`4651-Ellerbee Drive` -> `4651 Ellerby Drive`), so every
+    household must be caught twice; one address is split across lines 72/73.
+    Production scores **31/32 with zero false positives** against it.
+
+    That is what produced `--passes N`, now defaulting to 2: one pass leaves
+    4 of 32 addresses in, two removes all 32, three adds nothing. Without a
+    labelled section, each variant gets scored against the previous variant's
+    output, which is how two wrong diagnoses survived in one evening.
+
+**The address queue is built** (`/admin/redactions`, R9.7). `bin/redact.py` had
+proposed **3,439** removals and applied **one**; the machinery was finished and
+had no front door, so the addresses were still live and still searchable on a
+site about to get a domain. What it needed was not more classifier - it was a
+person able to look.
+
+- **`web/admin.py: redactions()`** serves the queue with what a decision
+  actually needs: the whole utterance, the span's OFFSET inside it (not the
+  span alone - a line that states an address twice would otherwise highlight
+  the wrong one), the line BEFORE, the phase, and a link to the moment. The
+  line before is the workhorse: "Mr. Park, please state your name and address
+  for the record" tells you this is a residence and not a road, without
+  playing anything.
+- **Bulk apply is a detached job** (`bin/redact_job.py`, the shape
+  `rederive.py` established). Applying re-indexes each affected recording -
+  370 of them at ~4s - so a request would have timed out long before it
+  finished. Progress counts RECORDINGS, which is where the time actually goes;
+  counting the 3,439 would have stalled visibly at every re-index. One bad
+  recording is logged and skipped rather than stranding the other 369, and its
+  proposals stay `proposed` so a retry picks them up.
+- Per-row accept is capped at 25 and says why. Reject is instant - it writes no
+  transcript.
+- **Three lists, not one queue**: to review, removed, kept, each with its count,
+  and every decision reversible from the page - a removal can be put back, a
+  keep reconsidered. The first build showed only what was undecided, which
+  meant no way to check your own work or undo it; that is the same defect the
+  split-voice queue had before it grew a ledger (R9.5). A queue is one-way only
+  if you build it that way.
+- A removed row still shows the ASR line with the address marked, read from
+  `text_raw` (gotcha 97). Showing it the published text would show the reviewer
+  the marker instead of the thing the decision was about.
+
+Verified against the live 3,439: queue renders with the span marked and the
+prior line beneath the meeting, selection bar sticks, a reject round-trips and
+the queue refills, counts update, 0 horizontal overflow at 375px, and the
+highlight carries a border as well as a tint so it survives greyscale. The test
+rejection was restored; the archive is as it was.
+
+**Signing the browser in for that check needed care worth recording.** The
+startup token is deliberately unreadable - `init()` returns the path, never the
+value - and reading it was refused, correctly. The way through was not to work
+around that: a throwaway server on a spare port seeded a KNOWN session id into
+its own in-process table, and the browser was given that. The real token was
+never handled. If you need to verify an authenticated screen, do that rather
+than teaching yourself to read the secret.
+
+97. **Redaction stopped destroying the transcript.** At the maintainer's
+    direction: "I'd rather it layer on top of the transcription data rather
+    than replace it." It used to `UPDATE utterances SET text = replace(...)`,
+    so the address was gone from the archive and `redaction.before_text` was
+    the only copy of what had been said.
+
+    Now `utterances` carries two columns:
+
+        text_raw   what the recogniser produced. Written once, by
+                   db.index_video, and by nothing else ever.
+        text       what the archive PUBLISHES: text_raw with the applied spans
+                   replaced. A pure function of the two, recomputed by
+                   redact.republish().
+
+    **The first design attempt was wrong and the reason is worth keeping.** The
+    obvious move is a view: keep `utterances.text` pristine and redact at read
+    time. It cannot work, because `utterances.tsv` is `GENERATED ALWAYS AS
+    (to_tsvector('english', text))` with a GIN index over it, and passages carry
+    their own copy of the words plus BM25 postings and a 1024-dimension
+    embedding. **You cannot overlay an index.** A vector computed from a string
+    containing an address encodes it for ever, and no read-time filter reaches
+    back into it. So the published value has to be a real column that
+    everything derives from, and the raw one is simply never indexed and never
+    read by a reader-facing query.
+
+    A view would also have been fail-OPEN: ~35 places read utterance text, and
+    missing one leaks an address silently. Two columns where the SHORT name is
+    the safe one means a forgotten reader inherits the redacted value. That
+    property is why the destructive design was defensible in the first place,
+    and it survives the change.
+
+    Three things got better on the way:
+
+    - **Revert no longer trusts `before_text`.** It recomputes from `text_raw`,
+      so the original is recovered rather than restored from a copy taken at
+      apply time. `before_text` is now a record of what a decision changed.
+    - **Redactions compose.** Two addresses on one line used to need applying
+      and reverting in a set order to land on the right text. The answer no
+      longer depends on order.
+    - **A re-transcribe resets both columns**, which is correct - it is new ASR
+      - and `redaction.gone_from_transcript` is what catches an applied
+      redaction that a re-transcribe undid.
+
+    **Two new invariants, and both were proved RED in the sandbox before being
+    trusted green** (gotcha 81's rule, and gotcha 80's about where to prove it):
+
+        redaction.raw_preserved           rewrite text_raw under an applied
+                                          redaction -> FAIL, 1 violation
+        utterances.published_is_derived   edit `text` on an unredacted line, or
+                                          NULL its text_raw -> FAIL, 2
+
+    The second is stated over the ~295,000 lines with NO applied redaction,
+    where the columns must be identical - those are the rows where a stray
+    write would hide, and the three older checks cover the redacted ones. 47
+    checks now, 0 failing on production, which was never touched by the proof.
+
 ## Postgres, and what to watch out for
 
-Migrated off SQLite in one cutover. `bin/migrate_to_pg.py` did it and is kept
-for the record; it verified every row count and proved the 62,779 embeddings
-transferred with max absolute drift of exactly 0.
+Migrated off SQLite in one cutover. `bin/migrate_to_pg.py` did it, verifying
+every row count and proving the 62,779 embeddings transferred with max absolute
+drift of exactly 0. **The script is deleted** (2026-08-13) along with the stores
+it read: a one-shot migration that has run, whose source is gone, cannot be
+re-run by accident against an archive that is now three times the size.
 
 The parts that needed judgement rather than translation:
 
@@ -1805,7 +2194,9 @@ Kept, because each is unrecoverable or expensive: `utterances` (the ASR itself,
 `speaker_ignore` (human judgement), `portal_events` / `portal_files` (the
 county's documents as fetched - re-pullable in principle, ~2,000 requests
 against someone else's server that is free to withdraw a document), and
-**`vec_cache`** - 454,403 embeddings keyed by content hash, which is the single
+**`vec_cache`** - a POSTGRES table, 467,031 embeddings keyed by content hash
+(the `vec_cache.sqlite` file of the same name was an orphaned older copy and is
+deleted), which is the single
 reason a full rebuild costs twenty minutes instead of hours.
 
 Dropped and rebuilt: meetings, agenda items, cases, segments, spans, roster,
@@ -2454,6 +2845,7 @@ archives got right). The pipeline work below is what remains independent of it.
    under "Three doors" above. Order: forward time (a cron job, not an
    extractor), then money (deterministic, do not sum), then votes (blocked on
    the roll-call split).
+
 10. **Split the merged roll-call utterances.** 897 of them contain the clerk's
     call and the member's answer in one row. Blocks the votes table, and is
     why the clerk wears a commissioner's name in 170 voices.

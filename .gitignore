@@ -1,5 +1,9 @@
 env.local.sh
 .admin_token
+# Ground truth is LABELLED CORPUS DATA: real names beside real home addresses,
+# which is the exact thing redact.py exists to remove. It lives on disk and is
+# never committed, same as data/ and logs/. See STATE.md gotcha 96.
+eval/truth_*.json
 env.local.sh.bak
 *.dump
 *.dump.gz

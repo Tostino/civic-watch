@@ -1,0 +1,41 @@
+# The reading surfaces — Next 16, standalone output.
+#
+# Build from the REPOSITORY ROOT, not from deploy/:
+#     docker build -f deploy/Dockerfile.ui -t civic-watch-ui .
+#
+# The image is GENERIC. SITE_URL and SITE_CONTACT are read at run time, never
+# baked, which is what lets one image serve pasco.watch and hillsborough.watch.
+# `.dockerignore` excludes ui/.env.local for exactly this reason: Next reads
+# .env files during `next build`, so leaving it in the context would bake one
+# county's domain into the image.
+
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY ui/ ./
+# next.config.ts sets output: "standalone", which traces the server's actual
+# imports and emits a self-contained bundle — the runtime stage then carries no
+# node_modules at all.
+RUN npm run build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+EXPOSE 3000
+# HOSTNAME must be 0.0.0.0: the standalone server binds localhost otherwise and
+# nothing outside the container can reach it.
+ENV PORT=3000 HOSTNAME=0.0.0.0
+
+CMD ["node", "server.js"]

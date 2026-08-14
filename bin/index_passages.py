@@ -356,6 +356,70 @@ def refresh_video(con, video_id, device="cuda:1", verbose=True):
     return len(changed)
 
 
+def rebuild_video(con, video_id, device="cuda:1", verbose=True):
+    """Rebuild one recording's passages when the BOUNDARIES may have moved.
+
+    `refresh_video` above is the cheap path and REFUSES if the ranges shift,
+    because for a name correction a shift means something upstream broke. A
+    redaction shifts them legitimately: taking an address out shortens the
+    line, and a passage that drops under the indexing floor stops existing.
+    Measured on the first real batch - 576 stored against 574 rebuilt, and
+    `refresh_video` correctly refused, which left the transcript redacted while
+    the passages still carried the address. That half-state is the reason this
+    exists.
+
+    Passage ids are reassigned. That is already true of every full rebuild
+    (gotcha 10) and nothing outside the index stores one; the BM25 postings for
+    the old ids are dropped by passing them to bm25_refresh alongside the new.
+    """
+    fresh = build_passages(con, video_id)
+    attach_items(con, fresh)
+    fresh = indexable(fresh)
+
+    old_ids = [r[0] for r in con.execute(
+        "SELECT id FROM passages WHERE video_id = %s", (video_id,))]
+    # vec_cache is keyed on the exact string, so the passages a redaction did
+    # not touch cost nothing to re-embed.
+    vecs = embed(con, [p["search_text"] for p in fresh], device) if fresh else []
+    base = (con.execute(
+        "SELECT COALESCE(MAX(id), 0) FROM passages").fetchone()[0] or 0) + 1
+
+    rows, keyrows, new_ids = [], [], []
+    for i, p in enumerate(fresh):
+        pid = base + i
+        new_ids.append(pid)
+        rows.append((pid, p["video_id"], p["start"], p["end"], p["speaker"],
+                     p["cluster"], p["text"], p["search_text"],
+                     p["agenda_item_id"], p["phase"],
+                     vecs[i] if vecs is not None and len(vecs) else None,
+                     p["start_idx"], p["end_idx"]))
+        for kind, key in threads.global_keys(p["search_text"]):
+            keyrows.append((pid, kind, key))
+
+    with con.cursor() as cur:
+        if old_ids:
+            # No foreign key on passage_keys, so nothing cascades.
+            cur.execute("DELETE FROM passage_keys WHERE passage_id = ANY(%s)",
+                        (old_ids,))
+            cur.execute("DELETE FROM passages WHERE video_id = %s", (video_id,))
+        if rows:
+            cur.executemany(
+                'INSERT INTO passages (id, video_id, start, "end", speaker, '
+                'cluster, text, search_text, agenda_item_id, phase, embedding, '
+                'start_idx, end_idx) '
+                'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)', rows)
+            with cur.copy("COPY passage_keys (passage_id, kind, key) "
+                          "FROM STDIN") as cp:
+                for row in keyrows:
+                    cp.write_row(row)
+        cur.execute("CALL bm25_refresh(%s)", (old_ids + new_ids,))
+    con.commit()
+    if verbose:
+        print(f"rebuilt {len(rows)} passages for {video_id} "
+              f"(was {len(old_ids)})")
+    return len(rows)
+
+
 def embed(con, texts, device="cuda:1"):
     """Embed, reusing vectors for any text seen in a previous run.
 

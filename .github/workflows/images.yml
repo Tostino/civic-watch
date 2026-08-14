@@ -1,0 +1,72 @@
+name: images
+
+# Builds the two runtime images and pushes them to GHCR. Postgres is not built
+# here — it is stock pgvector/pgvector:pg18 (deploy/postgres-unraid.md).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "bin/**"
+      - "web/**"
+      - "ui/**"
+      - "deploy/Dockerfile.*"
+      - "deploy/requirements-api.txt"
+      - ".dockerignore"
+      - ".github/workflows/images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: civic-watch-api
+            dockerfile: deploy/Dockerfile.api
+          - name: civic-watch-ui
+            dockerfile: deploy/Dockerfile.ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # Lowercase, hardcoded. GHCR rejects an uppercase path, and
+          # `github.repository_owner` is "Tostino" — using it directly here is
+          # the classic way this workflow fails on its first run.
+          images: ghcr.io/tostino/${{ matrix.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+
+      - uses: docker/build-push-action@v6
+        with:
+          # Context is the repo root: Dockerfile.api copies bin/ and web/,
+          # Dockerfile.ui copies ui/. Both are built from the root, never from
+          # deploy/.
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # amd64 only. The Unraid box is x86, and adding arm64 to the API
+          # image means emulating a torch install, which is slow enough to
+          # dominate the whole run.
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

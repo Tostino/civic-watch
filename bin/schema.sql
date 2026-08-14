@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS utterances (
     start       double precision NOT NULL,
     "end"       double precision NOT NULL,
     speaker     text,
+    -- What the archive PUBLISHES. Equal to text_raw until a redaction is
+    -- applied, after which it is text_raw with the addresses replaced by a
+    -- marker (bin/redact.py: republish). Everything derived comes from this
+    -- column: tsv below, and passages with their BM25 postings and embeddings.
     text        text    NOT NULL,
     cluster     integer,
     local_label text,
@@ -48,6 +52,12 @@ CREATE TABLE IF NOT EXISTS utterances (
     tsv         tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
     PRIMARY KEY (video_id, idx)
 );
+-- The recogniser's own words, written once by db.index_video and never again.
+-- A redaction removes an address from what is published without destroying
+-- what was transcribed, so a revert recomputes rather than trusting a copy
+-- taken at the time. Deliberately not indexed and deliberately not read by any
+-- reader-facing query: it is the record, not the publication.
+ALTER TABLE utterances ADD COLUMN IF NOT EXISTS text_raw text;
 CREATE INDEX IF NOT EXISTS utt_video   ON utterances (video_id, start);
 CREATE INDEX IF NOT EXISTS utt_cluster ON utterances (cluster);
 CREATE INDEX IF NOT EXISTS utt_tsv     ON utterances USING gin (tsv);

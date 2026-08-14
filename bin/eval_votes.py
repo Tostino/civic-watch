@@ -15,7 +15,18 @@ reassigned on every index rebuild, so a hard-coded id silently starts pointing
 at a different passage as the archive grows.
 
     bin/eval_votes.py            rank of each target under several phrasings
-    bin/eval_votes.py --agent    also run the full agent and print its answer
+    bin/eval_votes.py --agent    also run the agent that serves /ask, and check
+                                 the vote reached the evidence it cited
+
+`--agent` used to run `bin/ask.py`'s fixed pipeline, which D9 retired and which
+stopped serving `/ask` when slice 4 shipped. It was therefore green about a
+code path no reader could reach, while the agent that does serve them went
+unchecked. It runs `web/agent.py` now.
+
+Note the assertion got STRICTER with that change, on purpose. The old pipeline
+returned everything it retrieved; the agent returns only what it CITED, which
+is the honest question - an answer that had the vote in front of it and did not
+use it has not really found it.
 """
 import argparse
 import sys
@@ -46,7 +57,8 @@ def locate(con, video_id, at):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--agent", action="store_true", help="also run bin/ask.py")
+    ap.add_argument("--agent", action="store_true",
+                    help="also run web/agent.py, the loop behind /api/ask")
     ap.add_argument("--device", default="cuda:1")
     args = ap.parse_args()
 
@@ -84,12 +96,23 @@ def main():
         # query, so this eval once reported PASS while the agent was answering
         # "no decision" because the vote sat at rank 56. Assert on the
         # evidence the agent really assembled.
-        import ask
+        import os
+        sys.path.insert(0, os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web"))
+        import agent
+        import tools
+        # The agent's tools encode queries too, so the embedding model has to
+        # be on the device the caller asked for before the loop starts.
+        tools.warm(args.device)
         q = TARGETS[0][3][0]
         vote = locate(con, *TARGETS[0][:2])
         print(f"\n{'=' * 70}\nagent: {q}\n{'=' * 70}")
-        r = ask.ask(q, device=args.device, verbose=False)
+        r = agent.ask(q, con)
         print(r["answer"])
+        print(f"  ({r['looked_at']['passages']} passages and "
+              f"{r['looked_at']['items']} items looked at, "
+              f"{len(r['evidence']) + len(r['record'])} cited"
+              + (f", stopped: {r['stopped']}" if r.get("stopped") else "") + ")")
         print("-" * 70)
         ids = {c["id"] for c in r["evidence"]}
         for label, pid in (("vote", vote["id"]),
@@ -103,8 +126,12 @@ def main():
             # rendered stand-in ("Group 465"), so nothing downstream expected
             # None and this line sliced it. The eval's assertions had already
             # passed by the time it raised, which is the worst way to fail.
-            print(f"[{c['id']}] {c['date']} {int(c['start'] // 60):>4}m "
-                  f"{ask.who(c['speaker'])[:18]:<18} {c['quote'][:58]}")
+            # `.get` throughout for the same reason: the agent stores passages
+            # as its tools produced them, and get_item's shape is not search's.
+            speaker = c.get("speaker") or "unidentified"
+            print(f"[{c['id']}] {c.get('meeting_date') or '?'} "
+                  f"{int((c.get('start') or 0) // 60):>4}m "
+                  f"{speaker[:18]:<18} {(c.get('text') or '')[:58]}")
 
     print(f"\n{failures} failing checks")
     return 1 if failures else 0

@@ -311,3 +311,87 @@ export const labelVoice = (body: {
 
 export const ignoreVoice = (body: { members: [string, string][]; reason?: string; undo?: boolean }) =>
   post<{ ignored: number; restored: number }>("/api/admin/ignore", body);
+
+/* ----------------------------------------------------------- redaction
+ *
+ * The queue of members-of-the-public addresses proposed for removal (D3).
+ * A row carries the whole line and the offset of the span inside it, not just
+ * the span: the page marks it in place, and a line that states an address
+ * twice must not have the wrong one highlighted. */
+
+export interface RedactionRow {
+  id: number;
+  video_id: string;
+  idx: number;
+  span: string;
+  kind: string;
+  status: "proposed" | "applied" | "rejected";
+  author: string | null;
+  /** The whole utterance, and where `span` starts in it (-1 if it has moved). */
+  text: string;
+  at: number;
+  start: number | null;
+  speaker: string | null;
+  /** The line before. Usually the clerk asking for name and address, which is
+   *  what distinguishes a residence from the matter under discussion. */
+  prev_text: string | null;
+  phase: string | null;
+  video_title: string | null;
+  meeting_id: number | null;
+  meeting_date: string | null;
+  meeting_body: string | null;
+  /** Where to hear it said. The only way to settle an ambiguous one. */
+  href: string | null;
+}
+
+export interface RedactionQueue {
+  total: number;
+  limit: number;
+  offset: number;
+  rows: RedactionRow[];
+  counts: Partial<Record<"proposed" | "applied" | "rejected", number>>;
+}
+
+export interface RedactionJob {
+  state: "never_run" | "running" | "done" | "died";
+  pid?: number;
+  started_at?: string;
+  finished_at?: string;
+  total?: number;
+  recordings?: number;
+  applied?: number;
+  done_recordings?: number;
+  failed?: number;
+  seconds?: number;
+  /** The recording being re-indexed right now. */
+  video?: string | null;
+  proposed: number;
+  log_tail: string[];
+}
+
+export function getRedactions(
+  opts: { status?: string; limit?: number; offset?: number; video?: string } = {},
+) {
+  const q = new URLSearchParams();
+  if (opts.status) q.set("status", opts.status);
+  if (opts.limit) q.set("limit", String(opts.limit));
+  if (opts.offset) q.set("offset", String(opts.offset));
+  if (opts.video) q.set("video", opts.video);
+  return req<RedactionQueue>(`/api/admin/redactions?${q}`);
+}
+
+export type RedactionDecision = "accept" | "reject" | "revert" | "reconsider";
+
+export const decideRedactions = (ids: number[], decision: RedactionDecision) =>
+  post<{
+    applied?: number;
+    rejected?: number;
+    reverted?: number;
+    reconsidering?: number;
+  }>("/api/admin/redaction", { ids, decision });
+
+export const getRedactionJob = () =>
+  req<RedactionJob>("/api/admin/redaction/job");
+export const applyAllRedactions = () =>
+  post<{ started: string; proposals: number }>(
+    "/api/admin/redaction/apply-all", {});

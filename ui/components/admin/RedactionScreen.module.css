@@ -1,0 +1,412 @@
+.page {
+  max-width: 62rem;
+  margin-inline: auto;
+  padding: var(--sp-4) var(--sp-4) var(--sp-6);
+}
+
+/* ------------------------------------------------------------------ head */
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding-block-end: var(--sp-3);
+  border-block-end: 1px solid var(--rule);
+}
+
+.head h1 {
+  font-size: var(--text-md);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.why {
+  margin-block-start: var(--sp-2);
+  max-width: 44rem;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
+.counts {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.big {
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.countLabel,
+.done,
+.kept {
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.done {
+  color: var(--ok);
+}
+
+.kept {
+  color: var(--ink-3);
+}
+
+/* ------------------------------------------------------------ bulk apply */
+.bulk {
+  margin-block: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.bulkWhy {
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-3);
+  margin-block-end: var(--sp-3);
+  max-width: 46rem;
+  text-wrap: pretty;
+}
+
+.applyAll {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+
+.applyAll:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.progress p {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+/* A real bar, because this runs for twenty-five minutes and a spinner that
+ * long tells the operator nothing about whether to wait. */
+.bar {
+  margin-block: var(--sp-2);
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunk);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 400ms linear;
+}
+
+.nowAt {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}
+
+.error {
+  margin-block-start: var(--sp-2);
+  font-size: var(--text-xs);
+  color: var(--no);
+}
+
+/* ------------------------------------------------------- selection bar */
+.picked {
+  position: sticky;
+  top: var(--header);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-block: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+.picked button {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.picked button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.plain {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--ink-3) !important;
+}
+
+/* ------------------------------------------------------------- the rows */
+.rows {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  align-items: start;
+  padding-block: var(--sp-3);
+  border-block-start: 1px solid var(--rule);
+}
+
+.pick {
+  padding-block-start: 0.15rem;
+}
+
+.body {
+  min-width: 0;
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}
+
+.date {
+  font-weight: 650;
+  color: var(--ink-3);
+}
+
+.phase {
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.listen {
+  color: var(--accent);
+  text-decoration: none;
+  font-family: var(--font-mono);
+}
+
+.listen:hover {
+  text-decoration: underline;
+}
+
+/* The line before, recessed: it is context for the judgement, not the thing
+ * being judged. */
+.prev {
+  margin-block-start: var(--sp-2);
+  padding-inline-start: var(--sp-3);
+  border-inline-start: 2px solid var(--rule);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-4);
+  text-wrap: pretty;
+}
+
+.text {
+  margin-block-start: var(--sp-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* The span carries a border as well as a tint: this is the one thing on the
+ * row that must survive greyscale and a colour-blind reader, because it is
+ * what the decision is about. */
+.span {
+  background: var(--wait-soft, var(--accent-soft));
+  color: var(--ink);
+  border: 1px solid var(--wait, var(--accent));
+  border-radius: var(--radius-sm);
+  padding: 0 0.2em;
+  font-weight: 600;
+}
+
+.moved {
+  margin-block-start: var(--sp-1);
+  font-size: var(--text-2xs);
+  color: var(--no);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.actions button {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.no:hover:not(:disabled) {
+  border-color: var(--no) !important;
+  color: var(--no) !important;
+}
+
+.empty {
+  padding: var(--sp-6) 0;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+/* ----------------------------------------------------------------- pager */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-4);
+  margin-block-start: var(--sp-4);
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--rule);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.pager button {
+  font-size: var(--text-xs);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 46rem) {
+  .row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .actions {
+    grid-column: 2;
+    flex-direction: row;
+  }
+}
+
+/* --------------------------------------------------------------- the tabs */
+.tabs {
+  display: flex;
+  gap: var(--sp-1);
+  margin-block-start: var(--sp-3);
+  border-block-end: 1px solid var(--rule);
+}
+
+.tab {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid transparent;
+  border-block-end: none;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: transparent;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+  cursor: pointer;
+  margin-block-end: -1px;
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tabOn {
+  background: var(--surface);
+  border-color: var(--rule);
+  border-block-end: 1px solid var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.tabN {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}
+
+/* Said on the row rather than only in the tab: a reviewer scrolling a list of
+ * removals needs to know the line they are reading is the kept ASR, not what
+ * the site publishes. */
+.applied {
+  margin-block-start: var(--sp-1);
+  font-size: var(--text-2xs);
+  color: var(--ok);
+}
+
+/* ------------------------------------------------------------- select all */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-block-start: var(--sp-3);
+  padding-block-end: var(--sp-2);
+}
+
+.all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.all:hover {
+  color: var(--ink);
+}

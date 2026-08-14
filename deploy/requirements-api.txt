@@ -1,0 +1,17 @@
+# The reader API's dependencies, pinned to what is running on the workstation
+# today (`emb-venv`, verified 2026-08-14). torch is NOT here — it is installed
+# separately from PyTorch's CPU index in Dockerfile.api, because the version on
+# PyPI carries CUDA this container will never use.
+#
+# This is the READER's list. It is deliberately smaller than emb-venv, which
+# also feeds the GPU pipeline: no NeMo, no pyannote, no CUDA.
+psycopg[binary]==3.3.4
+pgvector==0.5.0
+numpy==2.5.2
+sentence-transformers==5.7.0
+transformers==5.15.0
+huggingface-hub==1.27.0
+safetensors==0.8.0
+tokenizers==0.22.2
+scikit-learn==1.9.0
+scipy==1.18.0

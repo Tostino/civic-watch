@@ -756,6 +756,26 @@ terminal.
 
 **R9.5** Human labels outrank everything derived and MUST be visibly permanent.
 
+**R9.7** MUST provide a queue for the addresses `bin/redact.py` proposes
+removing *(2026-08-13)*. The classifier is good and its two failure modes are
+not symmetrical, which is the whole reason a person is in this loop: removing
+too little leaves somebody's home address searchable, and removing too much
+deletes the matter under discussion — "access to the site is from Clinton
+Avenue" is a road, not a residence — and that damage is silent, because nobody
+can miss what is no longer there.
+
+So a row MUST show the whole line with the span marked **in place by offset**,
+not by searching the text again, and the line BEFORE it: the clerk saying
+"please state your name and address for the record" settles most of these
+without playing anything. Where it does not, the row MUST link to the moment in
+the recording.
+
+Bulk apply MUST be a job rather than a request. Applying re-indexes every
+affected recording, because the address is in the passage text, the BM25
+postings and the embedding as well as the utterance — 3,439 proposals span 370
+recordings at ~4s each, which is 25 minutes. Per-row accept is capped at 25 for
+the same reason.
+
 **R9.6** MUST review the public correction queue (§5.8): accept, reject, or
 merge into an existing identity. Accepting writes a human label.
 

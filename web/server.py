@@ -33,7 +33,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 import psycopg                                    # noqa: E402
 
 import admin                                     # noqa: E402
-import api                                       # noqa: E402  (needs bin/ on the path)
 import archive                                   # noqa: E402
 import db                                        # noqa: E402
 import limits                                    # noqa: E402
@@ -260,9 +259,6 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _page(self, filename):
-        with open(os.path.join(HERE, filename), "rb") as f:
-            return self._send(200, f.read(), "text/html; charset=utf-8")
 
     def _redirect(self, location):
         self.send_response(302)
@@ -313,22 +309,26 @@ class Handler(BaseHTTPRequestHandler):
         qs = parse_qs(u.query)
         one = lambda k, d=None: qs.get(k, [d])[0]
         try:
-            if u.path in ("/", "/index.html", "/search"):
-                return self._page("search.html")
-            if u.path in ("/speakers", "/speakers.html"):
-                return self._page("speakers.html")
-            if u.path in ("/ask", "/ask.html"):
-                return self._page("ask.html")
-            # Superseded by the real routes in the rebuilt UI, which key the
-            # entity in the PATH rather than a query string. Old links and old
-            # bookmarks are redirected rather than broken; web/item.html and
-            # web/case.html stay on disk as the record of what they replaced.
+            # This server serves no HTML any more. The five hand-written pages
+            # it used to answer with - search, speakers, ask, item, case - are
+            # deleted along with web/api.py behind them; the rebuilt UI owns
+            # every reading surface and /admin owns curation. What is left here
+            # is the JSON API that UI reads, and nothing else.
+            #
+            # Old bookmarks to ?id= URLs are still redirected: they cost two
+            # lines and they were real links.
             if u.path in ("/item", "/item.html"):
                 i = one("id")
                 return self._redirect(f"/item/{int(i)}" if i else "/")
             if u.path in ("/case", "/case.html"):
                 c = one("id")
                 return self._redirect(f"/case/{quote(c, safe='')}" if c else "/")
+            # NOT a redirect to "/" - this server has no "/" to send them to,
+            # and pointing it at itself is an infinite loop. It answers plainly
+            # that it is the API.
+            if u.path in ("/", "/index.html", "/search", "/speakers"):
+                return self._send(404, {"error": "this is the archive's JSON "
+                                        "API; the site is served by the UI"})
             if u.path == "/api/ask":
                 return self._ask_guarded(one("q", ""))
 
@@ -366,6 +366,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, admin.rederive_status(con))
                 if u.path == "/api/admin/ops":
                     return self._send(200, admin.ops_status(con))
+                if u.path == "/api/admin/redactions":
+                    return self._send(200, admin.redactions(
+                        con, one("status", "proposed"), one("limit", 50),
+                        one("offset", 0), one("video")))
+                if u.path == "/api/admin/redaction/job":
+                    return self._send(200, admin.redaction_job_status(con))
                 if u.path == "/api/admin/review":
                     d = admin.review(con, one("video"), one("name"),
                                      one("label"))
@@ -447,23 +453,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, d) if d else self._send(404, {})
             if u.path.startswith("/api/file/"):
                 return self._file(int(u.path.rsplit("/", 1)[-1]), con)
-            if u.path.startswith("/api/agenda/"):
-                d = api.meeting_agenda(con, int(u.path.rsplit("/", 1)[-1]))
-                return self._send(200, d) if d else self._send(404, {})
-            if u.path == "/api/speakers/roster":
-                return self._send(200, api.roster(con))
-            if u.path == "/api/speakers/unidentified":
-                return self._send(200, api.unidentified(
-                    con, min(int(one("limit", 60)), 200),
-                    int(one("offset", 0))))
-            if u.path == "/api/speakers/group":
-                cl, nm = one("cluster"), one("name")
-                return self._send(200, api.group_detail(
-                    con, int(cl) if cl else None,
-                    unquote(nm) if nm else None))
-            if u.path == "/api/speakers/voice":
-                return self._send(200, api.voice_samples(
-                    con, one("video_id"), one("local_label")))
+            # /api/agenda/* and /api/speakers/* are gone with web/api.py and
+            # the workbench page they fed. /admin replaced the workbench (slice
+            # 6) with its own data layer in web/admin.py, and the rebuilt UI
+            # never called either of them - checked before deleting.
             return self._send(404, {"error": "not found"})
         except psycopg.errors.DataError as e:
             return self._send(400, {"error": str(e)})
@@ -641,6 +634,12 @@ class Handler(BaseHTTPRequestHandler):
                         if u.path == "/api/admin/proposal":
                             return self._send(200, admin.decide(
                                 con, int(body["id"]), body.get("decision")))
+                        if u.path == "/api/admin/redaction":
+                            return self._send(200, admin.redaction_decide(
+                                con, body))
+                        if u.path == "/api/admin/redaction/apply-all":
+                            return self._send(200, admin.redaction_apply_all(
+                                con, body))
                         if u.path == "/api/admin/label":
                             return self._send(200, admin.label(con, body))
                         if u.path == "/api/admin/ignore":
@@ -665,35 +664,14 @@ class Handler(BaseHTTPRequestHandler):
                 finally:
                     con.close()
 
-            # The legacy workbench writes now require the same session (R9.1).
-            # They were open before there was an auth model to put them behind;
-            # the rebuilt console replaces them, and open write endpoints on a
-            # speaker table are not something to keep for a superseded page.
-            if u.path.startswith("/api/speakers/") and not (
-                    admin.loopback(self) and admin.session_of(self)):
-                return self._send(401, {"error": "log in at /admin first"})
-            con = connect(write=True)
-            try:
-                if u.path == "/api/speakers/label":
-                    members = [tuple(m) for m in body.get("members", [])]
-                    if not members:
-                        return self._send(400, {"error": "members required"})
-                    return self._send(200, api.apply_label(
-                        con, members, (body.get("name") or "").strip() or None,
-                        body.get("note")))
-                if u.path == "/api/speakers/ignore":
-                    members = [tuple(m) for m in body.get("members", [])]
-                    if not members:
-                        return self._send(400, {"error": "members required"})
-                    return self._send(200, api.ignore_voices(
-                        con, members, body.get("reason"),
-                        bool(body.get("undo"))))
-                if u.path == "/api/speakers/rename":
-                    return self._send(200, api.rename(
-                        con, body["from"], body["to"].strip()))
-                return self._send(404, {"error": "not found"})
-            finally:
-                con.close()
+            # The /api/speakers/* writes are gone with web/api.py. They wrote
+            # names, ignores and renames straight onto the speaker tables for
+            # the workbench page, and /admin does all three now through
+            # web/admin.py - which orders its queues by impact, shows the
+            # evidence beside the write, canonicalises a name to the surname
+            # and re-indexes the passages per write. None of that was true
+            # here. Two write paths onto human judgement was one too many.
+            return self._send(404, {"error": "not found"})
         except Exception as e:
             return self._send(500, {"error": str(e)})
 

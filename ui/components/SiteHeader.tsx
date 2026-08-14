@@ -12,8 +12,9 @@ import s from "./SiteHeader.module.css";
  * felt incoherent.
  *
  * The first three are rebuilt as of slice 4, so the `legacy` branch that marked
- * an entry as "not yet rebuilt" is gone with them. The old pages are still
- * served under /legacy for anyone holding a link; nothing here points at them.
+ * an entry as "not yet rebuilt" is gone with them - and so are the pages it
+ * pointed at: web/api.py and the five hand-written HTML pages are deleted,
+ * along with the /legacy rewrite that used to reach them.
  *
  * **About was the site footer until 2026-08-13, at the maintainer's direction.**
  * The footer argued for itself on the grounds that a reader looks for "what is
