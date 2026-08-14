@@ -1,0 +1,7 @@
+.page {
+  max-width: 76rem;
+  margin: 0 auto;
+  /* 8rem at the foot clears the player dock, which is fixed and which this
+     page's citations drive. */
+  padding: var(--sp-7) var(--sp-5) 8rem;
+}

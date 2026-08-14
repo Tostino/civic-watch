@@ -1,0 +1,104 @@
+/* The curation shell. Deliberately NOT the reading surface: a slate bar with
+ * a warning-coloured mark, so nobody can screenshot this and mistake it for
+ * the public record. Everything else inherits the tokens. */
+
+.shell {
+  min-height: 100dvh;
+  background: var(--bg-sunk);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-4);
+  height: var(--header);
+  background: var(--derived-bg);
+  border-bottom: 2px solid var(--wait);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--wait);
+}
+
+.nav {
+  display: inline-flex;
+  gap: var(--sp-3);
+}
+.nav a {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  text-decoration: none;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius);
+}
+.nav a:hover {
+  color: var(--accent);
+  background: var(--surface);
+}
+
+.who {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exit {
+  font-size: var(--text-xs);
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.exit:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .who {
+    display: none;
+  }
+
+  /* Same shape of failure as the public header, and it needs the same answer:
+   * the bar is a fixed-height nowrap row that came to 367px at 320px wide, so
+   * "← Reading site" sat 32px off the edge. The console is a desk tool and
+   * this is not its working width, but a control that leaves the screen is a
+   * defect at any width. */
+  .bar {
+    gap: var(--sp-2);
+    padding: 0 var(--sp-3);
+  }
+
+  .brand {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .nav {
+    gap: var(--sp-1);
+  }
+}

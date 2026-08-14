@@ -1,0 +1,469 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { Citation } from "@/components/Citation";
+import { ProvenanceMark } from "@/components/ProvenanceMark";
+import { usePlayer, usePlayhead } from "@/components/player/PlayerProvider";
+import { duration, meetingDate, officeLabel, sessionLabel } from "@/lib/format";
+import type { Item, MeetingDetail, Span } from "@/lib/types";
+import { AgendaSpine } from "./AgendaSpine";
+import { RecordView } from "./RecordView";
+import { TranscriptView } from "./TranscriptView";
+import s from "./MeetingView.module.css";
+
+/**
+ * `/meeting/:id` - the page the old UI most conspicuously lacked, and the one
+ * a reader most wants (§5.2).
+ *
+ * The layout is driven by what this particular meeting actually has (R3.2,
+ * R5.2.4), because coverage here is uneven per object and a layout that
+ * assumes a recording is wrong for 91% of decided items:
+ *
+ *   agenda + recording   spine navigates, transcript reads, player docks
+ *   agenda, no recording spine navigates, the RECORD reads. No empty player.
+ *   recording, no agenda spine is transcript-derived and marked as inferred
+ *
+ * The main column shows one of the two sources at a time and says which. That
+ * toggle is not a convenience - it is §2's distinction made operable.
+ */
+
+/** Where the reader is, restored from the URL (R4.2). */
+export interface MeetingLocation {
+  videoId?: string;
+  t?: number;
+  item?: number;
+}
+
+/**
+ * An explicit instruction to go somewhere, as opposed to the transcript
+ * passively following playback.
+ *
+ * These are different things and conflating them was a real bug: the follow
+ * effect was gated on `following`, so once a reader had scrolled the
+ * transcript by hand, clicking an item on the spine moved the recording and
+ * left the transcript where it was. A click is not a preference about
+ * auto-scrolling - it is "take me there" - and it must always be obeyed.
+ *
+ * The counter is what makes it a signal rather than a value: clicking the same
+ * item twice must scroll twice.
+ */
+export interface Cue {
+  videoId: string;
+  seconds: number;
+  n: number;
+}
+
+export function MeetingView({
+  data,
+  location,
+}: {
+  data: MeetingDetail;
+  location: MeetingLocation;
+}) {
+  const { meeting, videos, items, roster, coverage, portal, files } = data;
+  const player = usePlayer();
+  const playhead = usePlayhead();
+
+  const hasRecording = videos.length > 0;
+  const hasAgenda = coverage.items > 0;
+
+  /* Where a shared link opens. An `?item=` may belong to either recording of a
+   * two-session meeting-day, so it gets to pick the session when `?v=` does
+   * not - otherwise a link to an afternoon item opens the morning. */
+  const linkedSpan = useMemo(
+    () =>
+      location.item == null
+        ? null
+        : (items.find((i) => i.id === location.item)?.spans[0] ?? null),
+    [items, location.item],
+  );
+  const initialVideo =
+    (location.videoId && videos.some((v) => v.id === location.videoId)
+      ? location.videoId
+      : null) ?? linkedSpan?.video_id ?? videos[0]?.id ?? null;
+
+  const [videoId, setVideoId] = useState<string | null>(initialVideo);
+  const [view, setView] = useState<"transcript" | "record">(
+    hasRecording ? "transcript" : "record",
+  );
+  /** Set by clicking the spine; the playhead takes over once audio rolls. */
+  const [pinnedItem, setPinnedItem] = useState<number | null>(location.item ?? null);
+  /** The item the reader has scrolled to, when nothing is playing. */
+  const [readingItem, setReadingItem] = useState<number | null>(null);
+  /* A restored link IS an explicit cue, so it is initial state rather than an
+   * effect - the transcript must open at the shared moment, not scroll to it
+   * after a render.
+   *
+   * `?t=` is exact. `?item=` alone still has to land somewhere, or a link to
+   * an item silently opens at the top of a six-hour recording, so it falls
+   * back to where that item begins. */
+  const [cue, setCue] = useState<Cue | null>(() => {
+    if (!initialVideo) return null;
+    if (location.t != null) return { videoId: initialVideo, seconds: location.t, n: 1 };
+    if (linkedSpan && linkedSpan.video_id === initialVideo) {
+      return { videoId: initialVideo, seconds: linkedSpan.start, n: 1 };
+    }
+    return null;
+  });
+
+  const video = videos.find((v) => v.id === videoId) ?? videos[0] ?? null;
+
+  const sourceFor = useCallback(
+    (vid: string) => {
+      const v = videos.find((x) => x.id === vid);
+      return {
+        videoId: vid,
+        title: `${meeting.body} · ${meetingDate(meeting.date, "short")}${
+          v && videos.length > 1 ? ` · ${sessionLabel(v.session_seq, videos.length)}` : ""
+        }`,
+        href: `/meeting/${meeting.id}`,
+        duration: v?.duration,
+      };
+    },
+    [meeting.body, meeting.date, meeting.id, videos],
+  );
+
+  /** Every explicit "take me to this moment" goes through here. */
+  const seek = useCallback(
+    (vid: string, seconds: number, autoplay = true) => {
+      setVideoId(vid);
+      setView("transcript");
+      setCue((c) => ({ videoId: vid, seconds, n: (c?.n ?? 0) + 1 }));
+      player.play(sourceFor(vid), seconds, autoplay);
+    },
+    [player, sourceFor],
+  );
+
+  // A shared link loads its recording at the moment it was taken (R4.2), but
+  // CUES rather than plays: arriving at a page that starts talking at you is
+  // hostile, and browsers block it anyway.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current || !cue) return;
+    restored.current = true;
+    player.play(sourceFor(cue.videoId), cue.seconds, false);
+    // Runs once, for the cue the page was built with; later cues come from
+    // seek(), which drives the player itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Which item is on screen: the one whose span contains the playhead. */
+  const playingItem = useMemo(() => {
+    if (!playhead.videoId) return null;
+    for (const it of items) {
+      for (const sp of it.spans) {
+        if (sp.video_id === playhead.videoId && playhead.position >= sp.start && playhead.position < sp.end) {
+          return it.id;
+        }
+      }
+    }
+    return null;
+  }, [items, playhead.videoId, playhead.position]);
+
+  // Playback is authoritative when it is running. Otherwise the reader is,
+  // and where they have scrolled to is a better answer than what they last
+  // clicked.
+  const activeItem = playhead.playing
+    ? (playingItem ?? pinnedItem)
+    : (readingItem ?? pinnedItem ?? playingItem);
+
+  // The URL is the state (R4.2): a link must reproduce the view. replaceState
+  // rather than the router, because this fires as the recording plays and a
+  // history entry per second would make Back useless.
+  const lastUrl = useRef("");
+  useEffect(() => {
+    if (!video) return;
+    const q = new URLSearchParams();
+    q.set("v", video.id);
+    if (playhead.videoId === video.id && playhead.position > 1) {
+      q.set("t", String(Math.floor(playhead.position)));
+    }
+    if (activeItem) q.set("item", String(activeItem));
+    const url = `${window.location.pathname}?${q}`;
+    if (url === lastUrl.current) return;
+    lastUrl.current = url;
+    window.history.replaceState(null, "", url);
+  }, [video, playhead.videoId, playhead.position, activeItem]);
+
+  const selectItem = useCallback(
+    /* `at` is the appearance the reader clicked. The spine lists an item once
+     * per stretch it was discussed in (R5.2.7), so "the item's first span" is
+     * the wrong destination for the row that says 3:38 - it would answer a
+     * click by seeking two hours backwards. */
+    (item: Item, at?: Span | null) => {
+      setPinnedItem(item.id);
+      setReadingItem(null);
+      const sp = at ?? item.spans.find((x) => x.video_id === videoId) ?? item.spans[0];
+      if (sp) seek(sp.video_id, sp.start);
+      else setView("record");
+    },
+    [seek, videoId],
+  );
+
+  /* How tall the panes may be, MEASURED rather than guessed. Two constants
+   * stood in for this - 14rem in the transcript, --sp-6 in the rail - and
+   * neither knows how tall this meeting's masthead is, so both panes hung off
+   * the bottom of the window by a fixed amount at every screen size (176px and
+   * 239px at 1040px tall). The masthead is what varies: a meeting with two
+   * recordings and a roster is taller than one with neither. */
+  const splitRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = splitRef.current;
+    if (!el) return;
+    const measure = () => {
+      /* `top` is the split's BORDER box; the panes start inside its padding and
+       * the article adds its own below. Reading those three insets is what
+       * takes the page scroll to zero rather than to "nearly zero" - and a page
+       * that scrolls 32px to reveal padding is the same defect as one that
+       * scrolls 283px to reveal a footer, just quieter.
+       *
+       * These are read from boxes AROUND the panes, never from the panes
+       * themselves, so setting --pane-h cannot change what this measures. That
+       * is the difference between this and the convergence loop it replaced,
+       * which fed its own output back in and oscillated. */
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const cs = getComputedStyle(el);
+      const article = el.parentElement;
+      const inset =
+        parseFloat(cs.paddingTop || "0") +
+        parseFloat(cs.paddingBottom || "0") +
+        (article ? parseFloat(getComputedStyle(article).paddingBottom || "0") : 0);
+      const room = window.innerHeight - top - inset;
+      el.style.setProperty("--pane-h", `${Math.round(Math.max(288, room))}px`);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    const masthead = el.parentElement?.querySelector("header");
+    if (masthead) ro.observe(masthead);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  return (
+    <article className={s.page}>
+      <header className={s.masthead}>
+        <div className={s.mastheadInner}>
+          <nav className={s.crumbs} aria-label="Breadcrumb">
+            <Link href="/">Archive</Link>
+            <span aria-hidden>/</span>
+            <Link href={`/?body=${encodeURIComponent(meeting.body)}`}>{meeting.body}</Link>
+          </nav>
+
+          <div className={s.titleRow}>
+            <h1 className={s.date}>{meetingDate(meeting.date)}</h1>
+            <div className={s.step}>
+              {data.prev ? (
+                <Link href={`/meeting/${data.prev.id}`} className={s.stepLink} title={data.prev.date}>
+                  ← Previous
+                </Link>
+              ) : null}
+              {data.next ? (
+                <Link href={`/meeting/${data.next.id}`} className={s.stepLink} title={data.next.date}>
+                  Next →
+                </Link>
+              ) : null}
+            </div>
+          </div>
+
+          <p className={s.body}>{meeting.body}</p>
+
+          {/* R3.2: this meeting's own coverage, not a site-wide disclaimer. */}
+          <ul className={s.coverage}>
+            <Fact
+              on={hasAgenda}
+              yes={`${coverage.items} agenda items`}
+              no="No published agenda"
+              why={
+                hasAgenda
+                  ? "From the agenda the county published for this meeting"
+                  : "The county's agenda for this meeting is missing, or is an image-only scan we cannot read"
+              }
+            />
+            <Fact
+              on={coverage.decided > 0}
+              yes={`${coverage.decided} with an outcome in the minutes`}
+              no="No dispositions in the minutes"
+              why="From the approved minutes"
+            />
+            <Fact
+              on={hasRecording}
+              yes={`${duration(coverage.seconds)} of recording`}
+              no="No recording"
+              why={
+                hasRecording
+                  ? `${coverage.bound} items are bound to a point in it`
+                  : "This meeting was not recorded, or the recording is not in this archive"
+              }
+            />
+            <Fact
+              on={coverage.roster > 0}
+              yes={`${coverage.roster} members seated`}
+              no="No roster"
+              why="From the roster printed on the published agenda"
+            />
+          </ul>
+
+          {roster.length > 0 ? (
+            <div className={s.roster}>
+              <ProvenanceMark kind="agenda" />
+              <ul className={s.rosterList}>
+                {roster.map((r) => (
+                  <li key={r.person_id} className={s.member}>
+                    <span className={s.memberName}>{r.full_name ?? r.surname}</span>
+                    {r.district ? <span className={s.district}>District {r.district}</span> : null}
+                    {/* Through lib/format, not inline. Same words today — the
+                        point is that the label vocabulary lives in one place,
+                        which is why SpeakerChip already goes there. */}
+                    {r.office ? (
+                      <span className={s.office}>{officeLabel(r.office)}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className={s.sources}>
+            {portal ? (
+              <a className={s.portal} href={portal.url} target="_blank" rel="noreferrer">
+                See this meeting on the county portal ↗
+              </a>
+            ) : null}
+            {/* The county's own documents. These looked like buttons and did
+                nothing in the first pass; a chip that cannot be clicked is a
+                worse affordance than no chip. */}
+            {files.map((f) => (
+              <a
+                key={f.file_id}
+                className={s.file}
+                href={f.url}
+                target="_blank"
+                rel="noreferrer"
+                title={
+                  f.extracted
+                    ? `Open the county's ${f.kind?.toLowerCase()} PDF`
+                    : `Open the county's ${f.kind?.toLowerCase()} PDF. It is an image-only scan, so none of its text is searchable here.`
+                }
+              >
+                {f.kind} PDF
+                {f.extracted ? "" : " (scan)"}
+              </a>
+            ))}
+            <Citation
+              spec={{
+                body: meeting.body,
+                date: meeting.date,
+                videoId: video?.id ?? null,
+                seconds: playhead.videoId === video?.id ? playhead.position : null,
+                portalUrl: portal?.url ?? null,
+              }}
+              label="Cite this meeting"
+            />
+          </div>
+        </div>
+      </header>
+
+      <div className={s.split} ref={splitRef} data-single={!hasRecording && !hasAgenda}>
+        <aside className={s.rail} aria-labelledby="spine-heading">
+          {/* The spine's group headings are h3s; without this the document
+              jumps h1 → h3 and the outline is wrong for a screen reader. */}
+          <h2 id="spine-heading" className="sr-only">
+            Agenda
+          </h2>
+          <AgendaSpine
+            items={items}
+            videos={videos}
+            activeVideo={video?.id ?? null}
+            activeItem={activeItem}
+            playhead={playhead.videoId === (video?.id ?? null) ? playhead.position : null}
+            onSelect={selectItem}
+            onSeek={seek}
+            onSelectVideo={(id) => {
+              setPinnedItem(null);
+              setReadingItem(null);
+              // Cue the other session at its start rather than starting audio:
+              // choosing which recording to read is not the same as pressing
+              // play on it.
+              seek(id, 0, false);
+            }}
+          />
+        </aside>
+
+        <div className={s.main}>
+          <div className={s.tabs} role="tablist" aria-label="What to read">
+            <button
+              type="button"
+              role="tab"
+              id="tab-record"
+              aria-selected={view === "record"}
+              /* Only the visible panel is in the DOM, so only the selected tab
+                 may point at one - a dangling IDREF is an ARIA error. */
+              aria-controls={view === "record" ? "panel-record" : undefined}
+              className={s.tab}
+              onClick={() => setView("record")}
+            >
+              The record
+              <span className={s.tabNote}>agenda and minutes</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-transcript"
+              aria-selected={view === "transcript"}
+              aria-controls={view === "transcript" && video ? "panel-transcript" : undefined}
+              className={s.tab}
+              onClick={() => setView("transcript")}
+              disabled={!hasRecording}
+              title={hasRecording ? undefined : "There is no recording of this meeting to transcribe"}
+            >
+              What was said
+              <span className={s.tabNote}>{hasRecording ? "transcript" : "no recording"}</span>
+            </button>
+          </div>
+
+          {view === "transcript" && video ? (
+            <div id="panel-transcript" role="tabpanel" aria-labelledby="tab-transcript">
+              <TranscriptView
+                key={video.id}
+                video={video}
+                items={items}
+                activeItem={activeItem}
+                cue={cue && cue.videoId === video.id ? cue : null}
+                onSeek={(sec) => seek(video.id, sec)}
+                onSelectItem={selectItem}
+                onReading={setReadingItem}
+              />
+            </div>
+          ) : (
+            <div id="panel-record" role="tabpanel" aria-labelledby="tab-record">
+              <RecordView
+                meeting={meeting}
+                items={items}
+                hasAgenda={hasAgenda}
+                hasRecording={hasRecording}
+                activeItem={activeItem}
+                onSeek={seek}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function Fact({ on, yes, no, why }: { on: boolean; yes: string; no: string; why: string }) {
+  return (
+    <li className={`${s.fact} ${on ? "" : s.absent}`} title={why}>
+      <span aria-hidden className={s.tick}>
+        {on ? "●" : "○"}
+      </span>
+      {on ? yes : no}
+    </li>
+  );
+}

@@ -1,0 +1,123 @@
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-block-end: 0.3rem;
+  border-block-end: 2px solid var(--rule);
+}
+
+.title {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.clear {
+  font-size: var(--text-2xs);
+  color: var(--accent);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.groupName {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.4rem;
+  margin-block-end: 0.25rem;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Which source a filter can actually reach. A rail that silently applies half
+ * its controls to half the page is a rail that lies about what it did. */
+.note {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-4);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 0.2rem 0.35rem;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.row:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.on {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.on .rowLabel::before {
+  content: "✓ ";
+  color: var(--accent);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+  line-height: var(--leading-snug);
+}
+
+.n {
+  flex: none;
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-4);
+}
+
+.years {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.year {
+  padding: 0.15rem 0.35rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+
+.year:hover {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.yearOn {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}

@@ -1,0 +1,256 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  /* flex: 1 matters as much as min-height: 0 here - this sits inside the
+   * meeting column, and without it the scroller below flexes against a
+   * content-sized parent and falls back to its min-height. */
+  flex: 1;
+  min-height: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--sp-2);
+}
+
+/* R2.3. The transcript says up front what it is and how it can be wrong. */
+.caveat {
+  flex: 1;
+  min-width: 16rem;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-3);
+  max-width: var(--measure);
+}
+
+.resume {
+  flex: none;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-full);
+  background: var(--live-soft);
+  color: var(--live);
+  border: 1px solid color-mix(in srgb, var(--live) 30%, transparent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 18rem;
+  /* The dock floats over the bottom-right of this pane. Padding the scrollable
+   * content by its measured height keeps the last lines reachable instead of
+   * parked underneath it. */
+  padding-bottom: var(--dock-h, 0px);
+  overflow-y: auto;
+  /* Deliberately NOT `overscroll-behavior: contain`. This pane, the agenda
+   * spine and the page are three scroll surfaces on one screen; containing
+   * them means the wheel stops dead at a pane's edge instead of passing to the
+   * page, so the page cannot be scrolled from the 60% of the window the panes
+   * occupy. Reported twice: "the wheel does nothing" and "multiple fighting
+   * scrollbars" - which is what containment feels like from the outside.
+   * Chaining is what makes three surfaces behave like one.
+   *
+   * It does not affect following the playhead: overscroll-behavior governs
+   * user scroll chaining, not programmatic scrollTo. */
+  contain: strict;
+}
+
+.inner {
+  position: relative;
+  width: 100%;
+}
+
+.row {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+}
+
+/* ---------------------------------------------------------- agenda break
+ * The only structure a transcript has comes from the published record. */
+.break {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  width: 100%;
+  margin: var(--sp-4) 0 var(--sp-2);
+  padding: 0.25rem 0 0.3rem;
+  border-top: 1px solid var(--record-rule);
+  font-family: var(--font-record);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  text-align: start;
+}
+
+/* The break is a control: it plays the item it names. */
+.breakButton:hover {
+  color: var(--accent);
+  border-top-color: var(--accent);
+}
+
+.breakActive {
+  border-top-color: var(--live);
+  color: var(--ink);
+}
+
+.breakDerived {
+  border-top-style: dashed;
+  border-top-color: var(--derived-rule);
+  font-family: var(--font-ui);
+  font-style: italic;
+  color: var(--ink-3);
+}
+
+.breakNone {
+  border-top-style: dotted;
+  border-top-color: var(--rule);
+  color: var(--ink-4);
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.breakCode {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.breakLabel {
+  font-weight: 600;
+  text-wrap: pretty;
+}
+
+/* ----------------------------------------------------------------- turn */
+.turn {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: var(--sp-3);
+  padding: 0.35rem 0;
+}
+
+.who {
+  padding-top: 0.1rem;
+  min-width: 0;
+}
+
+.said {
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  padding: 0.1rem var(--sp-2);
+  border-inline-start: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  scroll-margin: 6rem;
+}
+
+.line:hover {
+  background: var(--surface-2);
+}
+
+/* Where the recording is now. */
+.lineActive {
+  background: var(--live-soft);
+  border-inline-start-color: var(--live);
+}
+
+.at {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-4);
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+
+.line:hover .at,
+.lineActive .at,
+.at:focus-visible {
+  opacity: 1;
+}
+
+.lineActive .at {
+  color: var(--live);
+  font-weight: 600;
+}
+
+.at:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* Spoken words. Sans, because this is a machine's rendering of speech, not a
+ * document (R2.2). */
+.text {
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.lineActive .text {
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- state */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-4);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  max-width: var(--measure);
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--rule);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.retry {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+@media (max-width: 52rem) {
+  .turn {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+    padding: var(--sp-2) 0;
+  }
+
+  /* Still a fixed-height scroller: the virtualizer measures this element, and
+   * letting it grow to the full 2,252-line height would render every row. */
+  .scroll {
+    height: 70vh;
+    min-height: 20rem;
+  }
+}

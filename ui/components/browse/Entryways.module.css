@@ -1,0 +1,348 @@
+.wrap {
+  display: grid;
+  /* min(19rem, 100%) for the reason spelled out on .lanes below: a bare
+   * minmax floor keeps its width when the container is narrower than the
+   * floor, and the track then hangs out of the page. Missed here the first
+   * time because at 320px the page had no vertical scrollbar in the test and
+   * 19rem fitted; a scrollbar takes 15px and it stops fitting. Measure at the
+   * width the reader actually has, which includes their scrollbar. */
+  grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr));
+  gap: var(--sp-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.title {
+  font-family: var(--font-record);
+  font-size: var(--text-md);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.why {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  border-block-start: 1px solid var(--rule);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 0.4rem 0;
+  border-block-end: 1px solid var(--rule);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.row:hover {
+  color: var(--ink);
+}
+
+.row:hover .what {
+  text-decoration: underline;
+  text-decoration-color: var(--accent-line);
+}
+
+.when {
+  flex: none;
+  width: 5.4rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.caseId {
+  flex: none;
+  width: 7.2rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0;
+}
+
+.what {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: var(--leading-snug);
+}
+
+.code,
+.bodyTag {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin-inline-end: 0.4em;
+}
+
+.bodyTag {
+  font-family: var(--font-ui);
+}
+
+.tally {
+  flex: none;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--wait);
+  white-space: nowrap;
+  cursor: help;
+}
+
+.none {
+  padding: var(--sp-3) 0;
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+/* ------------------------------------------------- where the board disagreed
+ * Full width and above the pair, because it is the one entryway that cannot be
+ * assembled from counts, and because it needs two lanes side by side to make
+ * its point: the two sources see different things (UI_PLAN §2). */
+.divided {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.dividedHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-width: 54ch;
+}
+
+.dividedTitle {
+  font-family: var(--font-record);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.lanes {
+  display: grid;
+  /* `min(20rem, 100%)`, not a bare 20rem. A minmax floor is a FLOOR: below a
+   * 320px container the track stays 320px wide and hangs out of the page,
+   * which is what put 29px of sideways scroll on the front page at the 320px
+   * width WCAG 1.4.10 is measured at. The min() lets the track give up its
+   * preferred size once there is less room than that. */
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  gap: var(--sp-4);
+}
+
+.lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.laneHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+  padding-block-end: 0.3rem;
+  border-block-end: 2px solid var(--rule);
+}
+
+.laneWhat {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.laneWhy {
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+}
+
+/* R3.1. --ink-3 rather than a border token: this is 11px text and the border
+ * tokens are contrast-checked at 3:1, which is not enough to read (gotcha 37,
+ * and the ProvenanceMark on warm paper was the second time). */
+.inferred::before {
+  content: "◈ ";
+  color: var(--live);
+}
+
+/* A row here is a small stack, not a line: identifier, title, and the evidence
+ * for putting it in this list at all. The evidence is the whole point - a bare
+ * title would ask the reader to take "they disagreed" on faith. */
+.dRow,
+.dayRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0;
+  border-block-end: 1px solid var(--rule);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.dRow:hover .dTitle,
+.dayRow:hover .dTop {
+  text-decoration: underline;
+  text-decoration-color: var(--accent-line);
+}
+
+.dTop {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  font-size: var(--text-2xs);
+}
+
+.dTitle {
+  line-height: var(--leading-snug);
+  color: var(--ink);
+}
+
+.dWhy {
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+  line-height: var(--leading-snug);
+}
+
+.nay {
+  font-weight: 600;
+  color: var(--no);
+}
+
+.kindVote,
+.kindObj {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--radius-sm);
+}
+
+.kindVote {
+  color: var(--no);
+  background: var(--no-soft);
+}
+
+.kindObj {
+  color: var(--ink-3);
+  background: var(--neutral-soft);
+}
+
+/* The quoted line is the evidence, so it is set as a quotation: the reader
+ * should be able to tell at a glance that these are somebody's words and not
+ * our summary of them. */
+.quote {
+  display: block;
+  padding-inline-start: 0.6rem;
+  border-inline-start: 2px solid var(--record-rule);
+  font-family: var(--font-record);
+  line-height: var(--leading-snug);
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.who {
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-inline-end: 0.4em;
+}
+
+.quote q {
+  quotes: "\201C" "\201D";
+}
+
+/* ---------------------------------------------------- what has been decided */
+.dayN {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.dayHeard {
+  margin-inline-start: 0.4em;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.dayHeard::before {
+  content: "· ";
+}
+
+/* Width is the size of the day's business against the busiest day shown, so
+ * 189 decisions and 36 are comparable without reading either number. The
+ * segments are the OutcomeBadge vocabulary, so the colours mean here what they
+ * mean everywhere else (UI_PLAN §5). */
+.bar {
+  display: flex;
+  height: 5px;
+  width: calc(var(--of-peak, 1) * 100%);
+  min-width: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--neutral-soft);
+}
+
+.segOk,
+.segWait,
+.segNo {
+  flex: 0 0 calc(var(--share) * 100%);
+}
+
+.segOk { background: var(--ok); }
+.segWait { background: var(--wait); }
+.segNo { background: var(--no); }
+
+.notable {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: var(--text-2xs);
+  color: var(--ink-2);
+  line-height: var(--leading-snug);
+}

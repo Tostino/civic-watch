@@ -1,0 +1,175 @@
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-block-end: 0.3rem;
+  border-block-end: 2px solid var(--rule);
+}
+
+.title {
+  font-family: var(--font-record);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.count {
+  margin-inline-start: auto;
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.about {
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-3);
+  max-width: 68ch;
+}
+
+/* Something happened to this search that the reader did not ask for. Warm,
+ * because it is a caveat about the result rather than an error. */
+.notice {
+  padding: 0.4rem 0.6rem;
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-2);
+  background: var(--wait-soft);
+  border-inline-start: 3px solid var(--wait);
+  border-radius: var(--radius-sm);
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.recRow,
+.trRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-block-end: var(--sp-3);
+  border-block-end: 1px solid var(--rule);
+  min-width: 0;
+}
+
+.where {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+}
+
+.whereLink {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.whereBody,
+.phase {
+  color: var(--ink-3);
+}
+
+.at {
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+}
+
+.heard {
+  color: var(--live);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------- a transcript hit */
+.under {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.under:hover .underTitle {
+  text-decoration: underline;
+  text-decoration-color: var(--accent-line);
+}
+
+.code {
+  flex: none;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.underTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.underNone {
+  font-size: var(--text-xs);
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+/* Speech is set in the record serif at reading measure: it is a quotation, and
+ * it is the only part of a result anybody actually reads. */
+.said {
+  font-family: var(--font-record);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+  max-width: 78ch;
+  text-wrap: pretty;
+}
+
+.who {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* Why this hit is here. A tint rather than the usual yellow slab, because a
+ * paragraph with six hits in it should still read as a paragraph. */
+.mark {
+  background: var(--accent-soft);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.05em;
+}
+
+.none {
+  padding: var(--sp-3) 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+
+.more {
+  align-self: start;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+}

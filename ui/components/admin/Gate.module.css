@@ -1,0 +1,68 @@
+.state {
+  max-width: 36rem;
+  margin: var(--sp-8) auto;
+  padding: var(--sp-5);
+  font-size: var(--text-base);
+  color: var(--ink-2);
+}
+
+.gate {
+  max-width: 30rem;
+  margin: var(--sp-8) auto;
+  padding: var(--sp-6);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+}
+
+.gate h1 {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--text-lg);
+}
+
+.gate p {
+  margin: 0 0 var(--sp-4);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  line-height: var(--leading-normal);
+}
+
+.row {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.row input {
+  flex: 1;
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+
+.row button {
+  padding: var(--sp-2) var(--sp-4);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.row button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.err {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--no);
+}

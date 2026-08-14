@@ -1,0 +1,146 @@
+/* Design tokens. One source of truth (R6.6), two themes (R8.4).
+ *
+ * Custom properties rather than a theme object: they survive server rendering,
+ * they are readable in devtools, and they do not tie the look to whatever
+ * renders it. The old pages re-declared their theme five times and drifted.
+ *
+ * The important tokens here are not the greys. They are `--record-*` and
+ * `--derived-*`. This archive has two kinds of truth - the county's published
+ * record, and everything inferred from the recording (R2) - and that
+ * distinction is only real if it is visible without interaction. So it is a
+ * token, not a per-component decision:
+ *
+ *   the record   serif, warm paper, a solid left rule    authoritative
+ *   derived      sans,  cool ground, a dashed left rule  plausibly wrong
+ *
+ * Anything that reads as a document is set in --font-record. Anything a
+ * machine inferred is set in --font-ui. That single choice does more work
+ * than any badge, and it degrades gracefully: it still reads correctly in
+ * high contrast, in print, and with colour removed.
+ */
+
+:root {
+  /* ---------------------------------------------------------- type */
+  --font-ui: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-record: var(--font-serif), ui-serif, Georgia, serif;
+  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", monospace;
+
+  --text-2xs: 0.6875rem;  /* 11px - metadata, timestamps            */
+  --text-xs: 0.75rem;     /* 12px - chips, labels                   */
+  --text-sm: 0.8125rem;   /* 13px - dense lists, the spine          */
+  --text-base: 0.9375rem; /* 15px - transcript, body                */
+  --text-md: 1.0625rem;   /* 17px - item titles                     */
+  --text-lg: 1.375rem;    /* 22px - section heads                   */
+  --text-xl: 1.75rem;     /* 28px - page title                      */
+  --text-2xl: 2.25rem;    /* 36px - the archive                     */
+
+  --leading-tight: 1.25;
+  --leading-snug: 1.4;
+  --leading-normal: 1.6;
+  --leading-record: 1.55;
+
+  --tracking-caps: 0.06em;
+  --tracking-tight: -0.011em;
+
+  /* -------------------------------------------------------- spacing */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-7: 3rem;
+  --sp-8: 4rem;
+
+  --radius-sm: 3px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --radius-full: 999px;
+
+  /* --------------------------------------------------------- layout */
+  --rail: 21rem;          /* context rail / agenda spine             */
+  --dock: 4.5rem;         /* collapsed player dock                   */
+  --measure: 42rem;       /* readable line length for the record     */
+  --header: 3.25rem;
+
+  /* --------------------------------------------------------- motion */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --fast: 120ms;
+  --normal: 220ms;
+  --slow: 380ms;
+}
+
+/* ------------------------------------------------------------- palette
+ *
+ * Light is warm paper - this is a document archive and should feel like one.
+ * Dark is cool ink.
+ *
+ * Every colour is declared ONCE, as light-dark(light, dark). The first draft
+ * of this file wrote the dark palette out twice - an explicit [data-theme] rule
+ * and a prefers-color-scheme block - and the two had drifted apart within an
+ * hour of being written, which is precisely the failure the comment at the top
+ * of this file complains about in the old pages. One declaration cannot drift.
+ *
+ * The system preference decides via `color-scheme: light dark`; the toggle
+ * stamps data-theme on <html> and pins it.
+ */
+:root {
+  color-scheme: light dark;
+
+  --bg: light-dark(#faf8f4, #14161a);
+  --bg-sunk: light-dark(#f2efe8, #0f1114);
+  --surface: light-dark(#ffffff, #1b1e24);
+  --surface-2: light-dark(#f7f5f0, #22262d);
+  --rule: light-dark(#e3ded3, #2b3037);
+  /* Borders that carry meaning rather than decorate - the dashed edge on
+   * "no disposition recorded", the two register rules - clear 3:1 for
+   * non-text contrast (WCAG 1.4.11). They started at 2.0:1 and were the
+   * quietest part of the design doing the loudest job. */
+  --rule-strong: light-dark(#948b7a, #606974);
+
+  /* ink-3 and ink-4 both carry meaning - "no recording", "Voice B", an item's
+   * offset - so both clear 4.5:1 against every background in both themes.
+   * Measured, not eyeballed: the first values here ran 2.7-3.3:1. */
+  --ink: light-dark(#1b1917, #e9e7e2);
+  --ink-2: light-dark(#4a453e, #b9b6af);
+  --ink-3: light-dark(#5f5a53, #a9a59d);
+  --ink-4: light-dark(#726c64, #948f88);
+
+  --accent: light-dark(#1c5170, #79b8dc);
+  --accent-ink: light-dark(#ffffff, #10222d);
+  --accent-soft: light-dark(#e7eff4, #1a2b36);
+  --accent-line: light-dark(#93b4c8, #2e4a5c);
+
+  /* The playhead. Warm, because it is the one thing happening now. */
+  --live: light-dark(#a8480f, #f0913f);
+  --live-soft: light-dark(#fbeee6, #2e1f13);
+
+  /* The two registers (R2.2). */
+  --record-bg: light-dark(#fffdf8, #1e2027);
+  --record-rule: light-dark(#a09059, #8a7a55);
+  --derived-bg: light-dark(#f5f6f7, #191c21);
+  --derived-rule: light-dark(#868d95, #69727d);
+
+  --ok: light-dark(#2e6a4b, #6cc094);
+  --ok-soft: light-dark(#e6f0ea, #16281f);
+  --no: light-dark(#962c26, #e08a84);
+  --no-soft: light-dark(#f8e9e8, #2c1a19);
+  --wait: light-dark(#8a5a08, #d9a441);
+  --wait-soft: light-dark(#f8f0e0, #2a2213);
+  --neutral: light-dark(#5d6169, #9aa1ab);
+  --neutral-soft: light-dark(#eceef0, #23272d);
+
+  /* light-dark() is a COLOUR function, so only the colour varies by theme -
+   * wrapping a whole box-shadow value in it makes the declaration invalid and
+   * the shadow silently disappears. */
+  --shade-1: light-dark(rgb(27 25 23 / 0.05), rgb(0 0 0 / 0.40));
+  --shade-2: light-dark(rgb(27 25 23 / 0.09), rgb(0 0 0 / 0.45));
+  --shade-3: light-dark(rgb(27 25 23 / 0.12), rgb(0 0 0 / 0.5));
+
+  --shadow-1: 0 1px 2px var(--shade-1), 0 1px 1px var(--shade-1);
+  --shadow-2: 0 4px 12px var(--shade-2), 0 1px 3px var(--shade-1);
+  --shadow-3: 0 -1px 0 var(--rule), 0 -8px 28px var(--shade-3);
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }

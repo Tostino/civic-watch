@@ -1,0 +1,303 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-width: var(--measure);
+}
+
+.title {
+  font-family: var(--font-record);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.why {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+/* The scale, shown as the ramp it is rather than as one swatch. Four steps
+ * is enough to say "pale is few, deep is many" without becoming a chart of
+ * its own. */
+.ramp {
+  width: 3.2rem;
+  height: 0.55rem;
+  border-radius: 2px;
+}
+.rampRecord {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent) 14%, var(--surface)),
+    color-mix(in srgb, var(--accent) 88%, var(--surface))
+  );
+}
+.rampSaid {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--live) 14%, var(--surface)),
+    color-mix(in srgb, var(--live) 88%, var(--surface))
+  );
+}
+
+.swNone {
+  width: 0.7rem;
+  height: 0.55rem;
+  border-radius: 2px;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 3px,
+    var(--rule-strong) 3px 4px
+  );
+}
+
+.scaleNote {
+  color: var(--ink-4);
+}
+
+/* -------------------------------------------------------------- the grid */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+/* --years is set inline from the span the API returned. The month axis can
+ * hardcode 12 because a year has twelve months; this one cannot, because the
+ * archive grew a thirteenth year the moment the calendar ran into 2027. */
+/* A FIXED row height. The label used to set it, so a subject whose metadata
+ * wrapped to three lines was three times the height of one that did not, and
+ * the grid had no rhythm to read across. */
+.row {
+  display: grid;
+  grid-template-columns:
+    minmax(12.5rem, 1.7fr)
+    repeat(var(--years), minmax(1.15rem, 1fr))
+    4.4rem;
+  gap: 2px;
+  align-items: center;
+  min-width: 34rem;
+  min-height: 2.9rem;
+}
+
+/* Not sticky. `.grid` sets overflow-x, which makes it a scroll container on
+ * both axes, and it has no height to scroll in - so `position: sticky` here
+ * computed to a header that never moved and never could. */
+.headRow {
+  padding-block-end: 2px;
+  min-height: 0;
+}
+
+.colHead {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.colHead:last-child {
+  font-family: var(--font-ui);
+  text-align: end;
+}
+
+/* ------------------------------------------------------------------- rows */
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding-inline-end: var(--sp-3);
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-sm);
+  font-weight: 550;
+  line-height: var(--leading-tight);
+  color: var(--ink);
+  text-decoration: none;
+  text-wrap: pretty;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.name:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: var(--accent-line);
+}
+
+.sub {
+  font-size: var(--text-2xs);
+  line-height: var(--leading-snug);
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+  /* One line, clipped. It is context for the strip beside it, not a
+   * paragraph, and wrapping it is what made every row a different height. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Two lanes, one column. No border: a 2px gap separates marks, and drawing a
+ * rule around every one of 216 cells is what made this read as a wall of
+ * boxes rather than as a field of values. */
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: 2px;
+  transition: outline-color var(--fast) var(--ease);
+  outline: 2px solid transparent;
+  outline-offset: 1px;
+}
+
+.cell:hover {
+  outline-color: var(--accent);
+}
+
+.lane {
+  height: 0.6rem;
+  border-radius: 2px;
+}
+
+/* Both lanes are the same grammar - tint is magnitude - so the eye compares
+ * them the way it should: down a column, and along each lane. The ceiling is
+ * 88% rather than the old 48%, because --accent is a low-chroma blue (0.076)
+ * and half of it against white is a range of near-greys: the difference
+ * between a quiet year and the busiest one was there in the data and not on
+ * the screen. --fill is 0..1 within THIS row and THIS lane. */
+.laneRecord {
+  background: color-mix(in srgb, var(--accent) calc(var(--fill, 0) * 88%), var(--surface));
+}
+
+.laneSaid {
+  background: color-mix(in srgb, var(--live) calc(var(--fill, 0) * 88%), var(--surface));
+}
+
+/* The two kinds of nothing, and they are different claims: the source covered
+ * this year and had nothing to say, versus no recording of this year exists
+ * at all. Both are drawn from --ink-4 at low alpha rather than from --rule,
+ * because --rule against the DARK surface measures 1.24:1 - the distinction
+ * this grid is built on disappeared entirely in dark mode, in both marks at
+ * once. A mid-tone ink at the same alpha lands in the same place against
+ * paper and against ink. */
+.empty {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-4) 38%, transparent);
+}
+
+/* The only place this grid uses texture, and it earns it: "we have no
+ * recording of that year" is not a value on the scale. */
+.none {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 3px,
+    color-mix(in srgb, var(--ink-4) 55%, transparent) 3px 4px
+  );
+}
+
+/* A module class and the global :focus-visible have equal specificity, so
+ * animating an outline for hover deletes the focus ring the component
+ * inherits — see the same note in TimeAxis.module.css (R8.2, WCAG 2.4.7). */
+.cell:focus-visible {
+  outline-color: var(--accent);
+  outline-offset: 1px;
+  z-index: 1;
+}
+
+/* Where the recordings begin. Everything left of this line is the published
+ * record alone, and an empty bottom edge there means no camera existed. */
+.gate {
+  border-inline-start: 1px dashed var(--rule-strong);
+  padding-inline-start: 2px;
+}
+
+.totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  line-height: var(--leading-tight);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The figure is ink; the lane's colour arrives as a mark beside it. Text
+ * wearing the series colour is how a number stops being readable. */
+.tRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  color: var(--ink-3);
+  cursor: help;
+}
+
+.dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 1px;
+  flex: none;
+}
+
+.dotRecord {
+  background: color-mix(in srgb, var(--accent) 78%, var(--surface));
+}
+
+.dotSaid {
+  background: color-mix(in srgb, var(--live) 78%, var(--surface));
+}
+
+.note {
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-4);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+@media (max-width: 46rem) {
+  .row {
+    grid-template-columns:
+      minmax(9.5rem, 1.4fr)
+      repeat(var(--years), minmax(0.9rem, 1fr))
+      3.6rem;
+    min-width: 28rem;
+  }
+
+  .lane {
+    height: 0.5rem;
+  }
+}

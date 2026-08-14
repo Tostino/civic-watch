@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speaker Workbench · Pasco Meetings</title>
+<style>
+  :root{--bg:#fbfbfa;--panel:#fff;--rail:#f4f3f0;--border:#e4e2dd;--text:#24211d;
+    --muted:#78736b;--faint:#a8a29a;--accent:#b4530a;--soft:#fdf1e5;--sel:#e6eefb;
+    --ok:#2f7d4f;--row:#faf9f7;--shadow:0 1px 2px rgba(0,0,0,.05)}
+  @media (prefers-color-scheme:dark){:root{--bg:#16150f;--panel:#1e1d17;
+    --rail:#1a1913;--border:#33312a;--text:#eeece6;--muted:#9b958a;--faint:#6f6a61;
+    --accent:#e8905a;--soft:#2b2118;--sel:#1b2532;--ok:#6cc48d;--row:#211f19;
+    --shadow:0 1px 2px rgba(0,0,0,.3)}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;gap:14px;align-items:center;padding:9px 16px;
+    background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  h1{font-size:14px;margin:0;font-weight:650;white-space:nowrap}
+  h1 span{color:var(--accent)}
+  nav a{font-size:13px;color:var(--muted);text-decoration:none;padding:4px 9px;
+    border-radius:6px}
+  nav a.on{background:var(--soft);color:var(--accent);font-weight:600}
+  .stat{font-size:12px;color:var(--muted);margin-left:auto}
+  main{display:grid;grid-template-columns:246px 1fr;height:calc(100vh - 45px)}
+  #railtoggle{display:none}
+  /* Narrow pane (docked browser, split screen): the rail becomes an overlay
+     drawer so the table gets the full width instead of ~240px with its last
+     two columns clipped off. */
+  @media (max-width:820px){
+    main{grid-template-columns:1fr}
+    #railtoggle{display:inline-block}
+    #rail{position:fixed;top:45px;bottom:0;left:0;width:250px;z-index:30;
+      transform:translateX(-100%);transition:transform .16s ease;
+      box-shadow:2px 0 14px rgba(0,0,0,.22)}
+    #rail.open{transform:none}
+    #scrim{position:fixed;inset:45px 0 0;background:rgba(0,0,0,.35);z-index:25;
+      display:none}
+    #scrim.on{display:block}
+    #dock{width:auto;max-width:none;left:10px;right:10px}
+    /* Meeting title is the least load-bearing column when space is tight -
+       date plus the sample already identify the row. */
+    th:nth-child(5),td:nth-child(5){display:none}
+  }
+  @media (max-width:560px){
+    th:nth-child(4),td:nth-child(4){display:none}   /* confidence */
+  }
+  input,button,select{font:inherit;color:var(--text);background:var(--bg);
+    border:1px solid var(--border);border-radius:6px;padding:5px 8px}
+  button{cursor:pointer}button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button:disabled{opacity:.4;cursor:default}
+
+  /* ---- rail: sectioned, because 90% of the roster is one-off commenters
+         and they otherwise bury the handful of recurring speakers ---- */
+  #rail{background:var(--rail);border-right:1px solid var(--border);
+    overflow-y:auto;padding:9px}
+  #railq{width:100%;margin-bottom:8px}
+  .sec{margin:11px 0 3px;font-size:11px;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--muted);font-weight:650;display:flex;
+    gap:6px;align-items:center;cursor:pointer;user-select:none}
+  .sec .c{color:var(--faint);font-weight:500}
+  .sec .tw{width:9px;display:inline-block;transition:transform .12s}
+  .sec.closed .tw{transform:rotate(-90deg)}
+  .item{padding:4px 7px;border-radius:5px;cursor:pointer;display:flex;gap:7px;
+    align-items:baseline;font-size:13px;line-height:1.35}
+  .item:hover{background:var(--panel)}
+  .item.on{background:var(--soft);color:var(--accent);font-weight:600}
+  .item .n{margin-left:auto;font-size:11px;color:var(--faint);
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dot{width:6px;height:6px;border-radius:50%;flex:0 0 6px}
+  .dot.h{background:var(--ok)}.dot.a{background:transparent;
+    border:1px solid var(--faint)}.dot.q{background:var(--accent)}
+
+  /* ---- centre ---- */
+  #center{overflow-y:auto;padding:14px 16px}
+  .ghead{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .gtitle{font-size:18px;font-weight:650}
+  .sub{font-size:12px;color:var(--muted)}
+  .bar{position:sticky;top:0;z-index:6;background:var(--bg);padding:9px 0 8px;
+    border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center;
+    flex-wrap:wrap;margin:8px 0 0}
+  .selcount{font-size:12px;font-weight:600;color:var(--accent)}
+  .selcount.none{color:var(--muted);font-weight:400}
+
+  /* dense table beats cards once a group has 126 members */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{position:sticky;top:44px;background:var(--bg);text-align:left;
+    font-size:11px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);font-weight:650;padding:6px 7px;border-bottom:1px solid var(--border);
+    cursor:pointer;white-space:nowrap}
+  thead th:hover{color:var(--accent)}
+  tbody tr{border-bottom:1px solid var(--border);cursor:pointer}
+  tbody tr:nth-child(odd){background:var(--row)}
+  tbody tr:hover{background:var(--panel)}
+  tbody tr.sel{background:var(--sel)}
+  tbody tr.cur td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
+  td{padding:5px 7px;vertical-align:top}
+  td.date{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted);
+    white-space:nowrap}
+  td.quote{color:var(--text)}
+  td.quote .m{color:var(--muted);font-size:12px}
+  .chip{font-size:10px;padding:0 5px;border-radius:4px;background:var(--soft);
+    color:var(--accent);border:1px solid var(--border);white-space:nowrap}
+  .chip.h{background:transparent;color:var(--ok);border-color:var(--ok)}
+  .exp{background:var(--panel)}
+  .exp td{padding:8px 12px 10px 30px}
+  .q{padding:3px 0 3px 9px;border-left:2px solid var(--border);cursor:pointer;
+    font-size:13px}
+  .q:hover{border-left-color:var(--accent);color:var(--accent)}
+  .q .t{color:var(--faint);font-variant-numeric:tabular-nums;margin-right:6px}
+  .q.isprev{border-left-color:var(--accent)}
+  .q.isprev .t{color:var(--accent)}
+  .empty{color:var(--muted);text-align:center;padding:36px 10px;font-size:13px}
+  .help{font-size:11.5px;color:var(--faint);margin-top:16px;line-height:1.9}
+  kbd{font:11px ui-monospace,monospace;border:1px solid var(--border);
+    border-bottom-width:2px;border-radius:4px;padding:0 4px}
+
+  /* player is a drawer: it only takes space once you actually play something */
+  #dock{position:fixed;right:14px;bottom:14px;width:392px;max-width:44vw;z-index:20;
+    background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    box-shadow:0 6px 24px rgba(0,0,0,.18);display:none;overflow:hidden}
+  #dock.open{display:block}
+  #dockbar{display:flex;gap:8px;align-items:center;padding:6px 9px;
+    border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+  #dockbar b{color:var(--text);font-weight:600;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  #dockbar button{margin-left:auto;padding:2px 7px}
+  #pbox{position:relative;padding-bottom:56.25%;height:0;background:#000}
+  #pbox iframe,#pbox>div{position:absolute;inset:0;width:100%;height:100%}
+  #ctx{max-height:190px;overflow-y:auto;padding:7px 9px}
+  .cx{font-size:12.5px;padding:2px 5px;border-radius:4px;cursor:pointer}
+  .cx:hover{background:var(--bg)}.cx.hi{background:var(--soft)}
+  .cx b{color:var(--accent);font-weight:600}
+  .cx b.jump{cursor:pointer;border-bottom:1px dotted transparent}
+  .cx b.jump:hover{border-bottom-color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <button id="railtoggle" title="Speakers list">☰</button>
+  <h1>Speaker <span>Workbench</span></h1>
+  <nav><a href="/">Research</a><a href="/ask">Ask</a><a href="/speakers" class="on">Workbench</a></nav>
+  <span class="stat" id="stat"></span>
+</header>
+<main>
+  <div id="rail">
+    <input id="railq" placeholder="Filter…  (/)">
+    <div id="sections"></div>
+    <div class="help">
+      <kbd>j</kbd><kbd>k</kbd> row · <kbd>n</kbd><kbd>p</kbd> speaker · <kbd>x</kbd> select<br>
+      <kbd>e</kbd> expand · <kbd>Enter</kbd> play · <kbd>a</kbd> all · <kbd>Esc</kbd> clear
+    </div>
+  </div>
+  <div id="center"><div class="empty">Pick a speaker from the list.</div></div>
+</main>
+<div id="scrim"></div>
+
+<div id="dock">
+  <div id="dockbar"><b id="docktitle"></b><button id="dockclose">✕</button></div>
+  <div id="pbox"><div id="player"></div></div>
+  <div id="ctx"></div>
+</div>
+<datalist id="names"></datalist>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=s=>{s=Math.max(0,Math.floor(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;
+  return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0')};
+// cut on a word boundary; mid-word truncation reads as corrupted text
+const clip=(s,n)=>{s=(s||'').trim(); if(s.length<=n) return s;
+  const cut=s.slice(0,n); return cut.slice(0,cut.lastIndexOf(' '))+'…'};
+
+let roster=[],queue=[],group=null,members=[],sel=new Set(),cur=0,last=-1;
+let sortKey='upload_date',sortDir=-1;
+// The long noisy sections start collapsed; the useful ones start open.
+let closed=new Set(JSON.parse(localStorage.closed||'["queue","one"]'));
+let navList=[];      // flat, in rail order, so prev/next can step through it
+
+/* ---------- player dock ---------- */
+let player=null,ready=false,pending=null,curVid=null;
+function onYouTubeIframeAPIReady(){
+  player=new YT.Player('player',{playerVars:{rel:0,modestbranding:1},
+    events:{onReady:()=>{ready=true;if(pending){play(...pending);pending=null}}}});
+}
+function play(vid,t,title){
+  $('#dock').classList.add('open');
+  if(title) $('#docktitle').textContent=title;
+  if(!ready){pending=[vid,t,title];return}
+  if(curVid===vid) player.seekTo(t,true);
+  else{player.loadVideoById({videoId:vid,startSeconds:t});curVid=vid}
+  loadContext(vid,t);
+}
+$('#dockclose').onclick=()=>{$('#dock').classList.remove('open');
+  try{player.pauseVideo()}catch(e){}};
+
+async function loadContext(vid,t){
+  const d=await fetch('/api/video/'+vid).then(r=>r.json());
+  if(d.error) return;
+  const near=d.utterances.filter(u=>u.start>t-30&&u.start<t+90);
+  // Every speaker name in the running transcript is a jump target: hearing
+  // someone else in the conversation is the most natural moment to go and
+  // check or fix who they are.
+  $('#ctx').innerHTML=near.map(u=>`<div class="cx ${Math.abs(u.start-t)<3?'hi':''}"
+      data-t="${u.start}"><b class="jump" ${u.named?`data-name="${esc(u.speaker)}"`
+      :`data-cluster="${u.cluster}"`} title="Open ${esc(u.speaker)} in the workbench"
+      >${esc(u.speaker)}</b> ${esc(clip(u.text,150))}</div>`).join('');
+  $$('#ctx .cx').forEach(el=>el.onclick=()=>play(vid,parseFloat(el.dataset.t)));
+  $$('#ctx .jump').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();          // jumping to a speaker should not also seek
+    openGroup(el.dataset.name?{name:el.dataset.name}
+                             :{cluster:+el.dataset.cluster});
+  });
+  $('#ctx .hi')?.scrollIntoView({block:'center'});
+}
+
+/* ---------- rail ---------- */
+async function loadRail(){
+  [roster,queue]=await Promise.all([
+    fetch('/api/speakers/roster').then(r=>r.json()),
+    fetch('/api/speakers/unidentified?limit=120').then(r=>r.json())]);
+  $('#names').innerHTML=roster.map(r=>`<option value="${esc(r.name)}">`).join('');
+  renderRail();
+}
+function section(id,label,rows,render){
+  const isClosed=closed.has(id);
+  return `<div class="sec ${isClosed?'closed':''}" data-sec="${id}">
+      <span class="tw">▾</span>${label}<span class="c">${rows.length}</span></div>
+    <div data-body="${id}" ${isClosed?'style="display:none"':''}>
+      ${rows.length?rows.map(render).join(''):'<div class="sub" style="padding:3px 7px">none</div>'}</div>`;
+}
+function renderRail(){
+  const f=$('#railq').value.trim().toLowerCase();
+  const match=n=>!f||n.toLowerCase().includes(f);
+  const rec=roster.filter(r=>r.tier==='recurring'&&match(r.name));
+  const occ=roster.filter(r=>r.tier==='occasional'&&match(r.name));
+  const one=roster.filter(r=>r.tier==='oneoff'&&match(r.name));
+  const q=f?[]:queue;
+  const ritem=r=>`<div class="item" data-name="${esc(r.name)}">
+      <span class="dot ${r.human_labels?'h':'a'}"></span><span>${esc(r.name)}</span>
+      <span class="n">${r.meetings}mtg · ${r.lines}</span></div>`;
+  // Named recurring speakers first: that is the curation work. The unnamed
+  // queue is 100+ entries and pushed everything useful below the fold when it
+  // sat at the top.
+  $('#sections').innerHTML=
+    section('rec','Recurring · 3+ meetings',rec,ritem)+
+    section('occ','Two meetings',occ,ritem)+
+    section('queue','Needs a name',q,x=>`<div class="item" data-cluster="${x.cluster}">
+        <span class="dot q"></span><span>Group ${x.cluster}</span>
+        <span class="n">${x.meetings}mtg · ${x.lines}</span></div>`)+
+    section('one','One meeting',one,ritem);
+  $$('.sec').forEach(el=>el.onclick=()=>{
+    const id=el.dataset.sec;
+    closed.has(id)?closed.delete(id):closed.add(id);
+    localStorage.closed=JSON.stringify([...closed]);
+    renderRail();
+  });
+  // Flat list in the order shown, so prev/next walks the rail the way the eye
+  // does - including across section boundaries.
+  navList=$$('#sections .item').map(el=>
+    el.dataset.name?{name:el.dataset.name}:{cluster:+el.dataset.cluster});
+  $$('#sections .item').forEach(el=>el.onclick=()=>openGroup(
+    el.dataset.name?{name:el.dataset.name}:{cluster:+el.dataset.cluster}));
+  if(group) markRail();
+}
+function step(delta){
+  // Walk the rail in the order it is displayed, crossing section boundaries,
+  // so working through a list never means going back to the sidebar.
+  const key=g=>g.name?'n:'+g.name:'c:'+g.cluster;
+  const i=navList.findIndex(g=>key(g)===key(group||{}));
+  const j=Math.max(0,Math.min(navList.length-1,(i<0?0:i)+delta));
+  if(navList[j]) openGroup(navList[j]);
+}
+function markRail(){
+  $$('.item.on').forEach(e=>e.classList.remove('on'));
+  const k=group.name?`[data-name="${CSS.escape(group.name)}"]`:`[data-cluster="${group.cluster}"]`;
+  $(k)?.classList.add('on');
+}
+$('#railq').oninput=renderRail;
+
+/* Drawer, only meaningful under the narrow breakpoint. Picking a speaker
+   closes it, since on a narrow pane the rail covers what you just opened. */
+function railOpen(on){
+  $('#rail').classList.toggle('open',on);
+  $('#scrim').classList.toggle('on',on);
+}
+$('#railtoggle').onclick=()=>railOpen(!$('#rail').classList.contains('open'));
+$('#scrim').onclick=()=>railOpen(false);
+
+/* ---------- group ---------- */
+async function openGroup(g){
+  group=g;sel.clear();cur=0;last=-1;markRail();railOpen(false);
+  $('#center').innerHTML='<div class="empty">Loading…</div>';
+  const qs=g.name?'name='+encodeURIComponent(g.name):'cluster='+g.cluster;
+  members=await fetch('/api/speakers/group?'+qs).then(r=>r.json());
+  sortMembers();renderGroup();
+}
+function sortMembers(){
+  members.sort((a,b)=>{
+    const A=a[sortKey]??'',B=b[sortKey]??'';
+    return (A<B?-1:A>B?1:0)*sortDir;
+  });
+}
+function renderGroup(){
+  if(!members.length){$('#center').innerHTML='<div class="empty">No voices.</div>';return}
+  const mtgs=new Set(members.map(m=>m.video_id)).size;
+  const lines=members.reduce((a,m)=>a+m.lines,0);
+  const human=members.filter(m=>m.human).length;
+  // Same wording as the transcripts, so "Group 32" there is "Group 32" here.
+  const title=group.name||`Group ${group.cluster}`;
+  const cols=[['upload_date','Date'],['lines','Lines'],['confidence','Conf'],
+              ['title','Meeting'],[null,'Sample']];
+  $('#center').innerHTML=`
+    <div class="ghead">
+      <button id="prev" title="Previous speaker (p)">‹</button>
+      <button id="next" title="Next speaker (n)">›</button>
+      <span class="gtitle">${esc(title)}</span>
+      <span class="sub">${members.length} voice${members.length===1?'':'s'} ·
+        ${mtgs} meeting${mtgs===1?'':'s'} · ${lines.toLocaleString()} lines${
+        human?` · ${human} confirmed`:''}</span></div>
+    <div class="bar">
+      <input list="names" id="nameIn" placeholder="Name…" value="${esc(group.name||'')}" size="22">
+      <button class="primary" id="assign">Assign</button>
+      <button id="selall">All</button><button id="selnone">None</button>
+      <button id="clear">Clear</button>
+      <button id="ignore" title="Not worth naming — hide from the queue">Ignore</button>
+      <span class="selcount none" id="selcount"></span>
+    </div>
+    <table><thead><tr><th style="width:22px"></th>
+      ${cols.map(([k,l])=>`<th data-sort="${k||''}">${l}${
+        k===sortKey?(sortDir<0?' ↓':' ↑'):''}</th>`).join('')}</tr></thead>
+      <tbody id="tb"></tbody></table>`;
+  renderRows();
+  $('#prev').onclick=()=>step(-1);
+  $('#next').onclick=()=>step(1);
+  $('#assign').onclick=()=>applyLabel($('#nameIn').value.trim());
+  $('#clear').onclick=()=>applyLabel('');
+  $('#selall').onclick=()=>{members.forEach((_,i)=>sel.add(i));updateSel()};
+  $('#selnone').onclick=()=>{sel.clear();updateSel()};
+  $('#nameIn').onkeydown=e=>{if(e.key==='Enter')applyLabel($('#nameIn').value.trim())};
+  $('#ignore').onclick=async()=>{
+    const idxs=sel.size?[...sel]:members.map((_,i)=>i);
+    await fetch('/api/speakers/ignore',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({members:idxs.map(i=>[members[i].video_id,members[i].local_label]),
+                           reason:'not worth naming'})});
+    await loadRail();
+    $('#center').innerHTML='<div class="empty">Ignored — removed from the queue.</div>';
+  };
+  $$('th[data-sort]').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.sort; if(!k)return;
+    if(k===sortKey) sortDir*=-1; else{sortKey=k;sortDir=-1}
+    sortMembers();renderGroup();
+  });
+}
+function renderRows(){
+  $('#tb').innerHTML=members.map((m,i)=>`
+    <tr data-i="${i}">
+      <td><input type="checkbox" data-cb="${i}"></td>
+      <td class="date">${esc(m.upload_date||'—')}</td>
+      <td class="num">${m.lines}</td>
+      <td class="num">${m.human?'<span class="chip h">set</span>':
+        m.confidence!=null?Math.round(m.confidence*100)+'%':'—'}</td>
+      <td class="quote"><span class="m">${esc(clip(m.title,44))}</span></td>
+      <td class="quote">${esc(clip(m.samples[0]?.text,120))||'<span class="m">—</span>'}</td>
+    </tr>`).join('');
+  $$('#tb tr').forEach(tr=>{
+    const i=+tr.dataset.i;
+    tr.onclick=e=>{ if(e.target.dataset.cb!==undefined) return; cur=i; toggleExpand(i); };
+    tr.querySelector('[data-cb]').onclick=e=>{
+      if(e.shiftKey&&last>=0){const[a,b]=[Math.min(i,last),Math.max(i,last)];
+        for(let k=a;k<=b;k++)sel.add(k);}
+      else{sel.has(i)?sel.delete(i):sel.add(i);last=i}
+      updateSel();e.stopPropagation();
+    };
+  });
+  updateSel();
+}
+async function toggleExpand(i){
+  const tr=$(`#tb tr[data-i="${i}"]`);
+  const nxt=tr.nextElementSibling;
+  if(nxt&&nxt.classList.contains('exp')){nxt.remove();return}
+  $$('.exp').forEach(e=>e.remove());
+  const m=members[i];
+  const rows=await fetch(`/api/speakers/voice?video_id=${m.video_id}`+
+    `&local_label=${encodeURIComponent(m.local_label)}`).then(r=>r.json());
+  // The expansion is the full chronological list, so it legitimately contains
+  // the line already shown as the row's preview. Marking it reads as "the same
+  // line, in context" rather than as a duplicate.
+  const shown=new Set(m.samples.map(s=>Math.round(s.start)));
+  const body=rows.map(s=>`<div class="q${shown.has(Math.round(s.start))?' isprev':''}"
+      data-t="${s.start}"><span class="t">${fmt(s.start)}</span>${esc(clip(s.text,220))}</div>`).join('')
+    +(rows.length>=40?'<div class="sub" style="padding:4px 0 0 9px">'
+      +`showing first 40 of ${m.lines} lines</div>`:'');
+  tr.insertAdjacentHTML('afterend',
+    `<tr class="exp"><td colspan="6">${body||'<span class="sub">no lines</span>'}</td></tr>`);
+  $$('.exp .q').forEach(el=>el.onclick=()=>play(m.video_id,
+    Math.max(0,parseFloat(el.dataset.t)-1.5),m.title));
+}
+function updateSel(){
+  $$('#tb tr[data-i]').forEach(tr=>{
+    const i=+tr.dataset.i,on=sel.has(i);
+    tr.classList.toggle('sel',on);tr.classList.toggle('cur',i===cur);
+    tr.querySelector('[data-cb]').checked=on;
+  });
+  const el=$('#selcount');if(!el)return;
+  el.textContent=sel.size?`${sel.size} selected — applies to these only`
+                         :'nothing selected — applies to all voices';
+  el.className='selcount'+(sel.size?'':' none');
+}
+async function applyLabel(name){
+  const idxs=sel.size?[...sel]:members.map((_,i)=>i);
+  await fetch('/api/speakers/label',{method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({members:idxs.map(i=>[members[i].video_id,members[i].local_label]),name})});
+  await loadRail();
+  if(name) openGroup({name});
+  else if(group.cluster!=null) openGroup(group);
+  else $('#center').innerHTML='<div class="empty">Label cleared.</div>';
+}
+
+/* ---------- keyboard ---------- */
+document.addEventListener('keydown',e=>{
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)){if(e.key==='Escape')e.target.blur();return}
+  if(e.key==='/'){e.preventDefault();$('#railq').focus();return}
+  if(!members.length)return;
+  if(e.key==='j'||e.key==='k'){
+    cur=Math.max(0,Math.min(members.length-1,cur+(e.key==='j'?1:-1)));
+    $(`#tb tr[data-i="${cur}"]`)?.scrollIntoView({block:'nearest'});updateSel();
+  }
+  if(e.key==='x'){sel.has(cur)?sel.delete(cur):sel.add(cur);last=cur;updateSel()}
+  if(e.key==='a'){members.forEach((_,i)=>sel.add(i));updateSel()}
+  if(e.key==='e'){toggleExpand(cur)}
+  if(e.key==='n'){step(1)}
+  if(e.key==='p'){step(-1)}
+  if(e.key==='Escape'){sel.clear();updateSel()}
+  if(e.key==='Enter'){const m=members[cur];
+    if(m?.samples?.length)play(m.video_id,Math.max(0,m.samples[0].start-1.5),m.title)}
+});
+
+/* ---------- boot ---------- */
+(async()=>{
+  const s=await fetch('/api/stats').then(r=>r.json());
+  $('#stat').textContent=`${s.speakers} speakers · `+
+    `${s.named_utterances.toLocaleString()}/${s.utterances.toLocaleString()} lines attributed`;
+  await loadRail();
+  // Deep link from the research app: clicking "Group 32" in a transcript lands
+  // straight on that group here, so fixing a name never means hunting for it.
+  const p=new URLSearchParams(location.search);
+  if(p.get('cluster')) openGroup({cluster:+p.get('cluster')});
+  else if(p.get('name')) openGroup({name:p.get('name')});
+})();
+const tag=document.createElement('script');
+tag.src='https://www.youtube.com/iframe_api';document.head.appendChild(tag);
+</script>
+</body>
+</html>

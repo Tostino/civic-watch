@@ -1,0 +1,145 @@
+.chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4em;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  max-width: 100%;
+}
+
+.sm {
+  font-size: var(--text-xs);
+}
+
+.name {
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: var(--tracking-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role {
+  font-size: 0.88em;
+  font-weight: 500;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.role::before {
+  content: "· ";
+  color: var(--ink-4);
+}
+
+.voice {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  color: var(--ink-4);
+  letter-spacing: 0;
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* The glyph carries the certainty, and it is a shape rather than a colour so
+ * it survives greyscale and high contrast. */
+.glyph {
+  width: 0.5em;
+  height: 0.5em;
+  flex: none;
+  align-self: center;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+
+/* A person said so. Solid, and the strongest treatment on the page. */
+.glyph[data-state="confirmed"] {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+/* Voice matching said so, at this meeting. Hollow: an inference, drawn as one. */
+.glyph[data-state="inferred"] {
+  background: none;
+  border-color: var(--accent-line);
+}
+
+/* Only the archive-wide majority for this voice says so - no evidence about
+ * this meeting at all. Dotted, because it is the weakest claim on the page and
+ * the one that put two different women under a single name. */
+.glyph[data-state="weak"] {
+  background: none;
+  border-style: dotted;
+  border-color: var(--ink-4);
+}
+
+.weak .name {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.glyph[data-state="unknown"] {
+  background: none;
+  border-style: dashed;
+  border-color: var(--ink-4);
+}
+
+.glyph[data-state="several"] {
+  border-radius: 1px;
+  border-color: var(--ink-4);
+  background: none;
+}
+
+.confirmed .name {
+  color: var(--ink);
+}
+
+.inferred .name {
+  color: var(--ink-2);
+  font-weight: 550;
+}
+
+/* Unidentified is the normal case for 24% of the archive, not an error. It is
+ * quiet and neutral, never alarming. */
+.unknown .name,
+.several .name {
+  color: var(--ink-3);
+  font-weight: 500;
+  font-style: italic;
+}
+
+.contested {
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--wait);
+  border: 1px dashed color-mix(in srgb, var(--wait) 40%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 0 0.35em;
+  cursor: help;
+}
+
+.isContested .name {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: color-mix(in srgb, var(--wait) 60%, transparent);
+  text-underline-offset: 0.22em;
+}
+
+/* Appears only once a handler is passed - slice 6 (D8). Reveals on hover or
+ * focus so a dense transcript is not littered with buttons. */
+.dispute {
+  font-size: 0.8em;
+  font-weight: 500;
+  color: var(--accent);
+  border-bottom: 1px solid var(--accent-line);
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+
+.chip:hover .dispute,
+.dispute:focus-visible {
+  opacity: 1;
+}

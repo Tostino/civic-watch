@@ -1,0 +1,213 @@
+import Link from "next/link";
+
+import type { MonthCell } from "@/lib/types";
+import s from "./TimeAxis.module.css";
+
+const MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * R5.1.2 - meetings on a time axis, scanned year → month → meeting. R7.1 asks
+ * for time to be a first-class visual affordance rather than a list with dates
+ * on it, and this collection is twelve years of a recurring event, so the axis
+ * is the natural spine of the whole page.
+ *
+ * Every cell carries two facts, because they are the two the archive most
+ * needs to admit:
+ *
+ *   fill    how many meetings that month - the county's volume roughly
+ *           doubled between 2019 and 2025
+ *   bar     how many of them we can HEAR
+ *
+ * Drawn together, the shape that emerges is the honest one: twelve years of
+ * published record and seven of recordings. There are 0 recordings before 2018
+ * and 3 in it, against 61 meetings; a reader looking at 2016 should be able to
+ * see that the video is not missing, it never existed. A count alone would
+ * hide that, and a site-wide disclaimer would be ignored (R3.2).
+ *
+ * Cells are links, not buttons: a month is a filtered view of the archive with
+ * its own URL (R4.2), so it is navigable, shareable and works without script.
+ */
+export function TimeAxis({
+  months,
+  year,
+  month,
+  href,
+}: {
+  months: MonthCell[];
+  /** Currently selected, from the URL. */
+  year?: string;
+  month?: string;
+  /** Builds the URL for a cell, preserving whatever else is filtered. */
+  href: (next: { year?: string; month?: string }) => string;
+}) {
+  if (!months.length) return null;
+
+  const byMonth = new Map(months.map((m) => [m.month, m]));
+  const years: string[] = [];
+  for (const m of months) {
+    const y = m.month.slice(0, 4);
+    if (years[years.length - 1] !== y) years.push(y);
+  }
+  years.sort();
+
+  // One scale for the whole grid, so a busy month in 2016 and a busy month in
+  // 2025 are the same weight. Per-year scaling would flatten the ramp, which
+  // is the most informative thing here.
+  const held = months.filter((m) => m.meetings > 0).map((m) => m.meetings);
+  const peak = Math.max(1, ...held);
+  const floor = Math.min(...held);
+
+  /* Scaled across the range the data actually occupies, not across 0..peak.
+   *
+   * No month in twelve years has fewer than 3 meetings or more than 20, so
+   * measuring from zero spends most of the scale on counts that never happen.
+   * Against 0..20 a square root put every month between 0.39 and 1.00 with a
+   * median of 0.59 - monotonic, honest, and visually flat, which is how the
+   * grid came to read as blank paper twice for opposite reasons.
+   *
+   * Measuring from 3..20 instead uses the whole ramp: the 2015 average lands
+   * near 0.20 and the 2024 average near 0.59, so the doubling of county
+   * business over the decade is legible as a gradient rather than inferred
+   * from the totals column. LOW keeps the quietest month clearly tinted,
+   * because a quiet month must never look like an empty one. */
+  const LOW = 0.14;
+  const fill = (n: number) =>
+    LOW + (1 - LOW) * (peak === floor ? 1 : (n - floor) / (peak - floor));
+
+  return (
+    <section className={s.wrap} aria-labelledby="axis-head">
+      <div className={s.head}>
+        {/* Derived, not written. The count was hardcoded as "twelve" and the
+            grid grew a thirteenth row the moment the calendar ran into 2027. */}
+        <h2 id="axis-head" className={s.title}>
+          {years[0]}&ndash;{years[years.length - 1]}, by month
+        </h2>
+        <p className={s.legend}>
+          <span className={s.key}>
+            <span aria-hidden className={`${s.swatch} ${s.swLow}`} />
+            <span aria-hidden className={`${s.swatch} ${s.swMid}`} />
+            <span aria-hidden className={`${s.swatch} ${s.swHigh}`} />
+            meetings held
+          </span>
+          <span className={s.key}>
+            <span aria-hidden className={s.swRec} />
+            of those, on video
+          </span>
+          <span className={s.key}>
+            <span aria-hidden className={`${s.swatch} ${s.swAhead}`} />
+            scheduled, not yet held
+          </span>
+        </p>
+      </div>
+
+      <div className={s.grid} role="grid" aria-label="Meetings by year and month">
+        <div className={s.row} role="row">
+          <span className={s.corner} role="columnheader" />
+          {MONTHS.map((m, i) => (
+            <span key={i} className={s.colHead} role="columnheader" aria-label={MONTH_NAMES[i]}>
+              {m}
+            </span>
+          ))}
+          <span className={s.rowTotal} role="columnheader">
+            all
+          </span>
+        </div>
+
+        {years.map((y) => {
+          const cells = MONTHS.map((_, i) =>
+            byMonth.get(`${y}-${String(i + 1).padStart(2, "0")}`),
+          );
+          const total = cells.reduce((n, c) => n + (c?.meetings ?? 0), 0);
+          const rec = cells.reduce((n, c) => n + (c?.recorded ?? 0), 0);
+          const ahead = cells.reduce((n, c) => n + (c?.scheduled ?? 0), 0);
+          return (
+            <div key={y} className={s.row} role="row">
+              <Link
+                href={href({ year: year === y ? undefined : y, month: undefined })}
+                className={`${s.yearHead} ${year === y ? s.on : ""}`}
+                aria-current={year === y ? "true" : undefined}
+                role="rowheader"
+              >
+                {y}
+              </Link>
+
+              {cells.map((c, i) => {
+                const key = `${y}-${String(i + 1).padStart(2, "0")}`;
+                const label = `${MONTH_NAMES[i]} ${y}`;
+                /* Three states, not two. A month with meetings on the county's
+                 * calendar that have not happened yet is not an empty month,
+                 * and drawing it as one told the reader that nothing was
+                 * scheduled for the rest of 2026 when 30 meetings were - the
+                 * exact error this axis exists to prevent, committed by the
+                 * axis itself. It is not a link: there is nothing to read. */
+                if (c && !c.meetings && c.scheduled) {
+                  return (
+                    <span
+                      key={key}
+                      role="gridcell"
+                      className={`${s.cell} ${s.ahead}`}
+                      title={`${label} — ${c.scheduled} scheduled, not yet held`}
+                      aria-label={`${label}, ${c.scheduled} meetings scheduled, not yet held`}
+                    />
+                  );
+                }
+                if (!c || !c.meetings) {
+                  return (
+                    <span
+                      key={key}
+                      role="gridcell"
+                      className={`${s.cell} ${s.empty}`}
+                      title={`${label} — no meetings`}
+                      aria-label={`${label}, no meetings`}
+                    />
+                  );
+                }
+                const on = month === key;
+                // August 2026 is 8 held and 5 still to come. The reader is
+                // standing inside that month, and the cell should say so.
+                const also = c.scheduled ? `, ${c.scheduled} not yet held` : "";
+                return (
+                  <Link
+                    key={key}
+                    role="gridcell"
+                    href={href({ year: undefined, month: on ? undefined : key })}
+                    className={`${s.cell} ${on ? s.on : ""} ${c.scheduled ? s.part : ""}`}
+                    aria-current={on ? "true" : undefined}
+                    /* A number per cell would be 4px tall at this density, so
+                       the count is in the label where a screen reader and a
+                       hover both reach it. */
+                    aria-label={`${label}, ${c.meetings} meetings, ${c.recorded} on video${also}`}
+                    title={`${label} — ${c.meetings} meetings, ${c.recorded} on video${also}`}
+                    style={{ "--fill": fill(c.meetings).toFixed(3) } as React.CSSProperties}
+                  >
+                    {c.recorded ? (
+                      <span
+                        aria-hidden
+                        className={s.rec}
+                        style={{ "--rec": (c.recorded / c.meetings).toFixed(3) } as React.CSSProperties}
+                      />
+                    ) : null}
+                  </Link>
+                );
+              })}
+
+              <span
+                className={s.rowTotal}
+                title={
+                  `${total} meetings held in ${y}, ${rec} on video` +
+                  (ahead ? ` · ${ahead} scheduled` : "")
+                }
+              >
+                {total || <span className={s.aheadTotal}>{ahead}</span>}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}

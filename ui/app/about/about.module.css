@@ -1,0 +1,124 @@
+/* The about page reads as a document, because it is one: it makes claims
+ * about a public record and about our own limits. Set at the archive's
+ * reading measure, in the record's serif for headings, with the two registers
+ * shown as themselves rather than described. */
+
+.wrap {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-4) var(--sp-8);
+  display: grid;
+  gap: var(--sp-6);
+}
+
+.head h1 {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-record);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+.lead {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  color: var(--ink-2);
+}
+
+.wrap h2 {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-record);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+.wrap h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-base);
+}
+.wrap p {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--text-base);
+  line-height: var(--leading-record);
+  color: var(--ink-2);
+}
+.wrap p:last-child {
+  margin-bottom: 0;
+}
+.wrap strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+.wrap a {
+  color: var(--accent);
+}
+
+/* The counts. Tabular so the column reads as a set of measurements. */
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+}
+.figures dt {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  margin-bottom: var(--sp-1);
+}
+.figures dd {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* R2.2, shown rather than explained: the published record is warm paper with
+ * a solid rule and a serif; what we derived is cool ground, a dashed rule and
+ * the interface sans. A reader meets the same two treatments everywhere else
+ * on the site, so this is a legend, not decoration. */
+.registers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--sp-3);
+}
+.record,
+.derived {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius);
+}
+.record {
+  background: var(--record-bg);
+  border-left: 3px solid var(--record-rule);
+}
+.record h3 {
+  font-family: var(--font-record);
+}
+.derived {
+  background: var(--derived-bg);
+  border-left: 3px dashed var(--derived-rule);
+}
+.derived h3 {
+  font-family: var(--font-ui);
+}
+
+.gaps {
+  margin: 0;
+  padding-left: var(--sp-5);
+  display: grid;
+  gap: var(--sp-2);
+  font-size: var(--text-base);
+  line-height: var(--leading-record);
+  color: var(--ink-2);
+}
+
+.foot {
+  display: flex;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}

@@ -1,0 +1,233 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+}
+
+.title {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  border: 1px solid var(--rule);
+}
+
+.swLow {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.swMid {
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+}
+
+.swHigh {
+  background: color-mix(in srgb, var(--accent) 34%, var(--surface));
+}
+
+.swRec {
+  width: 0.7rem;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--live);
+}
+
+.swAhead {
+  background: none;
+  border-style: dashed;
+  border-color: var(--ink-4);
+}
+
+/* -------------------------------------------------------------- the grid */
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-x: auto;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 2.6rem repeat(12, minmax(1.15rem, 1fr)) 2.2rem;
+  gap: 2px;
+  align-items: center;
+}
+
+.corner {
+  min-height: 1px;
+}
+
+.colHead,
+.rowTotal {
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.rowTotal {
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  text-align: end;
+  cursor: help;
+}
+
+/* A year with nothing held yet shows what is on the calendar instead, in the
+ * same treatment as the cells, so the number is not read as archive. */
+.aheadTotal {
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+.yearHead {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--ink-3);
+  text-decoration: none;
+  padding: 0.1rem 0.2rem;
+  border-radius: var(--radius-sm);
+}
+
+.yearHead:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.cell {
+  display: block;
+  height: 1.35rem;
+  position: relative;
+  border-radius: 2px;
+  border: 1px solid var(--rule);
+  /* --fill is 0..1, scaled across the range the data occupies rather than from
+   * zero (see TimeAxis.tsx). Capped at 48%: the accent is a dark blue, and the
+   * focus ring is that same accent at full strength, so the busiest month has
+   * to stay light enough for its own ring to show against it.
+   * The scale is shared across the whole grid, so the 2015 → 2025 ramp is
+   * visible as a ramp. */
+  background: color-mix(in srgb, var(--accent) calc(var(--fill, 0) * 48%), var(--surface));
+  transition: outline-color var(--fast) var(--ease);
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.cell:hover {
+  outline-color: var(--accent);
+}
+
+/* The `outline: 2px solid transparent` above is a CSS-Module class, and the
+ * global `:focus-visible` in globals.css is a pseudo-class - equal specificity,
+ * so the module wins on source order and DELETES the focus ring it inherits.
+ * Verified: a focused cell computed to `outline-color: rgba(0,0,0,0)`, which
+ * left 145 keyboard-reachable links with no focus indicator at all (R8.2,
+ * WCAG 2.4.7). Any component that animates an outline for hover has to
+ * restore its own. */
+.cell:focus-visible {
+  outline-color: var(--accent);
+  outline-offset: 1px;
+  z-index: 1;
+}
+
+/* A month that never happened. Distinct from a quiet one, so a gap in the
+ * calendar cannot read as a gap in our coverage. */
+.empty {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 3px,
+    var(--rule) 3px 4px
+  );
+  opacity: 0.5;
+}
+
+/* Scheduled and not yet held. Deliberately unlike both of the other two: it
+ * carries no tint, because tint means meetings we hold, and it is not hatched,
+ * because hatching means nothing was ever there. An outline with nothing
+ * inside it is the shape of a month waiting to happen. */
+.ahead {
+  border-style: dashed;
+  border-color: var(--ink-4);
+  background: none;
+}
+
+/* A month partly in the past: tinted for what happened, dashed on the trailing
+ * edge for what has not. August 2026 is 8 held and 5 to come, and drawing it
+ * as a finished month would overstate what we hold by a third. */
+.part {
+  border-inline-end: 2px dashed var(--ink-4);
+}
+
+.on {
+  outline-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) calc(var(--fill, 0) * 48% + 10%), var(--surface));
+}
+
+.yearHead.on {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+/* How much of that month we can hear. Sits along the bottom edge so it reads
+ * as a measure of the cell above it rather than as a separate mark. */
+.rec {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: calc(var(--rec, 0) * 100%);
+  background: var(--live);
+  border-end-start-radius: 2px;
+}
+
+@media (max-width: 46rem) {
+  .row {
+    grid-template-columns: 2.4rem repeat(12, minmax(0.9rem, 1fr)) 2rem;
+  }
+
+  .cell {
+    height: 1.1rem;
+  }
+}
+
+/* Every cell is a link, and on a phone the axis is the way into the archive.
+ * At 1.1rem they were 17.6px tall with a 2px gap, so a thumb had a 19.6px
+ * pitch to aim at - under the 24px WCAG 2.2 AA asks for (2.5.8), and too
+ * tightly packed to earn the spacing exception. 1.375rem + the 2px gap makes
+ * the vertical pitch exactly 24px.
+ *
+ * Height only. The horizontal pitch measures 23.5px and the remaining 0.5px
+ * would have to come out of the year label or the trailing column, and
+ * "the entire twelve-year axis fits on a phone" is a property somebody
+ * measured on purpose. That one is a design call, not a fix. */
+@media (pointer: coarse) {
+  .cell {
+    height: 1.375rem;
+  }
+}

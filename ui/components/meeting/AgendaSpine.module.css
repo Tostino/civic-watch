@@ -1,0 +1,241 @@
+.spine {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------- chapter track */
+.track {
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface-2);
+}
+
+.sessions {
+  display: flex;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+}
+
+.session {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.session[aria-checked="true"] {
+  color: var(--ink);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.sessionLen {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--ink-4);
+}
+
+.trackNote {
+  margin-top: 0.2rem;
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}
+
+/* ---------------------------------------------------------------- tools */
+.tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+}
+
+/* R6.8: the same control, scoped to whatever object you are on. Here, this
+ * meeting's agenda. The placeholder teaches the duality by example - a topic
+ * AND an identifier - which is the one-line fix PRIOR_ART took from
+ * Councilmatic. */
+.search input {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: var(--text-xs);
+}
+
+.search input::placeholder {
+  color: var(--ink-4);
+}
+
+.count {
+  flex: none;
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------- list */
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Chains to the page on purpose — see the note in TranscriptView.module.css.
+   * This list does reach its end, so containment here was the surface a reader
+   * most often got stuck against. */
+  padding: var(--sp-2) 0 var(--sp-4);
+}
+
+/* ---------------------------------------------------------------- lanes */
+/* What we can place in the recording, then the rest of the agenda (R5.2.6).
+ * The heading is the load-bearing part: without it the rail simply stops being
+ * chronological half way down and reads as a sorting bug. */
+.lane + .lane {
+  margin-top: var(--sp-4);
+}
+
+.laneHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3) 0.3rem;
+  border-bottom: 2px solid var(--rule-strong);
+}
+
+.laneTitle {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.laneCount {
+  margin-inline-start: auto;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.laneNote {
+  padding: 0.35rem var(--sp-3) 0;
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+  color: var(--ink-4);
+  text-wrap: pretty;
+}
+
+.group + .group {
+  margin-top: var(--sp-3);
+}
+
+.groupHead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(6px);
+  padding: 0.25rem var(--sp-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.groupLabel,
+.groupToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  width: 100%;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.groupToggle:hover {
+  color: var(--ink);
+}
+
+.chev {
+  font-size: 0.85em;
+  transition: transform var(--fast) var(--ease);
+}
+
+.chev[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+.groupCount {
+  margin-inline-start: auto;
+  font-weight: 600;
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.rows {
+  padding: 0.15rem 0;
+}
+
+.rowWrap {
+  scroll-margin: 4rem;
+}
+
+/* A consent run, drawn as the single motion it was. */
+/* No `width: 100%` here: this is a block-level flex child that already fills
+ * its container, and 100% PLUS the inline margin overflowed the rail by
+ * exactly 4px, which is enough for a horizontal scrollbar. */
+.enBloc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: var(--sp-2) var(--sp-3);
+  text-align: start;
+  border-inline-start: 2px dashed var(--rule-strong);
+  margin-inline-start: var(--sp-1);
+}
+
+.enBloc:hover {
+  background: var(--surface-2);
+}
+
+.enBlocText {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.enBlocOutcomes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.enBlocOutcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+}
+
+.enBlocN {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}

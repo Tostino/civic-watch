@@ -1,0 +1,54 @@
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  cursor: help;
+}
+
+.glyph {
+  width: 0.55em;
+  height: 0.55em;
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+}
+
+/* The warm tint ties the mark to the record's rule, but --record-rule is a
+ * BORDER colour (3:1) being used for 11px uppercase text (4.5:1). At 70% it
+ * measured 3.87:1 on --record-bg — passing on slice 1's surfaces and failing
+ * the moment it was put on warm paper, which is gotcha 37 exactly. 40% keeps
+ * the tint and clears 4.5:1 on every background it is used on, both themes. */
+.official {
+  color: color-mix(in srgb, var(--record-rule) 40%, var(--ink-3));
+}
+
+.official .glyph {
+  background: currentColor;
+}
+
+.inferred {
+  color: var(--ink-4);
+}
+
+/* Hollow, and dashed: this is an inference and it should not look settled. */
+.inferred .glyph {
+  background: none;
+  border-style: dashed;
+  border-radius: 50%;
+}
+
+.compact .label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

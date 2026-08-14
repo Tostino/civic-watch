@@ -1,0 +1,65 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.label {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: stretch;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.8rem;
+  font-size: var(--text-md);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong, var(--rule));
+  border-radius: var(--radius);
+}
+
+.input::placeholder {
+  /* The placeholder is instruction, not decoration (R5.6.4), so it has to be
+   * readable rather than the usual ghost grey. --ink-3 clears 4.5:1. */
+  color: var(--ink-3);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.go {
+  flex: none;
+  padding: 0 1.1rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.go:hover {
+  filter: brightness(1.1);
+}
+
+.hint {
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+  line-height: var(--leading-normal);
+  max-width: 62ch;
+}

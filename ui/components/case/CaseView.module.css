@@ -1,0 +1,527 @@
+.page {
+  min-height: 100%;
+  /* Room for the fixed player dock, as MeetingView does. */
+  padding-bottom: 8rem;
+
+  /* A little wider than the site's 42rem, on this page only. A step here is a
+   * 62-word legal title redlined against the official one, not prose: the
+   * marks only read as a diff when enough of the sentence sits on one line,
+   * and at 42rem a single inserted clause wrapped three times. Scoped by
+   * overriding the token inside this page rather than moving it globally,
+   * because every other surface is genuine prose and 42rem is right there. */
+  --measure: 46rem;
+}
+
+.inner {
+  max-width: 62rem;
+  margin-inline: auto;
+  padding-inline: var(--sp-5);
+}
+
+/* ------------------------------------------------------------- masthead */
+.masthead {
+  background: var(--surface);
+  border-block-end: 1px solid var(--rule);
+  padding-block: var(--sp-5) var(--sp-5);
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.crumbs a {
+  color: var(--ink-3);
+}
+
+.crumbs a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.idRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-block-start: var(--sp-3);
+}
+
+/* The case number is the identifier the whole view hangs on, and it is what an
+ * applicant or an objector already has written down. It gets the type. */
+.id {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.span {
+  margin-block-start: var(--sp-2);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink-2);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+/* ---------------------------------------------------------- the verdict */
+.verdict {
+  margin-block-start: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--rule);
+  border-inline-start: 4px solid var(--neutral);
+  border-radius: var(--radius);
+  background: var(--neutral-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-width: var(--measure);
+}
+
+.verdict.ok {
+  border-inline-start-color: var(--ok);
+  background: var(--ok-soft);
+}
+
+.verdict.no {
+  border-inline-start-color: var(--no);
+  background: var(--no-soft);
+}
+
+.verdict.wait {
+  border-inline-start-color: var(--wait);
+  background: var(--wait-soft);
+}
+
+.verdict.neutral,
+.verdict.none {
+  border-inline-start-color: var(--neutral);
+  background: var(--neutral-soft);
+}
+
+/* Undecided is its own state and is drawn as an absence, never as a soft no. */
+.openCase {
+  border-style: dashed;
+  border-inline-start-style: dashed;
+  border-color: var(--rule-strong);
+  background: var(--bg-sunk);
+}
+
+/* --ink-4 clears 4.5:1 on the page backgrounds but lands at 4.45 on the tinted
+ * verdict panels, which is the one label on this page that must not be
+ * marginal (gotcha 37: the quiet text is where the meaning is). */
+.verdictLabel {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.verdictWhat {
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+.verdictQuote {
+  margin-block-start: var(--sp-2);
+  padding-inline-start: var(--sp-3);
+  border-inline-start: 2px solid var(--rule-strong);
+  font-family: var(--font-record);
+  font-size: var(--text-sm);
+  line-height: var(--leading-record);
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* ---------------------------------------------------- the official title */
+.official {
+  margin-block-start: var(--sp-4);
+  padding: var(--sp-4);
+  background: var(--record-bg);
+  border: 1px solid var(--rule);
+  border-inline-start: 3px solid var(--record-rule);
+  border-radius: var(--radius);
+}
+
+.officialLabel {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-block-end: var(--sp-2);
+}
+
+.officialText {
+  font-family: var(--font-record);
+  font-size: var(--text-base);
+  line-height: var(--leading-record);
+  color: var(--ink);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------------ body */
+.body {
+  padding-block: var(--sp-6) var(--sp-8);
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+  padding-block-end: var(--sp-2);
+  border-block-end: 1px solid var(--rule);
+  margin-block-end: var(--sp-4);
+}
+
+.headNote {
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-4);
+}
+
+/* Bounds how long the calendar stays pinned: a sticky element is pinned for as
+ * long as its PARENT is on screen, so this wrapper ends the pin where the
+ * thread ends. Without it the axis rode over the whole transcript. No visual
+ * role; flow-root only so the margins inside it do not collapse out. */
+.thread {
+  display: flow-root;
+}
+
+/* Locks under the site header while the steps scroll past it. The axis is the
+ * one thing on this page that stays true for every step - where you are in the
+ * case - so it is worth the height it costs. It needs its own background: a
+ * sticky element with a transparent one lets the steps run under it.
+ *
+ * z-index 5 keeps it over the steps and well under the header (50) and the
+ * player dock (60), which must both stay on top of it. */
+.axisBlock {
+  position: sticky;
+  top: var(--header);
+  z-index: 5;
+  background: var(--bg);
+  padding-block-end: var(--sp-3);
+  margin-block-end: var(--sp-5);
+  border-block-end: 1px solid var(--rule);
+}
+
+.axisNote {
+  margin-block-start: var(--sp-2);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}
+
+/* ----------------------------------------------------------- the steps */
+.steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--sp-4);
+  padding-block: var(--sp-4);
+  border-block-start: 1px solid var(--rule);
+}
+
+.step:first-child {
+  border-block-start: none;
+}
+
+/* The one that decided it, among the procedural steps that precede it. */
+.isTerminal {
+  background: var(--surface);
+  border-inline-start: 3px solid var(--ok);
+  padding-inline-start: var(--sp-4);
+  border-radius: var(--radius);
+}
+
+/* A continuance is the board saying "not today". Recede, do not disappear:
+ * five of them in a row IS the story of this case. */
+.isProcedural .what {
+  opacity: 0.82;
+}
+
+.when {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding-block-start: 0.1rem;
+}
+
+.n {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-4);
+}
+
+.date {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.what {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.stepHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.stepBody {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.stepBody:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.phase {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* -------------------------------------------------------------- redline */
+.legend {
+  margin-block-end: var(--sp-4);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-3);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+.redline {
+  font-family: var(--font-record);
+  font-size: var(--text-sm);
+  line-height: var(--leading-record);
+  color: var(--ink-3);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+.ctx {
+  color: var(--ink-4);
+}
+
+.ins {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--ok-soft);
+  box-shadow: 0 1px 0 var(--ok);
+  padding-inline: 0.15em;
+}
+
+.del {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--no);
+  background: var(--no-soft);
+  padding-inline: 0.15em;
+}
+
+.disposition {
+  margin: 0;
+  padding: var(--sp-3);
+  background: var(--record-bg);
+  border: 1px solid var(--rule);
+  border-inline-start: 3px solid var(--record-rule);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: var(--measure);
+}
+
+.disposition p {
+  font-family: var(--font-record);
+  font-size: var(--text-sm);
+  line-height: var(--leading-record);
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+/* ------------------------------------------------- what was said, in place
+ *
+ * The speech for one appearance, under that appearance's record. It has to
+ * read as part of the step rather than as a new section starting, or the page
+ * becomes twelve documents again — so: full width of the step's own column, a
+ * rule down the inside edge to tie it to the step, and no heading. The date in
+ * the gutter to the left is still the one that applies. */
+.spoken {
+  /* Both columns of the step. The date gutter has already done its job by the
+   * time the speech starts, and giving these lines the full measure is worth
+   * more than keeping them indented under it. */
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin-block-start: var(--sp-3);
+}
+
+.spokenHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-block-end: var(--sp-3);
+  padding-block-end: var(--sp-2);
+  border-block-end: 1px solid var(--rule);
+}
+
+.open {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.play {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--live);
+  cursor: pointer;
+}
+
+.play:hover {
+  text-decoration: underline;
+}
+
+.noRec {
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+  cursor: help;
+}
+
+.foot {
+  margin-block-start: var(--sp-6);
+  padding-block-start: var(--sp-4);
+  border-block-start: 1px solid var(--rule);
+}
+
+/* --------------------------------------------------------------- narrow */
+@media (max-width: 46rem) {
+  .page {
+    padding-bottom: 11rem;
+  }
+
+  .inner {
+    padding-inline: var(--sp-4);
+  }
+
+  .id {
+    font-size: var(--text-xl);
+  }
+
+  .step {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+
+  .isTerminal {
+    padding-inline-start: var(--sp-3);
+  }
+}
+
+.heardCaveat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4em;
+  margin-block-end: var(--sp-4);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-4);
+  text-wrap: pretty;
+}
+
+.hearingNth {
+  padding: 0 0.3em;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}
+
+.hearingPlay {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--live);
+  cursor: pointer;
+}
+
+.hearingPlay:hover {
+  text-decoration: underline;
+}
+
+/* How long the hearing ran. Replaced a warning that treated long hearings as
+ * suspect; they are not (archive._runs). */
+.hearingLen {
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.heardTruncated {
+  margin-block-start: var(--sp-4);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}

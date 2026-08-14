@@ -1,0 +1,531 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--header));
+
+  /* One stable hue per voice under review, shared by the rail card and every
+   * transcript line of that voice. Deliberately none of the status colors:
+   * green/red/amber carry verdicts here (affinity, outcomes), and a voice's
+   * identity is not a verdict. Marks are meaning-bearing, so every hue holds
+   * ≥3:1 against both grounds in both themes — measured, not eyeballed. */
+  --vc0: light-dark(#2456a8, #8fb3f0);
+  --vc1: light-dark(#7a3fa6, #c79ae8);
+  --vc2: light-dark(#0e6f6a, #5cc6c0);
+  --vc3: light-dark(#a83568, #ee9ec1);
+  --vc4: light-dark(#7a4a12, #d9a06a);
+  --vc5: light-dark(#44576e, #9fb4cc);
+}
+
+.state {
+  padding: var(--sp-6);
+  color: var(--ink-3);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.head h1 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.sub {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+.sub a {
+  color: var(--accent);
+}
+
+.filter {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.result {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: var(--text-sm);
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.result button {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: var(--text-md);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.cols {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 24rem minmax(0, 1fr);
+}
+
+.rail {
+  overflow-y: auto;
+  border-right: 1px solid var(--rule);
+  background: var(--bg-sunk);
+  padding: var(--sp-3);
+  display: grid;
+  gap: var(--sp-3);
+  align-content: start;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-3);
+}
+.card[data-vc="0"] { --vc: var(--vc0); }
+.card[data-vc="1"] { --vc: var(--vc1); }
+.card[data-vc="2"] { --vc: var(--vc2); }
+.card[data-vc="3"] { --vc: var(--vc3); }
+.card[data-vc="4"] { --vc: var(--vc4); }
+.card[data-vc="5"] { --vc: var(--vc5); }
+.card[data-vc] {
+  border-left: 4px solid var(--vc);
+}
+
+.card h3 {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--vc, var(--neutral));
+  flex: none;
+}
+
+.card h4 {
+  margin: var(--sp-2) 0 var(--sp-1);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--ink-4);
+}
+
+.claim {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.dim {
+  color: var(--ink-4);
+  font-weight: 400;
+}
+
+.affinity {
+  list-style: none;
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  font-size: var(--text-xs);
+  display: grid;
+  gap: 2px;
+}
+.affinity li {
+  padding-left: var(--sp-3);
+  position: relative;
+}
+.affinity li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.affinity li[data-verdict="ok"]::before { background: var(--ok); }
+.affinity li[data-verdict="no"]::before { background: var(--no); }
+.affinity li[data-verdict="unsure"]::before { background: var(--wait); }
+
+.samples {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.sampleBtn {
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: var(--sp-1) var(--sp-2);
+  cursor: pointer;
+  line-height: var(--leading-snug);
+}
+.sampleBtn:hover {
+  border-color: var(--accent);
+}
+
+.quote {
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.voiceActs {
+  margin-top: var(--sp-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.voiceActs input,
+.voiceActs select {
+  flex: 1;
+  min-width: 9rem;
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+.voiceActs button {
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.voiceActs button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.voiceActs button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.quiet {
+  color: var(--ink-3);
+}
+
+.overrides {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-3);
+  font-size: var(--text-xs);
+}
+.overrides h3 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  color: var(--ink-4);
+}
+.overrides ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.small {
+  font: inherit;
+  font-size: var(--text-2xs);
+  margin-left: var(--sp-2);
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+.small:hover {
+  border-color: var(--accent);
+}
+
+.reader {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* The reading pane sits on --bg, not the shell's sunk ground: it is where
+   * --ink-4 metadata lives, and on --bg-sunk that pair measured 4.46:1 —
+   * marginally under AA (gotcha 37: contrast is a property of a pair). */
+  background: var(--bg);
+}
+
+.hintRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+}
+
+.hint {
+  margin: 0;
+  flex: 1;
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.nowPlaying {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.follow {
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  contain: strict;
+}
+
+.rowBox {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 4.5rem 13rem minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.row:hover {
+  background: var(--surface-2);
+}
+
+/* A voice's lines wear its color: a firm edge, a faint wash. The wash stays
+ * under the selection background; the edge survives it. */
+.row[data-vc="0"] { --vc: var(--vc0); }
+.row[data-vc="1"] { --vc: var(--vc1); }
+.row[data-vc="2"] { --vc: var(--vc2); }
+.row[data-vc="3"] { --vc: var(--vc3); }
+.row[data-vc="4"] { --vc: var(--vc4); }
+.row[data-vc="5"] { --vc: var(--vc5); }
+.row[data-vc] {
+  box-shadow: inset 4px 0 0 var(--vc);
+  background: color-mix(in srgb, var(--vc) 7%, transparent);
+}
+.row[data-vc]:hover {
+  background: color-mix(in srgb, var(--vc) 14%, transparent);
+}
+
+.rowSel,
+.rowSel:hover,
+.row[data-vc].rowSel {
+  background: var(--accent-soft);
+}
+
+/* The line the recording is inside right now. A ring, not a background, so
+ * it reads over the voice wash and the selection alike — and box-shadow, not
+ * outline, so the global focus ring survives (gotcha 59). */
+.rowSounding {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.row[data-vc].rowSounding {
+  box-shadow:
+    inset 4px 0 0 var(--vc),
+    inset 0 0 0 2px var(--accent);
+}
+
+.atSounding {
+  font-weight: 700;
+}
+
+.at {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.at:hover {
+  text-decoration: underline;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  align-items: center;
+  min-width: 0;
+}
+
+.voiceId {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--sp-1);
+}
+
+.idx {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-4);
+}
+
+.text {
+  line-height: var(--leading-snug);
+  color: var(--ink);
+}
+
+/* -------------------------------------------------------- correction bar */
+.barWrap {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  border-top: 2px solid var(--accent);
+  background: var(--surface);
+  box-shadow: var(--shadow-3);
+}
+
+.bar {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--sp-3) var(--sp-4);
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.barInfo {
+  font-size: var(--text-sm);
+}
+
+.barActs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.verbs {
+  display: inline-flex;
+  gap: var(--sp-3);
+  border: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--text-sm);
+}
+.verbs label {
+  display: inline-flex;
+  gap: var(--sp-1);
+  align-items: center;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.barActs input,
+.barActs select {
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  min-width: 12rem;
+  flex: 1;
+}
+.barActs input:disabled,
+.barActs select:disabled {
+  opacity: 0.55;
+}
+
+.barActs button[type="submit"] {
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  padding: var(--sp-1) var(--sp-4);
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.barActs button[type="submit"]:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.err {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--no);
+}
+
+@media (max-width: 900px) {
+  .cols {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 40%) minmax(0, 60%);
+  }
+  .rail {
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+  }
+  .row {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+  .text {
+    grid-column: 1 / -1;
+  }
+}

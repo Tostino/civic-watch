@@ -1,0 +1,17 @@
+env.local.sh
+.admin_token
+env.local.sh.bak
+*.dump
+*.dump.gz
+node_modules/
+.next/
+next-env.d.ts
+.DS_Store
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.npy
+data/
+logs/
+*-venv/
+__pycache__/

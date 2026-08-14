@@ -1,0 +1,123 @@
+.page {
+  /* Same frame as /: the shell has no page gutter of its own, each route sets
+   * it. 8rem at the foot clears the player dock, which is fixed. */
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: var(--sp-7) var(--sp-5) 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.top {
+  max-width: 62rem;
+}
+
+/* Rail then results. PRIOR_ART §1: facets belong in a rail rather than behind
+ * a menu, because the counts in them are information in their own right. */
+.body {
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+}
+
+/* The two counts, before either list. This is the page's whole claim in one
+ * line, and it is also the only affordance that gets a reader to the second
+ * source without scrolling past the first. */
+.summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.8rem;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.jump {
+  color: inherit;
+  text-decoration-color: var(--accent-line);
+}
+
+.jump::after {
+  content: " ↓";
+  color: var(--accent);
+}
+
+.mode {
+  font-size: var(--text-2xs);
+  color: var(--ink-2);
+  padding: 0.1rem 0.4rem;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+}
+
+.dead {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+/* ------------------------------------------------------------- no query yet */
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: 62rem;
+}
+
+.emptyHead {
+  font-family: var(--font-record);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.emptyWhy {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-2);
+  max-width: 66ch;
+  text-wrap: pretty;
+}
+
+.tries {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-2);
+}
+
+.tries li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.try {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.tryWhy {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+@media (max-width: 60rem) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

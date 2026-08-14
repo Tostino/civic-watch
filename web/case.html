@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case · Pasco Meetings</title>
+<style>
+  :root{--bg:#fbfbfa;--panel:#fff;--border:#e4e2dd;--text:#24211d;--muted:#78736b;
+    --faint:#a8a29a;--accent:#b4530a;--soft:#fdf1e5;--ok:#2f7d4f;--no:#a3341f;
+    --shadow:0 1px 2px rgba(0,0,0,.05)}
+  @media (prefers-color-scheme:dark){:root{--bg:#16150f;--panel:#1e1d17;
+    --border:#33312a;--text:#eeece6;--muted:#9b958a;--faint:#6f6a61;
+    --accent:#e8905a;--soft:#2b2118;--ok:#6cc48d;--no:#e2856f;
+    --shadow:0 1px 2px rgba(0,0,0,.3)}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;gap:10px;align-items:center;padding:8px 14px;flex-wrap:wrap;
+    background:var(--panel);border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:15}
+  h1{font-size:14px;margin:0;font-weight:650;white-space:nowrap}
+  h1 span{color:var(--accent)}
+  nav a{font-size:13px;color:var(--muted);text-decoration:none;padding:3px 8px;
+    border-radius:6px}
+  main{max-width:820px;margin:0 auto;padding:18px 16px 60px}
+  a{color:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:16px 18px;box-shadow:var(--shadow);margin-bottom:16px}
+  h2{font-size:19px;margin:2px 0 6px;font-weight:650}
+  .sub{font-size:12.5px;color:var(--muted);margin-bottom:4px}
+  .out{display:inline-block;font-size:11.5px;font-weight:700;border-radius:5px;
+    padding:1px 8px;text-transform:uppercase;letter-spacing:.04em}
+  .out.approved,.out.adopted{background:var(--soft);color:var(--ok);
+    border:1px solid var(--ok)}
+  .out.denied,.out.withdrawn{background:var(--soft);color:var(--no);
+    border:1px solid var(--no)}
+  .out.other,.out.continued,.out.received,.out.no_action,.out.tabled{
+    background:var(--soft);color:var(--muted);border:1px solid var(--border)}
+  /* The thread reads as a timeline: a rezoning is routinely a Planning
+     Commission hearing, then a BCC transmittal, then an adoption months later,
+     and the shape of that sequence is the thing worth seeing. */
+  .step{position:relative;padding:0 0 4px 22px;border-left:2px solid var(--border);
+    margin-left:6px}
+  .step:last-child{border-left-color:transparent}
+  .step::before{content:'';position:absolute;left:-7px;top:7px;width:10px;
+    height:10px;border-radius:50%;background:var(--accent)}
+  .step.nodisp::before{background:var(--border)}
+  .when{font-size:12.5px;color:var(--muted)}
+  .what{margin:1px 0 3px}
+  .body{font-size:12px;color:var(--faint)}
+  .minutes{font-size:13px;color:var(--muted);margin-top:3px}
+  .none{color:var(--faint);font-style:italic}
+  .blk{margin-bottom:16px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Pasco <span>Case</span></h1>
+  <nav><a href="/">Research</a><a href="/ask">Ask</a>
+       <a href="/speakers">Workbench</a></nav>
+</header>
+<main id="main"><div class="none">Loading…</div></main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>(s??'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
+  '>':'&gt;','"':'&quot;'}[c]));
+(async()=>{
+  const id=new URLSearchParams(location.search).get('id');
+  if(!id){$('#main').innerHTML='<div class="none">No case id.</div>';return}
+  const r=await fetch('/api/case/'+encodeURIComponent(id));
+  if(!r.ok){$('#main').innerHTML='<div class="none">No such case.</div>';return}
+  const d=await r.json();
+  const title=(d.items.find(i=>i.title)||{}).title||d.case_id;
+  // Within one case every item carries the SAME 60-word legal title, so
+  // repeating it per step buries the only thing a timeline is for - the shape
+  // of the sequence. Keep the leading clause, which is where the type lives
+  // ("Zoning Amendment (Continuance)" vs "(Regular)"), and show the full
+  // title once at the top.
+  const kind=t=>{
+    if(!t) return '';
+    const lead=t.split(/\s+[–—-]\s+/)[0].trim();
+    return lead && lead.length<70 ? lead : t.slice(0,70);
+  };
+  let h=`<div class="card"><div class="sub">application</div>
+    <h2>${esc(d.case_id)}</h2>
+    <div class="what">${esc(title)}</div>
+    <div class="sub">${d.items.length} appearance${d.items.length===1?'':'s'}
+      · ${esc(d.first)} to ${esc(d.last)} · ${d.bodies.map(esc).join(' and ')}</div>
+  </div><div class="card"><div class="blk">`;
+  for(const i of d.items){
+    h+=`<div class="step${i.outcome?'':' nodisp'}">
+      <div class="when">${esc(i.date)} · <span class="body">${esc(i.body)}</span></div>
+      <div class="what">${i.code?`<b>${esc(i.code)}</b> `:''}
+        <a href="/item?id=${i.id}">${esc(kind(i.title)||'(untitled)')}</a>
+        ${i.outcome?`<span class="out ${esc(i.outcome)}">${esc(i.outcome)}</span>`:''}
+        ${i.has_recording?'':'<span class="body">· no recording</span>'}</div>
+      ${i.disposition?`<div class="minutes">${esc(i.disposition)}</div>`
+        :'<div class="minutes none">no disposition recorded</div>'}
+    </div>`;
+  }
+  h+=`</div></div>`;
+  $('#main').innerHTML=h;
+})();
+</script>
+</body>
+</html>

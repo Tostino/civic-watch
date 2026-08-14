@@ -1,0 +1,28 @@
+.cite {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.2em 0.6em 0.25em;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    color var(--fast) var(--ease),
+    border-color var(--fast) var(--ease),
+    background var(--fast) var(--ease);
+}
+
+.cite:hover {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.icon {
+  font-size: 0.9em;
+  line-height: 1;
+}

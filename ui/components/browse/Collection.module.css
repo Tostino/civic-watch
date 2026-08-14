@@ -1,0 +1,156 @@
+.wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--sp-5);
+  padding: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: var(--sp-4);
+  align-content: start;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.value {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-family: var(--font-record);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.sub {
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
+/* ------------------------------------------------------------- coverage */
+.coverage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-inline-start: var(--sp-5);
+  border-inline-start: 1px solid var(--rule);
+}
+
+.coverHead {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  list-style: none;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr) 4.2rem;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--text-xs);
+}
+
+.barLabel {
+  color: var(--ink-2);
+}
+
+.track {
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunk);
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+}
+
+/* The record's own colour for the published halves, the playhead's warm one
+ * for the recording - the same distinction the whole UI runs on (R2.2). */
+.agenda {
+  background: var(--record-rule);
+}
+
+.minutes {
+  background: color-mix(in srgb, var(--record-rule) 70%, var(--ink-3));
+}
+
+.recording {
+  background: var(--live);
+}
+
+.barN {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+  justify-content: flex-end;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.barPct {
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+}
+
+.note {
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
+@media (max-width: 56rem) {
+  .wrap {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .coverage {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+    padding-block-start: var(--sp-4);
+    border-block-start: 1px solid var(--rule);
+  }
+}
+
+@media (max-width: 34rem) {
+  .barRow {
+    grid-template-columns: 7rem minmax(0, 1fr) 3.6rem;
+  }
+}
