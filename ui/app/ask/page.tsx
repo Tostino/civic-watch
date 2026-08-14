@@ -4,8 +4,9 @@ import s from "./ask.module.css";
 /* `/ask` — §5.5. Enter, at speed.
  *
  * A thin server shell around a client view, because the answer arrives over
- * SSE and takes 30-90 seconds. The question is in the URL (R4.2) so an answer
- * can be sent to somebody.
+ * SSE and takes anywhere up to ASK_DEADLINE — seven minutes on a question that
+ * reads widely. The question is in the URL (R4.2) so an answer can be sent to
+ * somebody.
  *
  * UI_PLAN §7: no conversational chat here, deliberately. Memory and persona
  * would make this a different product and would undermine every citation —
