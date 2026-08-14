@@ -1,7 +1,8 @@
 # Launch plan
 
-State as of 2026-08-14. `audit.py`: **0 failing of 47**, 3 examined nothing,
-6 with items to review — run live on 2026-08-14, not quoted.
+State as of 2026-08-14, **after the migration to Postgres 18 on Unraid**.
+`audit.py`: **2 failing of 47**, identically from both machines — the redaction
+residue in §4, left on purpose. Run live, not quoted.
 
 Target architecture: **persistent services on the Unraid box (64 GB, Docker),
 GPU workers on this workstation.** Everything below was measured on this machine
@@ -15,7 +16,7 @@ today; nothing is from memory.
 
 | service | notes |
 |---|---|
-| **Postgres 17 + pgvector** | 5.8 GB. `pgvector/pgvector:pg17` covers it. |
+| **Postgres 18 + pgvector** | 5.8 GB. `pgvector/pgvector:pg18` — **migrated 2026-08-14**. |
 | **Reader API** (`web/server.py`) | CPU-only. `PASCO_EMBED_DEVICE=cpu`. |
 | **Next.js UI** (`next start`) | Pure Node, no native deps. |
 | **Nginx Proxy Manager** | Already running (:80, :81, Let's Encrypt store in appdata). TLS + the public hostname — `deploy/nginx-proxy-manager.md`. |
@@ -77,11 +78,16 @@ for public search.
    curation that cannot be regenerated at any price. Take the dump with nothing
    writing: no fleet, no `bin/job.py`, no open `/admin` session. Then compare
    row counts on both sides, which step 8 does properly.
-2. **Postgres container** on Unraid from `pgvector/pgvector:pg17`. Give it a real
-   password: it is about to listen on the LAN, not a Unix socket.
-3. **Restore.** Raise `maintenance_work_mem` first — the restore rebuilds
-   `passages_embedding_hnsw`, **1,304 MB over 167,225 × 1024-dim vectors**, and
-   that is the slow step by a wide margin.
+2. **Postgres container** on Unraid from `pgvector/pgvector:pg18`. Give it a real
+   password: it is about to listen on the LAN, not a Unix socket. Note PG18
+   moved `PGDATA` to `/var/lib/postgresql/18/docker` and the volume to
+   `/var/lib/postgresql` — mapping the old `/data` path silently strands the
+   database in an anonymous volume.
+3. **Restore.** Raise `maintenance_work_mem` AND `--shm-size` together — the
+   restore rebuilds `passages_embedding_hnsw`, **1,303 MB over 167k × 1024-dim
+   vectors**. With shm below `maintenance_work_mem` the parallel build is the
+   one object that fails while every row still lands; see
+   `deploy/postgres-unraid.md`. **Count `hnsw=1` afterwards.**
 4. **Watch for a collation warning.** If the container's glibc/ICU differs from
    this host's, Postgres will say so on first connect. Do not ignore it —
    `REINDEX` the text indexes if warned, or text comparisons go subtly wrong.
@@ -127,15 +133,14 @@ input* it must be taken immediately before the restore (§2 step 1), because
 every hour between the two is human curation the restore would discard. Do not
 migrate from the 08-13 file because it is already sitting on the array.
 
-**The code backup has a hole: only the initial commit is pushed.** `git status`
-shows 26 files modified or deleted on top of `beafa0f` — the whole legacy
-teardown, the redaction layering (gotcha 97), `bin/redact_job.py`, the
-`/admin/redactions` screen, `deploy/nginx-proxy-manager.md`. `Tostino/pasco-info` has none
-of it, so today's work is as unbacked as the database was. Commit and push
-before the migration, not after.
+**Code: DONE.** Everything is on `Tostino/civic-watch` (private), which is now
+the home of the generic codebase §3.2 describes. `Tostino/pasco-info` holds only
+the initial commit and is superseded. CI there builds both runtime images to
+GHCR on every push to `main`; the two packages are public so Unraid pulls them
+without credentials.
 
 The database is ~1,036 GPU-hours of transcription, 432 recordings, 298,737
-utterances, 72 human speaker labels, 3,439 redaction decisions. The human
+utterances, 72 human speaker labels, 3,440 applied redactions. The human
 curation cannot be regenerated at any price.
 
 Worth adding once Postgres lives on Unraid: a scheduled `pg_dump`, since
@@ -182,7 +187,8 @@ gitignored, so the deploy must pass all three as real environment variables.
 
 ### 3.4 `SITE_CONTACT` — DONE
 
-`adambrusselback@gmail.com`, set 2026-08-14. `/about` renders it as a plain
+`contact@pasco.watch`, set 2026-08-14 — a Porkbun forwarding alias, not a
+personal mailbox, so it can be retired without stranding readers. `/about` renders it as a plain
 `mailto:` with the address in the link text, so it will be harvested once the
 site is public. If that becomes a problem, a forwarding alias on `pasco.watch`
 is a one-line swap in `ui/.env.local` and no code change.

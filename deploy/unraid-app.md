@@ -41,7 +41,7 @@ compose file, and put this beside it as the stack's `.env`:
 ```
 PASCO_DSN=postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings
 SITE_URL=https://pasco.watch
-SITE_CONTACT=adambrusselback@gmail.com
+SITE_CONTACT=contact@pasco.watch
 UI_BIND=10.0.0.6
 MODEL_CACHE=/mnt/user/appdata/civicwatch-api/models
 TZ=America/New_York

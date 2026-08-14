@@ -59,13 +59,32 @@ Unraid → DOCKER → ADD CONTAINER, Advanced view.
 | Variable | `POSTGRES_USER` = `pasco` |
 | Variable | `POSTGRES_DB` = `pasco_meetings` |
 | Variable | `TZ` = `America/New_York` |
-| Extra Parameters | `--shm-size=1g` |
+| Extra Parameters | `--shm-size=4g` |
 | Post Arguments | `-c shared_buffers=2GB -c effective_cache_size=4GB -c maintenance_work_mem=2GB -c work_mem=32MB -c timezone=America/New_York -c log_timezone=America/New_York` |
 
-**`--shm-size=1g` is not optional.** Docker's default is 64 MB, and Postgres
-uses POSIX shared memory for parallel query workers; the failure is
-`could not resize shared memory segment`, under exactly the big parallel scans
-this workload does.
+**`--shm-size=4g`, and it must be >= `maintenance_work_mem`.** Docker's default
+is 64 MB and Postgres uses POSIX shared memory for parallel workers, so too
+small gives `could not resize shared memory segment`.
+
+**Measured the hard way, 2026-08-14:** `1g` alongside `maintenance_work_mem=2GB`
+looks fine and restores 156 of 156 TOC entries, then fails on exactly one
+object - the parallel HNSW build asked for 2,144,374,752 bytes of shared memory
+and got `No space left on device`. `pg_restore` reports it as
+*errors ignored: 2* and exits, so every row count matches and the archive has
+no vector index. **A restore that "finished" is not a restore that built your
+indexes** - count them (`hnsw=1`), do not read the summary line.
+
+Recovering without touching the container is one statement, because taking the
+parallel workers out removes the shared segment from the picture entirely:
+
+    SET max_parallel_maintenance_workers = 0;
+    SET maintenance_work_mem = '2GB';
+    CREATE INDEX passages_embedding_hnsw ON public.passages
+      USING hnsw (embedding vector_cosine_ops) WITH (m='16', ef_construction='64');
+
+That took **81 seconds** serially and produced the same 1,303 MB index. Raise
+the shm anyway: `bin/index_passages.py` sets `maintenance_work_mem='2GB'` per
+session, so any future rebuild from the workstation hits the same wall.
 
 **Post Arguments work because of how the entrypoint is written**: an argument
 starting with `-` makes it run `postgres "$@"`, so these become server flags.
@@ -128,7 +147,7 @@ Then verify, from the workstation:
 ```bash
 psql "postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings" -c "
   select (select count(*) from utterances)  as utterances,   -- 298,737
-         (select count(*) from passages)    as passages,     -- 167,174
+         (select count(*) from passages)    as passages,     -- 166,998
          (select count(*) from redaction)   as redactions,   -- 3,440
          (select extversion from pg_extension where extname='vector') as vector;"
 ```
@@ -136,8 +155,13 @@ psql "postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings" -c "
 Point `PASCO_DSN` at the new host and run the real check:
 
 ```bash
-./emb-venv/bin/python bin/audit.py     # all 47 must pass, from both machines
+PASCO_DSN="$UNRAID_DSN" ./emb-venv/bin/python bin/audit.py
 ```
+
+The bar is that the target returns **the same result as the source**, not that
+it returns zero. On 2026-08-14 both report *2 failing of 47* — the redaction
+residue in §4 of `LAUNCH.md`, left deliberately. A target that disagrees with
+the source is a migration fault; a target that agrees is a faithful copy.
 
 **On the collation warning** that §2 step 4 of `LAUNCH.md` tells you to watch
 for: it is a smaller risk here than it sounds. The container is glibc 2.36
