@@ -33,24 +33,58 @@ both fail silently:
 
 | field | value | why |
 |---|---|---|
-| Domain Names | `pasco.watch` | plus `www.` only if you want the redirect |
+| Domain Names | `pasco.watch` | add `www.pasco.watch` **only if that A record exists** — a name in this list with no DNS is a failed certificate request, not a skipped one |
 | Scheme | `http` | TLS terminates at NPM; nothing behind it has a cert |
-| Forward Hostname/IP | the **UI** container | see below — not the Python API |
-| Forward Port | `3000` | |
+| Forward Hostname/IP | `10.0.0.6` | the Unraid host |
+| Forward Port | **`3100`** | the civicwatch container. NOT 3000 — something else already holds :3000 on that box |
 | Cache Assets | **off** | Next already sets immutable headers on `/_next/static` and correct ones elsewhere. NPM's asset cache is a second, dumber policy layered over a correct one. |
 | Block Common Exploits | on | |
 | Websockets Support | on | harmless. `/api/ask` is SSE, not websockets — the setting that actually matters for it is below. |
 
-**Nginx only ever talks to Next.** The Python API on :8765 is reached by Next's
-own `/api` rewrite, inside the deployment. Do not publish :8765 to the LAN and
-do not point a proxy host at it — `/api/admin` is behind it, and the whole
-admin story assumes that port is unreachable.
+**Point it at the container, never at the API.** The Python API listens on
+127.0.0.1 *inside* the container and is not on the network at all; Next reaches
+it over loopback. `/api/admin` lives behind that port, and the whole admin story
+assumes it is unreachable.
 
-**SSL tab**: request a certificate, Force SSL on, HTTP/2 on, HSTS on.
+## SSL
 
-The HTTP-01 challenge needs :80 reachable from the internet. If you would rather
-not open :80 at all, NPM can do **DNS-01**, and Porkbun is in its provider list —
-that also gets you a wildcard and renews without any inbound port.
+Same dialog, **SSL tab**:
+
+| field | value |
+|---|---|
+| SSL Certificate | **Request a new SSL Certificate** |
+| Force SSL | on |
+| HTTP/2 Support | on |
+| HSTS Enabled | **off for now** |
+| Email Address | yours |
+| I Agree to the Let's Encrypt Terms of Service | on |
+
+**Leave HSTS off until the site is confirmed working.** It tells every browser
+that visited to refuse plain HTTP for the max-age, and that instruction is
+already cached on their machine — so if you need to fall back, you cannot. Turn
+it on afterwards, when there is nothing to fall back from.
+
+**Which challenge.** HTTP-01 is the default and needs :80 reachable from the
+internet. Measured 2026-08-14: a request to `https://pasco.watch` from outside
+reached NPM and was refused with `TLSV1_ALERT_UNRECOGNIZED_NAME` — which is NPM
+saying it holds no host for that name, and proves :443 is forwarded. :80 was not
+separately confirmed; if the request fails, that is the first thing to check.
+
+If you would rather not open :80, tick **Use a DNS Challenge**:
+
+- DNS Provider: **Porkbun**
+- Credentials:
+
+      dns_porkbun_key=pk1_...
+      dns_porkbun_secret=sk1_...
+
+- Propagation Seconds: **120** (the default is often too short for Porkbun and
+  the failure looks like a wrong key rather than a slow record)
+
+DNS-01 needs the API key **and** the per-domain API ACCESS toggle on
+`pasco.watch` in the Porkbun panel — the key authenticates without it and the
+domain still errors. Those are the same credentials the DDNS updater wants, so
+one setup covers both, and it renews with no inbound port at all.
 
 ## Advanced tab — paste exactly this
 
@@ -75,7 +109,7 @@ it, so `loopback()` is telling the truth.
 ## Custom Locations tab — `/api/ask`
 
 Add a location `/api/ask`, forwarding to the same host and port as the main
-entry, with this in its own advanced box:
+entry (`10.0.0.6` : `3100`), with this in its own advanced box:
 
 ```nginx
 proxy_buffering off;

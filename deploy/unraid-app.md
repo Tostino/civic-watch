@@ -71,7 +71,7 @@ loads at all at worst. The startup line in §5 tells you which.
 
 One proxy host, per `nginx-proxy-manager.md`:
 
-- Forward Hostname/IP **`10.0.0.6`**, Forward Port **`3000`**
+- Forward Hostname/IP **`10.0.0.6`**, Forward Port **`3100`** (not 3000 — that port is already taken on this box)
 - Advanced tab: `location /api/admin { return 404; }` and
   `location /admin { return 404; }`
 - Custom Location `/api/ask`: `proxy_buffering off; proxy_read_timeout 300s;`
