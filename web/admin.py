@@ -44,7 +44,7 @@ COOKIE = "pasco_admin"
 # Where corrections re-embed. The web server already holds the embedding model
 # on this device (tools.warm), and vec_cache means most corrections re-embed
 # nothing at all.
-DEVICE = os.environ.get("PASCO_EMBED_DEVICE", "cuda:1")
+DEVICE = os.environ.get("PASCO_EMBED_DEVICE") or "cuda:1"
 
 _token = None
 _token_path = None

@@ -55,7 +55,7 @@ MAX_EVIDENCE = 90_000
 # in one call.
 LINES_SHOWN = 150
 
-MODEL = os.environ.get("LLM_MODEL_AGENT", llm.MODEL_HEAVY)
+MODEL = os.environ.get("LLM_MODEL_AGENT") or llm.MODEL_HEAVY
 
 # Wall clock for the WHOLE question, and it is a different quantity from the
 # batch timeout in ask.py. That one is 600s because a whole-day segmentation
@@ -68,7 +68,7 @@ MODEL = os.environ.get("LLM_MODEL_AGENT", llm.MODEL_HEAVY)
 # and a concurrency slot for its whole life, so "how long may this take" and
 # "how many can run at once" together decide how a public endpoint behaves
 # when someone is unkind to it.
-DEADLINE = int(os.environ.get("ASK_DEADLINE", 150))
+DEADLINE = int(os.environ.get("ASK_DEADLINE") or 150)
 # Never let one call eat the entire budget, and never leave so little that the
 # closing answer cannot be written.
 MIN_CALL = 20

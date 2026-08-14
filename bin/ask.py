@@ -43,9 +43,9 @@ import urllib.error
 import urllib.request
 
 
-API_BASE = os.environ.get("INFERENCE_API_BASE", "https://api.deepseek.com")
-MODEL = os.environ.get("LLM_MODEL", "deepseek-v4-flash")
-MODEL_HEAVY = os.environ.get("LLM_MODEL_HEAVY", "deepseek-v4-flash")
+API_BASE = os.environ.get("INFERENCE_API_BASE") or "https://api.deepseek.com"
+MODEL = os.environ.get("LLM_MODEL") or "deepseek-v4-flash"
+MODEL_HEAVY = os.environ.get("LLM_MODEL_HEAVY") or "deepseek-v4-flash"
 
 
 class MissingKey(RuntimeError):

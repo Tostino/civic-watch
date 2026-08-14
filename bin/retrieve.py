@@ -45,7 +45,7 @@ MODEL_ID = "microsoft/harrier-oss-v1-0.6b"
 # having printed one line to stderr. Half the retrieval product, silently
 # absent, on a box that looked healthy. Measured on CPU before choosing the
 # default: 72 ms per query at float16, which is why the dtype is unchanged.
-DEVICE = os.environ.get("PASCO_EMBED_DEVICE", "cuda:1")
+DEVICE = os.environ.get("PASCO_EMBED_DEVICE") or "cuda:1"
 # HNSW is approximate, so this is the dial that trades recall for latency.
 # Measured against an exact scan over 65k passages, at the depths that actually
 # reach the reader: ef=500 gives 97.5% recall@40, ef=1000 gives 98.6% at 19 ms

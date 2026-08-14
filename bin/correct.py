@@ -106,7 +106,7 @@ def main():
     p.add_argument("--detach", action="store_true",
                    help="not who it says, and I do not know who")
     p.add_argument("--note", help="why, for whoever reads this later")
-    p.add_argument("--author", default=os.environ.get("USER", "admin"))
+    p.add_argument("--author", default=os.environ.get("USER") or "admin")
     p.add_argument("--pending", action="store_true",
                    help="record as a proposal that changes nothing until reviewed")
     p.add_argument("--no-index", action="store_true",

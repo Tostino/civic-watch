@@ -84,13 +84,13 @@
           Description="Inference key. Used ONLY by /api/ask. Search, browse and the published record are local and work without it."
           Type="Variable" Display="always" Required="false" Mask="true"/>
 
-  <Config Name="INFERENCE_API_BASE" Target="INFERENCE_API_BASE" Default=""
-          Description="Base URL of the inference API. /api/ask only."
-          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="INFERENCE_API_BASE" Target="INFERENCE_API_BASE" Default="https://api.deepseek.com"
+          Description="Base URL of the inference API. /api/ask only. Leave the default unless you are pointing at a different provider - an EMPTY value used to collapse the request URL to /v1/chat/completions and Ask failed with 'unknown url type'."
+          Type="Variable" Display="advanced" Required="false" Mask="false">https://api.deepseek.com</Config>
 
-  <Config Name="LLM_MODEL_AGENT" Target="LLM_MODEL_AGENT" Default=""
+  <Config Name="LLM_MODEL_AGENT" Target="LLM_MODEL_AGENT" Default="deepseek-v4-flash"
           Description="Model name the agent calls. /api/ask only."
-          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+          Type="Variable" Display="advanced" Required="false" Mask="false">deepseek-v4-flash</Config>
 
   <Config Name="TZ" Target="TZ" Default="America/New_York"
           Description="Container timezone. Match the Postgres container or timestamps disagree."

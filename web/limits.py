@@ -32,15 +32,15 @@ import threading
 import time
 from collections import deque
 
-WINDOW = int(os.environ.get("ASK_WINDOW", 600))          # seconds
-PER_IP = int(os.environ.get("ASK_PER_IP", 6))            # runs per window
-DAILY_MAX = int(os.environ.get("ASK_DAILY_MAX", 400))    # runs per 24h, global
-MAX_CONCURRENT = int(os.environ.get("ASK_MAX_CONCURRENT", 2))
-MAX_CHARS = int(os.environ.get("ASK_MAX_CHARS", 500))
+WINDOW = int(os.environ.get("ASK_WINDOW") or 600)          # seconds
+PER_IP = int(os.environ.get("ASK_PER_IP") or 6)            # runs per window
+DAILY_MAX = int(os.environ.get("ASK_DAILY_MAX") or 400)    # runs per 24h, global
+MAX_CONCURRENT = int(os.environ.get("ASK_MAX_CONCURRENT") or 2)
+MAX_CHARS = int(os.environ.get("ASK_MAX_CHARS") or 500)
 # Off by default: with no proxy in front, X-Forwarded-For is entirely
 # attacker-supplied and trusting it hands out a fresh quota per request.
 # Turn it on ONLY when a reverse proxy terminates connections for this server.
-TRUST_PROXY = os.environ.get("ASK_TRUST_PROXY", "").lower() in ("1", "true", "yes")
+TRUST_PROXY = os.environ.get("ASK_TRUST_PROXY") or "".lower() in ("1", "true", "yes")
 # A public endpoint is also a way to make a server allocate memory. One entry
 # per IP is small, but "one per source address" is unbounded by definition.
 MAX_TRACKED_IPS = 4096
