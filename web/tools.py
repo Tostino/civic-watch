@@ -26,6 +26,7 @@ structure - ids, codes, outcomes, offsets - and one component decides how to
 render each kind (D3, and the same rule as web/archive.py).
 """
 import sys
+import time
 
 import archive
 
@@ -50,15 +51,29 @@ def retrieve():
 
 def warm(device=None):
     """Load the embedding model. Called at startup so the first reader does
-    not pay for it; a failure here is not fatal, it costs the dense arm."""
+    not pay for it; a failure here is not fatal, it costs the dense arm.
+
+    It says so EITHER WAY, on purpose. A healthy server used to print nothing
+    here, so the only way to know the dense arm was alive was to grep for the
+    absence of the failure line - and "no output is the pass" is a check nobody
+    runs and nobody trusts. This is the one degradation in the whole stack that
+    does not announce itself: search keeps answering, on BM25 alone, and looks
+    fine until someone notices paraphrase queries stopped working.
+    """
     global _dense_error
+    t0 = time.time()
     try:
-        retrieve().model(device)      # device=None -> retrieve.DEVICE
+        r = retrieve()
+        r.model(device)
         _dense_error = None
+        print(f"[tools] dense retrieval READY - {r.MODEL_ID} on "
+              f"{device or r.DEVICE} in {time.time() - t0:.1f}s",
+              file=sys.stderr)
     except Exception as e:                                   # noqa: BLE001
         _dense_error = f"{type(e).__name__}: {e}"
-        print(f"[tools] dense retrieval unavailable - {_dense_error}",
-              file=sys.stderr)
+        print(f"[tools] dense retrieval UNAVAILABLE - {_dense_error}\n"
+              f"[tools] search will answer on BM25 alone; paraphrase queries "
+              f"will find nothing", file=sys.stderr)
     return _dense_error
 
 

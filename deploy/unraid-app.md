@@ -91,13 +91,23 @@ container and cannot reach the host's `127.0.0.1`.
 ## 5. Verify, in this order
 
 ```
-docker logs civicwatch-api 2>&1 | grep -i "dense retrieval unavailable"
+docker logs civicwatch-api 2>&1 | grep "dense retrieval"
 ```
 
-**No output is the pass.** A line here means the embedding model did not load
-and search is running on BM25 alone — almost always the `/models` ownership
-above. This is the single check worth running after every deploy: everything
-else fails loudly, and this one does not.
+**You want to SEE a line, not an absence:**
+
+    [tools] dense retrieval READY - microsoft/harrier-oss-v1-0.6b on cpu in 4.7s
+
+The failure reads:
+
+    [tools] dense retrieval UNAVAILABLE - <the actual exception>
+    [tools] search will answer on BM25 alone; paraphrase queries will find nothing
+
+— almost always the `/models` ownership above. This used to print nothing at
+all on success, so the check was "grep for the absence of a failure", which is
+a check nobody runs and nobody trusts. It is the one degradation in the stack
+that does not announce itself: search keeps answering, on BM25 alone, and looks
+healthy until someone notices paraphrase queries stopped working.
 
 ```
 curl -s "http://10.0.0.6:3000/api/tool/search_transcript?query=school%20zone%20speed%20cameras&limit=3"

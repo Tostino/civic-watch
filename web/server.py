@@ -699,6 +699,9 @@ def main():
     # it costs ~6s and the reader who happens to be first should not pay it.
     if not args.no_dense:
         tools.warm()
+    else:
+        print("[tools] dense retrieval DISABLED by --no-dense; search is "
+              "BM25 only", file=sys.stderr)
     # Bind the port BEFORE writing the token. A second launch against a busy
     # port used to write its token first and then die on the bind, leaving a
     # file whose token no running process holds - and a sign-in that can only
