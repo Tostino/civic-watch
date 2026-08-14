@@ -205,11 +205,30 @@ site stays up. That is the point of the split.
 
 ## 4. Decide on purpose
 
-- **3,439 addresses stay live and searchable** across 370 recordings; 1 applied.
-  Defensible — public record, always been there — but make it the choice, not a
-  leftover. Applying is a bulk update plus ~1–2h of re-indexing, and `audit.py`
-  already has three invariants proving removal reaches the transcript, the search
-  index, and the passages a reader gets.
+- **DONE, 2026-08-14: all 3,440 removals applied.** 3,237 lines changed across
+  370 recordings, re-indexed as it went, 1,413s. `redaction.gone_from_transcript`,
+  `raw_preserved` and `utterances.published_is_derived` all pass over the full
+  3,440.
+
+  **One address is still findable, and it is the case no per-line detector can
+  reach.** `14720 Bluestone Lane` (video `OiEdE83k8HA`): the speaker says it
+  twice. The first time is one utterance and it is redacted. The second time the
+  ASR splits it — utterance 158 ends `...located at 14720`, utterance 159 begins
+  `Bluestone Lane in Odessa, Florida` — so no single line contains the string and
+  `redact.py` never saw it. `passages` concatenates 157–159, which reassembles it,
+  and `redaction.gone_from_index` catches it there.
+
+  This is not an index fault: `build_passages` reads the published column and a
+  re-index of that recording correctly changes nothing. The fix is a decision on
+  the queue about the split occurrence, not a repair. LAUNCH.md already predicted
+  the shape of it — `truth_6680` has an address split across lines 72/73.
+
+  The other five `gone_from_index` violations are benign: the span appears in a
+  different, correctly-unredacted line of the same passage (`Green Key`,
+  `Frontier Drive`, `Embassy Boulevard`, and a one-character span `A`). Of the 84
+  `unfindable` violations, five are address-shaped and read as business
+  addresses — "owner of North American Towers", "for the applicant", "I work for
+  Soho Builders" — which §4 above already calls correct keeps.
 
 ### Reviewed 2026-08-14 — what the proposals actually look like
 
