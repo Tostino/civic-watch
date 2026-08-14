@@ -6,6 +6,11 @@
    * content-sized parent and falls back to its min-height. */
   flex: 1;
   min-height: 0;
+  /* How wide a turn may be laid out is a question about this column, not about
+   * the window: the player's lane takes its width from the same row. A media
+   * query gets that wrong in both directions - a 1440px window with a lane open
+   * has less room here than a 1100px one without. */
+  container-type: inline-size;
 }
 
 .head {
@@ -42,9 +47,10 @@
 .scroll {
   flex: 1;
   min-height: 18rem;
-  /* The dock floats over the bottom-right of this pane. Padding the scrollable
-   * content by its measured height keeps the last lines reachable instead of
-   * parked underneath it. */
+  /* Only when the dock is over this pane - floating at the foot of the window,
+   * or a sheet across the bottom - does the scrollable content need padding to
+   * keep its last lines reachable. In its own lane the dock covers nothing and
+   * this is 0px, which is the arrangement most readers get. */
   padding-bottom: var(--dock-h, 0px);
   overflow-y: auto;
   /* Deliberately NOT `overscroll-behavior: contain`. This pane, the agenda
@@ -240,15 +246,21 @@
   color: var(--accent);
 }
 
-@media (max-width: 52rem) {
+/* Below this the 11rem speaker column is taking a third of the line and the
+ * words are arriving four at a time, so the name goes above what was said. */
+@container (max-width: 34rem) {
   .turn {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.15rem;
     padding: var(--sp-2) 0;
   }
+}
 
+@media (max-width: 52rem) {
   /* Still a fixed-height scroller: the virtualizer measures this element, and
-   * letting it grow to the full 2,252-line height would render every row. */
+   * letting it grow to the full 2,252-line height would render every row.
+   * This one IS about the window - it is the page that becomes the scroller
+   * on a phone. */
   .scroll {
     height: 70vh;
     min-height: 20rem;

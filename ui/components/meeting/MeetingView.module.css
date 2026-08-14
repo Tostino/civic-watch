@@ -5,7 +5,7 @@
    * footer gone this is the last thing between the page and no page scroll at
    * all, which is the whole point - the panes scroll, the page does not. */
   min-height: calc(100vh - var(--header));
-  padding-bottom: var(--sp-4); /* the dock reserves its own room via --dock-h */
+  padding-bottom: var(--sp-4); /* the dock reserves its own room; see tokens.css */
 }
 
 /* ------------------------------------------------------------ masthead */

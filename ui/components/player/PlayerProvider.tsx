@@ -198,7 +198,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const play = useCallback((next: Source, seconds = 0, autoplay = true) => {
     setSource((cur) => (cur?.videoId === next.videoId ? cur : next));
     setPosition(seconds);
-    setExpanded(true);
+    /* Opening the player shows the picture. Moving within it does not: every
+     * click on a transcript line comes through here, so a reader who had
+     * collapsed the video to read got it reopened on top of them a few seconds
+     * later, over and over. Collapsed is a decision about this session, not
+     * about this seek. */
+    if (!source) setExpanded(true);
     if (next.duration) setDuration(next.duration);
     const p = playerRef.current;
     if (!p) {
@@ -214,7 +219,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
     if (autoplay) p.loadVideoById({ videoId: next.videoId, startSeconds: seconds });
     else p.cueVideoById({ videoId: next.videoId, startSeconds: seconds });
-  }, [ready, source?.videoId]);
+    // `source` rather than its id: setSource keeps the object identity when the
+    // recording has not changed, so this is the same dependency, and it is also
+    // what says whether anything is loaded at all.
+  }, [ready, source]);
 
   const seek = useCallback((seconds: number) => {
     playerRef.current?.seekTo(Math.max(0, seconds), true);
