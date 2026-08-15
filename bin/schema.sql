@@ -690,6 +690,51 @@ LEFT JOIN voice_name vn
                          AND si2.local_label <> u.local_label)
 ) s;
 
+-- How well a PASSAGE's speaker name is known, in the two fields every surface
+-- already draws it from: `human` and `basis`.
+--
+-- A passage is many utterances and the view above answers for one, so
+-- something has to reduce them - and every reader of this, the page and the
+-- agent alike, wants the same reduction: the WORST case. One shaky line is
+-- enough to make an attribution shaky, and a passage that is 'human' for four
+-- utterances and 'cluster' for the fifth is a passage whose name may be wrong.
+--
+-- It is a function and not two aggregates in each caller's query because both
+-- ways of writing those aggregates were wrong, and wrong quietly:
+--
+--   BOOL_OR(human) with MIN(basis) reads the two fields off DIFFERENT
+--   utterances, so one passage came back saying a person confirmed it AND that
+--   it was an archive-wide cluster guess. Whichever the caller checked first
+--   decided the answer.
+--
+--   MIN(basis) is alphabetical, and alphabetical is not strength: it puts
+--   'cluster' first, which is right by luck, and then 'human' ahead of
+--   'voice', which is backwards. A passage mixing a confirmed name with a
+--   voice match reported the confirmed one.
+--
+-- ORDER BY ... LIMIT 1 over a real strength ranking returns ONE row, so the
+-- fields cannot disagree, and returns the weakest, which is what the question
+-- means. The ranking is the precedence in the view above, read from the bottom
+-- up; it is stated here and nowhere else for the reason the view's own header
+-- gives.
+CREATE OR REPLACE FUNCTION passage_speaker(vid text, lo integer, hi integer)
+RETURNS TABLE (name_human boolean, name_basis text)
+LANGUAGE sql STABLE AS $$
+    SELECT us.human, us.basis
+      FROM utterance_speaker us
+     WHERE us.video_id = vid AND us.idx BETWEEN lo AND hi
+       -- Unnamed utterances say nothing about how sure a NAME is. A passage
+       -- of nothing but unnamed voices returns no row at all, which the
+       -- callers read as "no name to be unsure about".
+       AND us.name IS NOT NULL
+     ORDER BY CASE us.basis WHEN 'cluster'  THEN 0
+                            WHEN 'voice'    THEN 1
+                            WHEN 'human'    THEN 2
+                            WHEN 'override' THEN 3
+                            ELSE 0 END
+     LIMIT 1;
+$$;
+
 -- ------------------------------------------------------------- redaction
 --
 -- The home address of a member of the public, spoken at the podium.

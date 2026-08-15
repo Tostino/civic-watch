@@ -44,7 +44,9 @@ $PY bin/index_passages.py || exit 1
 echo; echo "=== audit ==="; date "+    started %H:%M:%S"
 $PY bin/audit.py
 
-echo; echo "=== eval_votes ==="; date "+    started %H:%M:%S"
-$PY bin/eval_votes.py
+echo; echo "=== eval_agent ==="; date "+    started %H:%M:%S"
+# --agent runs the questions in ANSWERS through the real agent, which is the
+# check that gates: retrieval rank is a diagnostic, an answer is the product.
+$PY bin/eval_agent.py --agent
 
 echo; echo "=== ALL DONE ==="; date

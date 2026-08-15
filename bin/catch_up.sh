@@ -39,7 +39,9 @@ $PY bin/index_passages.py
 echo; echo "=== audit ==="; date "+    started %H:%M:%S"
 $PY bin/audit.py || true
 
-echo; echo "=== eval_votes ==="; date "+    started %H:%M:%S"
-$PY bin/eval_votes.py || true
+echo; echo "=== eval_agent ==="; date "+    started %H:%M:%S"
+# Tolerated: the ingest has landed by here, and an answer regression is
+# a thing to be told about rather than a reason to fail a catch-up.
+$PY bin/eval_agent.py --agent || true
 
 echo; echo "=== CATCH UP DONE ==="; date

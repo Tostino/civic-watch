@@ -21,7 +21,7 @@ What replaced it decides what to look at next instead of being wired to:
 behind `/api/ask`. The agent reaches that same vote by choosing to call
 `get_item` once a search puts the item in play.
 
-The pipeline outlived its last real caller by a while. `bin/eval_votes.py
+The pipeline outlived its last real caller by a while. `bin/eval_agent.py
 --agent` still ran it, which meant the project's pass/fail check for "can we
 find the moment the board decided" was measuring a code path no reader could
 reach. That eval runs `web/agent.py` now.
@@ -101,22 +101,32 @@ RETRYABLE = (urllib.error.URLError, TimeoutError, ConnectionError, OSError,
 
 
 def chat(messages, model=MODEL, temperature=0.2, as_json=False, retries=3,
-         timeout=TIMEOUT):
+         timeout=TIMEOUT, effort=None):
     """The text of one reply. Four callers depend on this exact signature."""
     return chat_raw(messages, model, temperature, as_json, retries,
-                    timeout).get("content") or ""
+                    timeout, effort=effort).get("content") or ""
 
 
 def chat_raw(messages, model=MODEL, temperature=0.2, as_json=False, retries=3,
-             timeout=TIMEOUT, tools=None, tool_choice=None):
+             timeout=TIMEOUT, tools=None, tool_choice=None, effort=None):
     """The whole reply MESSAGE, so a caller can see `tool_calls`.
 
     Added for the agent (web/agent.py): a tool-calling loop needs the message
     back, not the string, because the interesting turns have no content at all.
     `chat()` stays as it was - segment.py and name_speakers.py call it several
     thousand times a run and neither wants a dict.
+
+    `effort` is 'none' | 'low' | 'medium' | 'high', or None to send nothing and
+    let the model do what it did before this argument existed. It is the only
+    control here that touches WALL CLOCK, because it is the only one that
+    changes how much gets generated: measured on one /ask question, 93% of
+    every token this project generated was reasoning nobody reads, and
+    generation is serial where a re-sent prompt is a 92% cache hit. Prompt
+    size is not what makes an answer slow. This is.
     """
     body = {"model": model, "messages": messages, "temperature": temperature}
+    if effort:
+        body["reasoning_effort"] = effort
     if as_json:
         body["response_format"] = {"type": "json_object"}
     if tools:
@@ -196,7 +206,7 @@ def usage_report():
 # read_batch(), ask() and a CLI - is deleted. D9 replaced it with tools the
 # model calls (web/tools.py) driven by a loop that decides what to call
 # next (web/agent.py), and slice 4 put that behind /api/ask. The pipeline
-# served nothing after that: its last caller was bin/eval_votes.py --agent,
+# served nothing after that: its last caller was bin/eval_agent.py --agent,
 # a check that was therefore reporting on a code path no reader could
 # reach. That eval now runs web/agent.py.
 #

@@ -228,7 +228,7 @@ re-verifies stored titles against the transcripts without calling the model.
 | passages | `bin/index_passages.py` | retrieval units + embeddings; bakes the resolved speaker |
 | retrieval | `bin/retrieve.py` | SQL BM25 + pgvector HNSW + thread-key fusion |
 | agent | `bin/ask.py` | plan → retrieve → multi-lens read → answer |
-| check | `bin/eval_votes.py` | pass/fail: is the vote reachable by its subject? |
+| check | `bin/eval_agent.py` | pass/fail: did the answer reach the evidence it needed? |
 | audit | `bin/audit.py` | 35 data invariants, in bulk, repairs nothing |
 
 **Not ported to Postgres:** `eval_anchors.py`, `eval_chunking.py`,
@@ -352,7 +352,7 @@ Numbered so code and comments can cite them, which several do — grep
    Cost: a "successful" run that had actually crashed.
 10. **Passage ids are reassigned on every index rebuild** (they are the row
     order of `video_id, idx`, and new meetings land mid-alphabet). Never
-    hard-code one. `eval_votes.py` addresses its targets by (video, second).
+    hard-code one. `eval_agent.py` addresses its targets by (video, second).
 11. **A grounded title must be edited in place, not rebuilt from its surviving
     tokens.** Rebuilding turns "R-58" into "58" and drops "PDE" from
     "PDE 260033" — BM25 then matches neither, and `threads.global_keys()` no
@@ -1293,7 +1293,7 @@ Numbered so code and comments can cite them, which several do — grep
     number go away.
 
 83. **What the pipeline idempotency audit found.** Every stage was checked;
-    `chair_anchor`, `affinity`, `index_passages` and `eval_votes` are clean,
+    `chair_anchor`, `affinity`, `index_passages` and `eval_agent` are clean,
     `roster` has a latent tie-break with zero impact today. The rest, ranked by
     damage and each verified independently before being believed:
 
@@ -1877,7 +1877,7 @@ Numbered so code and comments can cite them, which several do — grep
       `plan`, `gather`, `who`, `official_record`, `LENSES`, `read_batch`,
       `ask` and its CLI. 570 lines to 206. D9 retired it and slice 4 put
       `web/agent.py` behind `/api/ask`, but it had one caller left:
-      **`bin/eval_votes.py --agent`**, whose help said "also run bin/ask.py".
+      **`bin/eval_agent.py --agent`**, whose help said "also run bin/ask.py".
       So the project's pass/fail check for "can we reach the moment the board
       decided" was measuring a code path no reader could reach, and STATE told
       every returning session to run it. It runs `web/agent.py` now, and the
@@ -2109,6 +2109,337 @@ than teaching yourself to read the secret.
     write would hide, and the three older checks cover the redacted ones. 47
     checks now, 0 failing on production, which was never touched by the proof.
 
+98. **What makes an `/ask` answer slow is GENERATION, not prompt size.** Half a
+    day went into this from the wrong end, so the measurements are here to stop
+    the next session repeating it. One question, instrumented end to end
+    (`spend` in `web/agent.py`, printed by `bin/eval_agent.py`):
+
+        think    196s  37%   14 rounds   prompt 411,746 tok (92% CACHED)
+        compose  143s  27%    1 call     prompt  39,365 tok ( 5% cached)
+        verify   187s  35%    1 call     prompt  40,818 tok ( 1% cached)
+        tools      6s   1%   31 calls
+        --------------------------------------------------------------
+        completion 59,730 tok, of which 55,637 REASONING (93%)
+
+    The research loop re-sends its whole history every round and that is nearly
+    free: DeepSeek's prefix cache hits 92% of it. Shrinking the brief, trimming
+    what `render()` returns, capping `MAX_EVIDENCE` - the obvious ideas - all
+    chase the 8%. What costs wall clock is tokens the model GENERATES, and on a
+    reasoning model almost all of them are reasoning nobody reads.
+
+    So the dial that matters is `reasoning_effort`, which `bin/ask.py` had never
+    sent. It does now (`effort=`), per phase, via `EFFORT_RESEARCH` /
+    `EFFORT_COMPOSE` / `EFFORT_VERIFY`.
+
+    **Turning it down is NOT free, and the failures are the dangerous kind.** At
+    `compose=low` the writer invented "authorized by state law", named a camera
+    vendor the archive never mentions, and wrote that the closest thing to the
+    word "gambling" was the surname Gamble *while citing a passage containing
+    "gambling boat"*. Research and compose are left at the model's own default
+    for that reason. Only `verify` is dialled down, to `medium`: 187s to 20-45s
+    at the same failing-check count.
+
+    Two more things measured on the way, both counter-intuitive:
+
+    - **The writer's thinking is mostly a self-audit, and it cannot be talked
+      out of it.** Its reasoning trace drafts the answer, then enumerates every
+      citation, confirms each id is in the brief, re-reads each passage against
+      its claim, and closes "I'm comfortable. Write it out." - 46,000 of 74,000
+      characters, having found nothing. Three separate attempts to stop it
+      (deleting the self-check instruction, handing it a fact-to-id map from
+      the researcher, telling it outright that a checker runs afterwards) all
+      failed; one of them DOUBLED the reasoning. Do not spend another day here
+      without a new idea.
+    - **It is not the model.** Opus, given the identical brief and the identical
+      COMPOSE prompt, wrote a longer answer and made ONE MORE unsupported-claim
+      error than `deepseek-v4-flash` did - and made the same kind, attaching a
+      claim to a passage that only introduces the speaker.
+
+    **Read every eval difference against the noise.** The same question under
+    the same configuration has produced 0 to 3 flagged claims, and compose
+    reasoning on it has ranged 2,344 to 32,531 tokens. Nothing under a ~2-check
+    difference means anything at n=1. Two conclusions in this session were
+    announced off the first question to report and both were wrong.
+
+    Every run of the three `ANSWERS` questions this session, so the spread is
+    on the record rather than re-derived. The eval prints per-question seconds
+    and words; these are the sums:
+
+        run     total   words   checks
+        eval2    854s    1033      3     before any of this
+        eval4    509s    1008      3
+        eval5    695s    1113      2
+        eval6    512s    1051      1
+        eval7    451s    1142      2
+        eval8    452s    1065      2
+        evalA    589s    1074      1     the configuration that shipped
+        evalB    646s    1053      1
+        evalD    829s    1250      0*    * judge unfit, structural checks only
+        evalE    682s    1225      1
+        ---- the fourth question (backyard chickens) joins here ----
+        evalF    822s    1369      2     evidence still truncated (gotcha 101)
+        evalG   1173s    1656      3†    † printed 4; one was the harness's
+                                           own fault, see below
+
+    From evalF the eval runs FOUR questions, so its totals are not comparable
+    with the three-question runs above. `took` also stops being what a reader
+    waits for at evalF, because the citation verify pass runs in the harness
+    and not on the reader's path any more (agent.VERIFY_ON); the eval prints
+    both numbers per question.
+
+    evalG is the first run whose judge could see whole passages, and it is
+    the honest baseline. Its three failures are all real and all the same
+    class - a specific asserted onto a passage that does not carry it:
+    "Red Speed proposed the citation-enforcement program" on a passage that
+    never names Red Speed; "buffering and building-facade standards" on three
+    passages carrying a berm, lighting and a warehouse cap; and the backyard
+    chickens answer never reaching [item:21923]. The fourth printed failure
+    was `moments_any` listing three of the five passages that carry the
+    permit removal, so an answer citing one of the other two - staff
+    confirming it at the adoption hearing, which is the best evidence there
+    is - failed a check the judge passed in the same run. Widened; the rule
+    for that field is EVERY way of saying the thing.
+
+    Wall clock at n=1 is not a measurement here: 451s to 854s over runs whose
+    checks range 0 to 3, with compose alone swinging 138s to 308s WITHIN one
+    run. Only the check count is worth reading, and only across runs.
+
+    The 3-to-1 is NOT from the effort dial. It is from `COMPOSE` no longer
+    contradicting itself — it used to say "cite the clearest one" beside "the
+    citation must be the one that holds the fact" (unsatisfiable for any
+    sentence resting on two passages), and it demanded plain-English
+    explanation of procedure beside "NOTHING FROM OUTSIDE THE BRIEF" while
+    giving explanation as its own example of good work. The model spent its
+    reasoning arbitrating, and the fabrications were where it lost. Both
+    survivors are now marginal — "others still worried" where the worry was
+    the same neighbour's, "Starkey seconding" where the transcript says "nice
+    second" — not invention.
+
+    The one failure class that outlived every fix, including Opus, is a
+    specific asserted onto a passage that does not carry it. `verify_citations`
+    cannot reach it: the bracket is right and the sentence has a word too many.
+    Prompting has been tried from four directions. It likely needs a different
+    mechanism.
+
+    **VALIDATED (runs D and E).** Everything below was added after run B and
+    is now measured: run E, judge fit, came in at **1 failing check** — the
+    same as A and B — and run D at 0, though D's judge went unfit so only its
+    structural checks count. The three changes hold the line, and one of them
+    is confirmed on the exact case it was built for: the Hazelwood passages
+    [248433] [248434] now arrive as one person in one sentence, where the
+    earlier answer had "one neighbour praised the plan while others worried
+    about lighting" and there were no others.
+
+    The one surviving failure in E is the known class and not a new one:
+    "continued several times over about ten months" against continuances
+    spanning November 2024 to May 2025. A computed specific that no passage
+    carries — see the last paragraph of this entry.
+
+    **The cost is words.** D and E wrote 1,250 and 1,225 words against A and
+    B's 1,074 and 1,053, about 16% more, consistently across both runs, and
+    the wall clock follows the words. The likely cause is the absence
+    reporting: an answer now spends a sentence on what was searched for and
+    not found, which is the point of it. Worth watching against `LENGTH` in
+    COMPOSE, which asks for three or four short paragraphs and got five.
+
+    Sorting the failures by cause rather than treating them as one bucket found
+    three, and the last of them is the live thread:
+
+    1. *Absence claims.* "No tally was read into the microphone" arrived citing
+       the roll call - the one passage that contradicts it - because COMPOSE
+       demanded a citation for EVERY claim and no passage can prove an absence.
+       At the maintainer's suggestion: the support for an absence is the SEARCH
+       that came back empty. The brief now has two sections where it had one,
+       because `empty` used to mean "returned nothing NEW" and so listed a
+       search that matched ten already-held passages as evidence that nothing
+       exists. `trace` carries `found` beside `new` for that.
+    2. *Anaphora.* [248469] "we're happy to work on a condition ... on any
+       perimeter areas adjacent on the west or north" IS the applicant agreeing
+       to a lighting condition; the word is three turns up. Passages were
+       listed in search order, which scatters a conversation. `_said()` now
+       groups by meeting and sorts by spoken time.
+    3. *One speaker read as several.* [248433] and [248434] are both Nancy
+       Hazelwood, consecutive, one trip to the podium - and produced "one
+       neighbour praised the plan while others worried about lighting". There
+       were no others. `_said()` marks continuations from `speaker` plus
+       adjacent `start_idx`/`end_idx`.
+
+    Gotcha for whoever writes that SQL: **a literal per-cent sign anywhere in a
+    psycopg query string is read as a placeholder, including inside an SQL
+    comment.** "(19%)" in a comment took down every passage lookup.
+
+99. **How sure a speaker's name is, said the same way on every surface.**
+    `utterance_speaker` has carried `human`, `basis`, `confidence` and
+    `contested` all along and nothing downstream said so: of 234,000 named
+    utterances, 2,786 were stated by a person, 208,495 were matched to a voice
+    at that meeting, and 22,682 carry nothing but the name their voice goes by
+    across the whole archive - and every surface printed all three identically.
+    The one that matters most is the answer text: "Commissioner Oakley moved",
+    written off a name nobody confirmed, invents a person's vote.
+
+    The rule is `ui/components/SpeakerChip.tsx`'s, and it is one rule now:
+    confirmed / inferred / weak(`basis='cluster'`) / unknown, off `human` and
+    `basis`, no number. It was first written in `web/agent.py` as
+    `confidence >= 0.6`, which is that same precedence rule stated a second
+    time - the defect `utterance_speaker`'s own header warns about - and R5.5.6
+    forbids showing the number to a reader anyway, on the grounds that speaker
+    precision has not been re-measured since the roster work. So the threshold
+    went and the chip's states came in.
+
+    Three things had to move for that to be true rather than merely intended:
+
+    - **The reduction is in the database** (`passage_speaker`, bin/schema.sql).
+      A passage is many utterances and every caller wants the same reduction:
+      the WORST of them. Both obvious ways of writing it in a query were wrong
+      and quiet about it. `BOOL_OR(human)` beside `MIN(basis)` reads the two
+      fields off DIFFERENT utterances, so one passage came back saying both "a
+      person confirmed this" and "archive-wide guess". And `MIN(basis)` is
+      alphabetical, which is not strength: it puts `cluster` first by luck and
+      then `human` ahead of `voice`, backwards. `ORDER BY <rank> LIMIT 1`
+      returns one real row, so the fields cannot disagree.
+    - **It is filled in on the hits that SURVIVE, not on the candidates**
+      (`tools.speaker_sure`). Resolving a name walks four precedence levels per
+      utterance and Postgres runs the archive-wide cluster majority per row:
+      **620 ms for 600 passages against 2 ms without it**. Both retrieval arms
+      rank 600 and return 25, so putting it in the projection - which is where
+      it started - tripled the cost of every search to describe 575 rows nobody
+      would see. On the survivors it is 16 ms. `bin/retrieve.py` carries a
+      comment saying not to move it back.
+    - **Four surfaces that drew a bare name now draw the chip**: `/search`
+      hits, the answer's evidence, a saved answer's evidence, and the front
+      page's "objected" and "split vote" rows - which is the one that most
+      needed it, being a named member attached to the two claims a person is
+      least willing to have wrong about them, in bold, above the fold.
+
+    Two behaviour changes worth knowing, both deliberate:
+
+    - **Fewer passages are marked than under the threshold** - 11.7% of
+      personally-named passages against 27.3% - because a voice match is one
+      claim here whatever it scored, and 12.4% of them score under 0.6. That is
+      R5.5.6 applied, not a gap. If the precision measurement is ever redone,
+      spend it on the chip and this follows.
+    - **A passage with no speaker is no longer "Several speakers" on /search.**
+      Both used to come out that way; the archive knows there were several for
+      one of them and nothing at all for the other, which is 10.7% of passages.
+      It now reads "Unidentified speaker", which is what /ask has always called
+      it.
+
+    The agent marks only the two ends - `⚠ NAME NOT CONFIRMED` and
+    `✓ NAME CONFIRMED` - and leaves `inferred` bare, because inferred is 89% of
+    the archive and marking it would put a warning on nearly every line of the
+    brief. COMPOSE says in as many words that an unmarked name is an inferred
+    one, and what to do with each of the three.
+
+100. **`do_GET` leaked a database connection on every read, and the whole
+    archive ran out.** Found because an eval died on `FATAL: sorry, too many
+    clients already`, which is a message about the server and says nothing
+    about who took them.
+
+    `pg_stat_activity` said everything: 91 backends `idle`, all from one
+    container address, opened about one every 25 seconds across 40 minutes and
+    never released, 100 of 100 taken. Every one carried the same last query -
+    `retrieve.search`'s passage projection - because `/api/find` is a GET and
+    searching is what a reader does most.
+
+    `web/server.py` opened a connection in `do_GET` and had no `finally` to
+    close it. The other two request paths in the same file already did:
+    `_ask_stream` and the admin branch of `do_POST`. Measured before and after
+    the fix, counting this host's backends:
+
+        old code   5 requests to /api/find    2 -> 4
+        fixed     36 GETs across 3 endpoints  2 -> 2
+
+    Two things made it hard to see and are the reason this is written down.
+
+    **The failure is not local.** A missed close never breaks the request that
+    missed it. It breaks a different request, on a different endpoint, minutes
+    later, once the server as a whole runs out - and at that moment the path
+    that is actually leaking is the one that still looks fine.
+
+    **Refcounting is not the backstop it looks like.** A psycopg connection and
+    its cursors reference each other, so a dropped connection is a cycle: it
+    goes when the cyclic collector runs, not when the frame does. That is why
+    5 requests leaked 2 rather than 5, why the production creep was slow enough
+    to look like something else, and why "CPython closes it when it goes out of
+    scope" is not a thing to rely on here.
+
+    The 91 already open belong to the running container and will go when it is
+    redeployed. If this is ever wanted as a backstop rather than a fix,
+    `idle_session_timeout` is the setting - but scope it to the web read path.
+    Set globally in `db.connect()` it would reach the pipeline workers, which
+    legitimately hold an idle connection while a GPU is busy.
+
+101. **The checker was reading a quarter of the passage, and failing honest
+    work for it.** The new backyard-chickens eval question found this on its
+    first run, which is the best argument for having written it.
+
+    The judge returned three "unsupported claim" findings. All three were
+    right about the evidence it was shown and wrong about the answer:
+
+        "prohibits chickens in MF-1, MF-2, MF-3"   cited [307332],   986 chars
+            ...which says "excluding ER, ER two, MF1, MF two, and MF three"
+            at character 500.
+        "coop size and height are regulated"       cited [307333], 1,165 chars
+        "must be occupied, not a vacation rental"  cited [307333]
+            ...which says both, at characters 850 and 1,000.
+
+    `_passage_line`'s default width is **420** characters, chosen for a list
+    being SKIMMED, and **42,006 of 166,998 passages (25.2%) are longer than
+    that.** Four callers took the default: the research render, where it is
+    right; `brief()`, where it means the writer composes from a truncated
+    source; `_groups`, the citation checker; and `eval_agent.evidence_text`,
+    the judge.
+
+    The last one is the sharp part. `evidence_text`'s own docstring records
+    this exact failure, from the first time it happened, and says "there is one
+    renderer, it is the agent's, and this cannot drift from it again". The fix
+    then routed the judge through `_passage_line` — and stopped one level short
+    of the NUMBER inside it. Same defect, same symptom, one layer down, four
+    months later. `_groups` had the same shape: it clipped to 900, which never
+    once mattered, because 420 had already happened.
+
+    **It also explains `verify_citations`.** Stage one flags a citation whose
+    text does not carry its sentence; stage two, reading the same clipped text,
+    finds nothing better and declines. Five flags and no moves over 32
+    questions looked like a pass with nothing to say. It was a pass reading a
+    quarter of a passage, and at least one of those five flags — [307333] — is
+    independently confirmed by the judge to have been the truncation and not
+    the citation. **The decision to gate it off (gotcha 100 is a different
+    matter; this is `agent.VERIFY_ON`) was taken on that evidence and should be
+    revisited now that both stages can see.**
+
+    Fixed by `agent.FULL = 1600`, which is past the longest passage in the
+    archive (1,582), used by the brief, the checker and the judge. It costs
+    about 2,400 tokens on a 130-passage brief, all of it prompt, which prefix
+    caching makes close to free — generation is the bill here, and this is not
+    generation.
+
+    **Every failing-check count in gotcha 98's table before evalG predates
+    this**, so the "1 failing check" that A, B and E landed on is not a floor
+    of real defects. Some unknown share of it was the clip.
+
+    **What the first clean run said.** evalG, the same four questions with
+    nothing truncated:
+
+    - The three false findings on the chickens answer are gone, and that
+      answer now cites [307333] for the occupancy rule and the coop
+      dimensions - the facts it was marked wrong for - and passes.
+    - It also got more careful in a way nothing asked it to be, which is what
+      seeing whole passages buys: "Staff presented these rules as key points
+      of the proposed measure, not its full text", and "The four-hen limit,
+      for instance, comes from Chairman Starkey's remark at the first
+      hearing." Both are the answer telling a reader how good its own
+      evidence is.
+    - `verify_citations` moved nothing and flagged nothing, on all four
+      questions, with clean input - including on the two answers where the
+      judge found a real misattached specific. That is not a failure of the
+      pass; VERIFY's prompt says to name a citation only when it carries NO
+      part of its sentence, and [69083] does carry part of its sentence. The
+      vendor name hung on it is the problem, and the pass is told to ignore
+      exactly that. **So gating it off (agent.VERIFY_ON) stands, and now for
+      a reason that is measured rather than inferred: it cannot reach the
+      class that is actually failing, by design.**
+
 ## Postgres, and what to watch out for
 
 Migrated off SQLite in one cutover. `bin/migrate_to_pg.py` did it, verifying
@@ -2263,7 +2594,7 @@ speaker-logic change; run it if you touch `speaker_id.py` or `anchors.py`).
    pass. The three EMPTY ones are the `override.*` family: production holds no
    `speaker_override` rows, so the correction path is currently proving
    nothing.
-2. `bin/eval_votes.py --agent` — the vote must reach the agent's evidence, not
+2. `bin/eval_agent.py --agent` — the vote must reach the agent's evidence, not
    merely rank inside depth 200.
 3. `bin/audit_asr.py` — no single ASR hole above 45s anywhere in the archive;
    if that ever changes, Parakeet has started deleting again.
@@ -2522,7 +2853,7 @@ from the CLI and is not yet wired to the server or the page.
   none: to a reader it looks exactly like a real one.
 - **`decisions_in_play()` is now redundant.** The agent calls `get_item` once a
   search puts an item in play, and the motion and the vote are simply the last
-  lines of it. `eval_votes`' whole reason for existing, solved by the agent
+  lines of it. `eval_agent`'s whole reason for existing, solved by the agent
   choosing to look rather than by a hard-coded patch.
 
 Two rendering bugs, both worth remembering because both were invisible until a
@@ -2560,7 +2891,7 @@ already recorded it as built:
   `EventSource("/api/ask?q=…")` and renders the real tool calls.
 - `ask.plan()` is reachable from nothing. Every remaining `import ask` -
   `web/agent.py`, `web/server.py`, `bin/segment.py`,
-  `bin/name_speakers.py`, `bin/eval_votes.py` - takes the CHAT CLIENT
+  `bin/name_speakers.py`, `bin/eval_agent.py` - takes the CHAT CLIENT
   (`import ask as llm`), not the pipeline. The fixed pipeline is retired in the
   sense that matters; the dead functions are still in the file and deleting
   them is tidying, not work.
@@ -2785,12 +3116,12 @@ Ranks measured at the time, on the SQLite build (62 / 44 / 34 / 28) and again
 after the Postgres migration (56 / 35 / 31 / 29), against *not in top 200* for
 every phrasing before. **Do not treat those as current** - the corpus, the
 speaker names and the injected subject have all changed since. Re-run
-`bin/eval_votes.py` for a live number.
+`bin/eval_agent.py` for a live number.
 
 The agent now answers *"The board voted to adopt both school zone safety
 camera programs … with the sheriff patrolling school zones until the program is
 implemented"*, citing the motion and the vote, where before it reported no
-decision. `bin/eval_votes.py --agent` is that check, and it is pass/fail.
+decision. `bin/eval_agent.py --agent` is that check, and it is pass/fail.
 
 **Retrieval rank is a diagnostic, not the pass condition.** The eval originally
 asserted the vote appeared within the top 200. The agent reads only the top 30
@@ -3034,7 +3365,7 @@ archives got right). The pipeline work below is what remains independent of it.
 1. ~~Wire the app to the domain model.~~ **Done**, and rebuilt properly in
    slices 1, 2, 5 and 3.
 2. ~~Never render a raw `Speaker N`.~~ **Done**, and now R6.2.1.
-3. **Measure retrieval, properly.** `eval_votes` is ONE case. There is no broad
+3. **Measure retrieval, properly.** `eval_agent` is ONE case. There is no broad
    number for whether search got better or worse across the Postgres migration,
    the segmentation, the re-index or the agenda binding. Still the largest
    unknown in the project, and it now blocks something concrete: D9 turns

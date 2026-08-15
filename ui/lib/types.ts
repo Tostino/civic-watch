@@ -385,6 +385,9 @@ export interface DividedInRoom extends DividedBase {
   kind: "vote" | "objection";
   speaker: string;
   speaker_display: string;
+  /** How the name was established — one utterance, so no reduction. See Line. */
+  human: boolean;
+  basis: Line["basis"];
   quote: string;
   video_id: string;
   seconds: number;
@@ -521,6 +524,20 @@ export interface TranscriptHit {
    */
   start_idx: number | null;
   end_idx: number | null;
+  /**
+   * How well the speaker name is known — the same two fields as `Line`, and
+   * for the same reason: a passage carries a name that may have been stated
+   * by a person, matched to a voice at that meeting, or merely inherited from
+   * what that voice is called across the whole archive, and those are three
+   * different claims (R2.3). Reduced from the passage's utterances by
+   * bin/schema.sql's `passage_speaker`, WORST case, so that one shaky line
+   * makes the whole attribution shaky.
+   *
+   * Null when the passage has no named utterance to be sure about, and on any
+   * row that predates the field. Render through SpeakerChip, never by hand.
+   */
+  name_human: boolean | null;
+  name_basis: Line["basis"];
   text: string;
   phase: string | null;
   agenda_item_id: number | null;

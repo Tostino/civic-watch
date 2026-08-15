@@ -181,6 +181,14 @@ def search(query, limit=40, spread=None, speaker=None, kind=None,
                    ai.source AS item_source,
                    v.title, v.upload_date, v.kind,
                    v.meeting_id, mt.date AS meeting_date, mt.body,
+                   -- NOT how sure the speaker's NAME is, deliberately. This
+                   -- runs over 600 candidates to return 25, and resolving a
+                   -- name walks four precedence levels per utterance - 620 ms
+                   -- for 600 passages, against 2 ms without it, which is a
+                   -- whole search's worth of time spent describing 575 rows
+                   -- nobody will see. tools.speaker_sure fills it in on the
+                   -- hits that SURVIVE, for 16 ms, and it does it for both
+                   -- retrieval arms at once. Do not move it in here.
                    1 - (p.embedding <=> %s) AS score
             FROM passages p
             JOIN videos v ON v.id = p.video_id

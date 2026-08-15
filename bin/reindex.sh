@@ -14,7 +14,11 @@ $PY bin/index_passages.py
 echo; echo "=== audit ==="; date "+    started %H:%M:%S"
 $PY bin/audit.py || true
 
-echo; echo "=== eval_votes ==="; date "+    started %H:%M:%S"
-$PY bin/eval_votes.py || true
+echo; echo "=== eval_agent ==="; date "+    started %H:%M:%S"
+# --agent as well: a rebuild reassigns every passage id, and the point
+# of the answer checks is that they survive it. Tolerated here - the
+# index is already written by this point and worth knowing about, not
+# worth unwinding.
+$PY bin/eval_agent.py --agent || true
 
 echo; echo "=== REINDEX DONE ==="; date

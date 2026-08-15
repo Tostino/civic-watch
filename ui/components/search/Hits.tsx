@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { ItemCard } from "@/components/ItemCard";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
+import { SpeakerChip } from "@/components/SpeakerChip";
 import { DisputePassage } from "@/components/admin/DisputePassage";
 import { clock, highlight, meetingDate, phaseLabel, shortBody } from "@/lib/format";
 import type { RecordHit, TranscriptHit } from "@/lib/types";
@@ -161,7 +162,16 @@ export function TranscriptHits({
                 {/* Its own line, not an inline prefix. A margin puts space on
                     screen and none in the text, so an inline name copied and
                     pasted as "MARIANOI object" — and read aloud that way. */}
-                <span className={s.who}>{speakerOf(h)}</span>
+                <span className={s.who}>
+                  <SpeakerChip
+                    name={several(h) ? null : h.speaker}
+                    displayName={h.speaker_display}
+                    human={h.name_human ?? false}
+                    basis={h.name_basis}
+                    several={several(h)}
+                    size="sm"
+                  />
+                </span>
                 {/* R5.8.3 from the other end: an error is often noticed in a
                     LIST, not while reading one meeting. Readers see nothing. */}
                 <DisputePassage hit={h} />{" "}
@@ -185,13 +195,16 @@ export function TranscriptHits({
 }
 
 /**
- * Passages carry a display name, `(exchange)` for a cross-speaker stretch, or
- * nothing. A bare `(exchange)` on screen is a leaked internal token; an empty
- * name must not read as an unattributed quote (R6.2.1).
+ * More than one person speaks in this passage. `(exchange)` is a value only
+ * `speaker` carries — it is the key, not the label — and a bare `(exchange)`
+ * on screen is a leaked internal token (R6.2.1).
+ *
+ * A passage with NO speaker is a different fact and no longer shares this
+ * answer. It used to: both came out as "Several speakers", which says the
+ * archive knows there were several, and for 10.7% of passages it knows
+ * nothing of the kind. SpeakerChip draws that one as an unidentified speaker,
+ * which is what it is, and is what /ask has always called it.
  */
-function speakerOf(h: TranscriptHit): string {
-  // `speaker` decides — it is the key, and `(exchange)` is a value only it
-  // carries — while `speaker_display` is the only thing printed.
-  if (!h.speaker || h.speaker === "(exchange)") return "Several speakers";
-  return h.speaker_display ?? h.speaker;
+function several(h: TranscriptHit): boolean {
+  return h.speaker === "(exchange)";
 }

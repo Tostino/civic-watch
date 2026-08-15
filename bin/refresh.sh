@@ -46,7 +46,7 @@ for want in "$@"; do
     land)      stage land_agenda; $PY bin/land_agenda.py ;;
     minutes)   stage parse_minutes; $PY bin/parse_minutes.py --write ;;
     index)     stage index_passages; $PY bin/index_passages.py ;;
-    eval)      stage eval_votes; $PY bin/eval_votes.py ;;
+    eval)      stage eval_agent; $PY bin/eval_agent.py --agent ;;
     *) echo "unknown stage: $want" >&2; exit 2 ;;
   esac
 done

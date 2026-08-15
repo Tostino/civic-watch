@@ -258,6 +258,13 @@ board AS (SELECT DISTINCT p.surname AS s
 SELECT DISTINCT ON (sp.agenda_item_id)
        sp.agenda_item_id AS id, said.video_id, said.start AS seconds,
        us.name AS speaker, us.display_name AS speaker_display,
+       -- HOW SURE THE NAME IS, and this is the surface that most needs to
+       -- say. Everything here is a named board member attached to a split
+       -- vote or an objection - the two claims a person is least willing to
+       -- have wrong about them - printed on the front page in bold. It said
+       -- them all in the same voice whether a human had confirmed the name or
+       -- a voice model had guessed it. SpeakerChip draws the difference.
+       us.human, us.basis,
        said.text AS quote,
        CASE WHEN said.text ~* %(fail)s OR said.text ~* %(tally)s
             THEN 'vote' ELSE 'objection' END AS kind

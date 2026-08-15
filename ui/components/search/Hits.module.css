@@ -140,14 +140,12 @@
   text-wrap: pretty;
 }
 
+/* A wrapper and nothing more. The name inside is a SpeakerChip, which brings
+ * its own type and the glyph that says how sure the archive is — so this must
+ * not set a face, a weight or a case. It used to, and uppercasing a name is
+ * exactly the kind of confident treatment R2.3 is about. */
 .who {
   display: block;
-  font-family: var(--font-ui);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--ink-3);
 }
 
 /* Why this hit is here. A tint rather than the usual yellow slab, because a

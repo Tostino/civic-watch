@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { OutcomeBadge } from "@/components/OutcomeBadge";
+import { SpeakerChip } from "@/components/SpeakerChip";
 import { clock, duration, meetingDate, shortBody, shortTitle } from "@/lib/format";
 import type { DecidedDay, Divided, Highlights } from "@/lib/types";
 import s from "./Entryways.module.css";
@@ -138,7 +139,19 @@ function DividedSection({ d }: { d: Divided }) {
                       {shortTitle(r.title, 96) || "(no title published)"}
                     </span>
                     <span className={s.quote}>
-                      <b className={s.who}>{r.speaker_display ?? r.speaker}</b>
+                      {/* A named member, against a split vote or an objection.
+                          Drawn with the certainty behind the name, because
+                          this is the claim a person is least willing to have
+                          wrong about them (R2.3, R6.2). */}
+                      <span className={s.who}>
+                        <SpeakerChip
+                          name={r.speaker}
+                          displayName={r.speaker_display}
+                          human={r.human}
+                          basis={r.basis}
+                          size="sm"
+                        />
+                      </span>
                       <q>{r.quote}</q>
                     </span>
                     <span className={s.dWhy}>{clock(r.seconds)} into the recording</span>

@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
+import { SpeakerChip } from "@/components/SpeakerChip";
 import { DisputePassage } from "@/components/admin/DisputePassage";
 import { usePlayer } from "@/components/player/PlayerProvider";
 import { clock, meetingDate, phaseLabel, shortBody, shortTitle } from "@/lib/format";
@@ -309,14 +310,28 @@ function Evidence({ hits }: { hits: TranscriptHit[] }) {
 
 function Quote({ hit }: { hit: TranscriptHit }) {
   const player = usePlayer();
-  const who =
-    !hit.speaker || hit.speaker === "(exchange)"
-      ? "Several speakers"
-      : (hit.speaker_display ?? hit.speaker);
+  // `(exchange)` is a value only `speaker` carries, and it is the key rather
+  // than a label. A passage with no speaker at all is NOT the same fact and is
+  // drawn as unidentified — see the note on Hits.several.
+  const several = hit.speaker === "(exchange)";
   return (
     <>
       <div className={s.quoteTop}>
-        <span className={s.who}>{who}</span>
+        {/* Drawn with the certainty behind it, not as a flat label (R2.3),
+            and the answer above was written under the same rule: web/agent.py
+            marks the weak ones in the brief and COMPOSE refuses to attribute
+            those by name. So the prose and the evidence agree about how much
+            the archive knows, which they did not when this was a string. */}
+        <span className={s.who}>
+          <SpeakerChip
+            name={several ? null : hit.speaker}
+            displayName={hit.speaker_display}
+            human={hit.name_human ?? false}
+            basis={hit.name_basis}
+            several={several}
+            size="sm"
+          />
+        </span>
         {/* A cited name is the one a reader is most likely to check, and the
             most costly to have wrong. Readers see nothing (R9.1). */}
         <DisputePassage hit={hit} />

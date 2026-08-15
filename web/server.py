@@ -329,6 +329,9 @@ class Handler(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         qs = parse_qs(u.query)
         one = lambda k, d=None: qs.get(k, [d])[0]
+        # Opened below, and CLOSED IN THE `finally`, which is the whole reason
+        # this is bound out here. See the note on that block.
+        con = None
         try:
             # This server serves no HTML any more. The five hand-written pages
             # it used to answer with - search, speakers, ask, item, case - are
@@ -499,6 +502,34 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, {"error": str(e)})
         except Exception as e:
             return self._send(500, {"error": str(e)})
+        finally:
+            # EVERY READ ENDPOINT LEAKED ITS CONNECTION WITHOUT THIS, and the
+            # database is what ran out. Measured on the deployed container:
+            # 91 backends in state 'idle', all from one client address, opened
+            # about one every 25 seconds and never released, until 100 of the
+            # server's 100 connections were taken and it began refusing new
+            # ones with "sorry, too many clients already". Every one of them
+            # had the same last query - the passage projection from
+            # retrieve.search - because /api/find is a GET and the search page
+            # is what a reader uses most.
+            #
+            # The other two request paths in this file already did this: see
+            # `_ask_stream`, which is where this idiom is copied from, and the
+            # admin branch of `do_POST`. This one was written without it and
+            # nothing said so, because the failure is not local. A missed
+            # close does not break the request that missed it; it breaks some
+            # other request, minutes later, on a different endpoint, once the
+            # server as a whole runs out - and by then the leaking path is the
+            # only one that looks innocent.
+            #
+            # Refcounting is not the backstop it appears to be. A psycopg
+            # connection and its cursors reference each other, so a dropped
+            # connection is a CYCLE: it is freed by the cyclic collector on
+            # its own schedule rather than the moment the frame goes, which is
+            # exactly how this leaked slowly enough to look like something
+            # else. Closing it here is deterministic and costs nothing.
+            if con is not None:
+                con.close()
 
     def _ask_guarded(self, question):
         """Bound what a public, unauthenticated, PAID endpoint can be made to

@@ -276,12 +276,11 @@
   gap: 0.4rem;
 }
 
+/* A wrapper only — see the same class in Hits.module.css. The SpeakerChip
+ * inside owns the type and the certainty glyph. */
 .who {
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--ink-3);
+  display: inline-flex;
+  min-width: 0;
 }
 
 .at {

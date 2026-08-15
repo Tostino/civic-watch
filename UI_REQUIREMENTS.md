@@ -485,7 +485,10 @@ the record itself — the meeting, the item, the case.
 
 **R5.5.6** MUST NOT display a numeric confidence for speaker attribution. It is
 not currently measured, and the previous UI asserted "~78% precise" from a
-stale figure.
+stale figure. This binds anything that DECIDES from the number as well as
+anything that prints it: a threshold is the same assertion with the arithmetic
+hidden, and `web/agent.py` briefly drew its line at `confidence >= 0.6` before
+this was noticed. How sure a name is comes from `human` and `basis` (R6.2).
 
 ### 5.6 Search (`/search`)
 
@@ -683,11 +686,31 @@ are shared primitives and MUST exist exactly once.
 anywhere. Persistent across navigation within a meeting. Must not restart on
 re-render.
 
-**R6.2 SpeakerChip.** The single renderer for "who said this". States:
+**R6.2 SpeakerChip.** The single renderer for "who said this". States, derived
+from `human` and `basis` and from nothing else:
 - *named, human-confirmed* — strongest treatment
-- *named, voice-matched* — normal treatment, marked as inferred
+- *named, voice-matched at this meeting* — normal treatment, marked as inferred
+- *named from the archive-wide cluster only* (`basis='cluster'`) — the weakest
+  claim available and MUST be drawn as weaker than voice-matched. It is
+  evidence about a voice, not about this meeting, and it is what put two
+  different women under one name.
 - *unidentified* — explicit and neutral
 - *several speakers* (an exchange passage)
+
+**R6.2.4** Every surface that names a speaker MUST render through this
+component — search hits, an answer's evidence, a saved answer, the front
+page's divided-in-the-room rows, a transcript line. A surface that prints the
+name itself makes a claim with no certainty attached to it, and four of them
+did: they showed a name a person had confirmed and a name inherited from a
+cluster in the same bold type. *Unidentified* and *several speakers* are also
+distinct claims and MUST NOT be collapsed into one label.
+
+**R6.2.5** The agent's brief (`web/agent.py`) MUST describe a speaker in the
+same states and draw its line in the same place, because the reader who
+follows a citation from an answer to the page must not be told two different
+things about one name. It marks only the ends — confirmed and weak — since
+voice-matched is the ordinary case and marking it would warn on nearly every
+line; a name with no mark is a voice-matched one, and the prompt says so.
 
 **R6.2.1** MUST NEVER render a raw internal label. `Speaker 3`, `Group 465`,
 `SPEAKER_00` are diarization ids that change between pipeline runs; they read
@@ -942,7 +965,7 @@ Binds slices 3 and 4. `bin/ask.py` today runs `plan() → retrieve() →
 multi-lens read() → answer()`: the planner emits its queries once and the
 pipeline executes them blindly, so nothing can react to a bad result. This
 corpus punishes that specifically — a vote passage contains no topic words,
-which is why `eval_votes` exists, and the planner's own wording put the target
+which is why `eval_agent` exists, and the planner's own wording put the target
 at rank 33–58 while the agent read only the top 30.
 `retrieve.decisions_in_play()` is a hard-coded patch over that one case.
 

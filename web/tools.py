@@ -93,9 +93,15 @@ PHASE = {"type": "string",
          "enum": ["consent", "public_hearing", "regular", "public_comment",
                   "board_reports", "staff_report", "proclamation",
                   "call_to_order", "adjourn", "recess", "other"],
-         "description": "Part of the meeting. 'public_comment' hears the "
-                        "podium rather than the dais; 'consent' is business "
-                        "passed in one motion without discussion."}
+         "description": "Part of the meeting. RARELY what you want, and NOT "
+                        "the way to find what residents said: they speak "
+                        "inside public hearings and regular business too. "
+                        "Measured on one such question, the evidence sat 13 "
+                        "in 'other', 8 in 'public_comment' and 7 in "
+                        "'board_reports' — filtering to the podium would have "
+                        "kept 8 of 28 passages and lost the county's reply "
+                        "entirely. Search without it and read who spoke off "
+                        "the results."}
 OUTCOME = {"type": "string",
            "enum": ["approved", "adopted", "denied", "withdrawn", "continued",
                     "no_action"],
@@ -149,7 +155,10 @@ def search_transcript(con, query, limit=12, spread=None, speaker=None,
         hits = _plain(con, ranked, limit, speaker=speaker, phase=phase,
                       case=case, body=body, since=since, until=until,
                       outcome=outcome, spread=spread)
-    return {"query": query, "hits": hits, "count": len(hits),
+    # Here rather than in either arm's projection, so both arms describe a
+    # speaker the same way and neither pays for the 575 candidates it threw
+    # out. This is the one place a hit becomes a hit.
+    return {"query": query, "hits": speaker_sure(con, hits), "count": len(hits),
             "degraded": degraded or _dense_error}
 
 
@@ -178,6 +187,58 @@ PASSAGE_HIT = """
         JOIN videos v ON v.id = p.video_id
         LEFT JOIN meetings mt ON mt.id = v.meeting_id
         LEFT JOIN agenda_items ai ON ai.id = p.agenda_item_id"""
+
+
+def speaker_sure(con, rows):
+    """Fill in HOW WELL each passage's speaker name is known, in place.
+
+    `passages.speaker` is baked at index time and arrives looking equally
+    certain whether a person confirmed it or a voice model guessed. It is not:
+    of 234,000 named utterances, 2,786 were stated by a person, 208,495 were
+    matched to a voice at that meeting, and 22,682 carry nothing but the name
+    their voice goes by across the whole archive. An answer that says
+    "Commissioner Oakley moved" off the last of those has invented a person's
+    vote, which is the worst thing this archive can do to somebody - and until
+    this existed, every surface printed all three identically.
+
+    The reduction from utterances to a passage lives in the database
+    (bin/schema.sql, `passage_speaker`), so the page and the agent cannot come
+    to different views of the same row. Two fields come back, and they are
+    the two SpeakerChip draws: `name_human` and `name_basis`.
+
+    SEPARATE FROM PASSAGE_HIT ON PURPOSE, and this is the whole reason it is a
+    function rather than two more columns. `utterance_speaker` resolves a name
+    through four levels, one of which recomputes the archive-wide cluster
+    majority, and Postgres runs that per row: measured, 620 ms for 600
+    passages against 2 ms without it. Both search paths rank 600 candidates
+    and return 25, so joining in the projection tripled the cost of every
+    search - a whole search's worth of time again - to describe 575 rows
+    nobody would see. Called on what SURVIVED, it is 16 ms.
+    """
+    # A row that cannot be keyed still gets the fields, set to null. Absent
+    # and null are the same fact to a reader and two different shapes to
+    # everything downstream, and this is what a hit's shape IS.
+    for r in rows:
+        r["name_human"] = r["name_basis"] = None
+    want = [r for r in rows if r.get("video_id")
+            and r.get("start_idx") is not None
+            and r.get("end_idx") is not None]
+    if not want:
+        return rows
+    keys = {(r["video_id"], r["start_idx"], r["end_idx"]) for r in want}
+    vids, starts, ends = zip(*keys)
+    sure = {(r["video_id"], r["start_idx"], r["end_idx"]): r
+            for r in con.execute("""
+        SELECT k.v AS video_id, k.s AS start_idx, k.e AS end_idx,
+               sp.name_human, sp.name_basis
+          FROM unnest(%s::text[], %s::int[], %s::int[]) AS k(v, s, e)
+          LEFT JOIN LATERAL passage_speaker(k.v, k.s, k.e) sp ON TRUE""",
+        (list(vids), list(starts), list(ends)))}
+    for r in want:
+        got = sure.get((r["video_id"], r["start_idx"], r["end_idx"])) or {}
+        r["name_human"] = got.get("name_human")
+        r["name_basis"] = got.get("name_basis")
+    return rows
 
 
 def _plain(con, ranked, limit, spread=None, **f):
@@ -249,6 +310,11 @@ def passages_at(con, ranges):
         # honestly report; the field stays for shape parity with a live hit.
         d["score"] = 0.0
         out[(d["video_id"], d["start_idx"], d["end_idx"])] = d
+    # A saved answer's evidence is drawn by the same components as a live
+    # hit's, so it has to carry the same fields or the two pages would make
+    # different claims about one passage. Cheap here: this is a handful of
+    # cited passages, not 600 candidates.
+    speaker_sure(con, list(out.values()))
     return out
 
 
@@ -316,14 +382,20 @@ SPECS = [
             "type": "object",
             "required": ["query"],
             "properties": {
+                # ORDER IS PART OF THE INTERFACE. A model reads this list top
+                # to bottom and reaches for what it read first, so it runs:
+                # what to look for, WHERE to look (the aiming facets, which
+                # cannot hide anything), how much to take back, and only then
+                # the filters that exclude silently. It used to open with
+                # limit, spread, speaker, phase - two shaping knobs and the
+                # two traps - with since/until, the pair measured to work,
+                # buried at eighth and ninth.
                 "query": {"type": "string",
                           "description": "Natural language, or exact terms. "
-                                         "Both arms run on every call."},
-                # The DEFAULT is the agent's budget, not the page's: /search
-                # passes its own limit, and an agent that omits it and gets 30
-                # passages a call spends its whole evidence budget on breadth
-                # it did not ask for. Ask for more when breadth is the point.
-                "limit": {"type": "integer", "default": 12, "maximum": 100},
+                                         "Both arms run on every call, so a "
+                                         "reworded query has already been "
+                                         "tried for you."},
+                "since": SINCE, "until": UNTIL,
                 "spread": {"type": "integer",
                            "description": "Max hits per meeting. Set it (2-3) "
                                           "for 'how did this evolve' "
@@ -331,16 +403,41 @@ SPECS = [
                                           "into whichever meeting discussed "
                                           "it most and the earliest "
                                           "occurrence never surfaces."},
+                # The reasoning used to live in this comment, where the model
+                # that keeps raising it to 30 and 60 could not read it. It is
+                # in the description now; the comment is here to stop it being
+                # "tidied" back out.
+                "limit": {"type": "integer", "default": 12, "maximum": 100,
+                          "description": "Leave it alone unless breadth IS "
+                                         "the point. The default is sized to "
+                                         "an agent's evidence budget, and "
+                                         "every extra hit is paid for twice: "
+                                         "once to read, and again in the room "
+                                         "it leaves for everything after it."},
+                "spread": {"type": "integer",
+                           "description": "Max hits per meeting. Set it (2-3) "
+                                          "for 'how did this evolve' "
+                                          "questions, or the top hits pile "
+                                          "into whichever meeting discussed "
+                                          "it most and the earliest "
+                                          "occurrence never surfaces."},
+                "case": CASE, "body": BODY,
+                "outcome": OUTCOME, "phase": PHASE,
                 "speaker": {"type": "string",
                             "description": "A speaker name as it appears on "
                                            "the passages you have been shown, "
                                            "e.g. 'Jack Mariano' or 'Mariano' "
                                            "- board members match on either. "
-                                           "Everyone else must be exact. Names "
-                                           "are inferred from voice and can "
-                                           "be wrong."},
-                "phase": PHASE, "case": CASE, "body": BODY,
-                "since": SINCE, "until": UNTIL, "outcome": OUTCOME,
+                                           "RARELY worth it, and never for "
+                                           "'how has X argued': 67% of "
+                                           "passages carry no usable name - "
+                                           "every cross-speaker exchange is "
+                                           "one of them, and an exchange is "
+                                           "where an argument happens - so "
+                                           "this drops two thirds of the "
+                                           "corpus on a name inferred from "
+                                           "voice. Search the subject and "
+                                           "read the names off the results."},
             },
         },
     },
@@ -360,17 +457,17 @@ SPECS = [
             "type": "object",
             "required": ["query"],
             "properties": {
+                # Same ordering rule as search_transcript above: what to look
+                # for, then where, then how much, then the filters that can
+                # exclude the answer without saying so.
                 "query": {"type": "string",
                           "description": "Subject words, or an item code or "
-                                         "case number verbatim."},
-                "limit": {"type": "integer", "default": 12, "maximum": 100},
-                "offset": {"type": "integer", "default": 0},
-                "decided": {"type": "boolean",
-                            "description": "true for items the minutes "
-                                           "disposed of; false for items with "
-                                           "no recorded outcome - which means "
-                                           "the minutes are missing, not that "
-                                           "nothing happened."},
+                                         "case number verbatim. Stemmed, and "
+                                         "when no item holds all your words "
+                                         "it matches ANY of them - so "
+                                         "shortening or reordering a query "
+                                         "has already been tried for you."},
+                "since": SINCE, "until": UNTIL,
                 "order": {"type": "string",
                           "enum": ["relevance", "decided", "recent"],
                           "default": "relevance",
@@ -380,11 +477,35 @@ SPECS = [
                                          "asking what HAPPENED to a matter, "
                                          "because a case typically carries "
                                          "five continuances and one approval "
-                                         "and the approval is the answer. Use "
-                                         "'relevance' when you are still "
-                                         "looking for the matter itself."},
-                "body": BODY, "outcome": OUTCOME, "phase": PHASE,
-                "case": CASE, "since": SINCE, "until": UNTIL,
+                                         "and the approval is the answer. It "
+                                         "SORTS rather than filters, so it "
+                                         "can never hide the thing you were "
+                                         "looking for. Use 'relevance' when "
+                                         "you are still looking for the "
+                                         "matter itself."},
+                "case": CASE, "body": BODY,
+                "limit": {"type": "integer", "default": 12, "maximum": 100,
+                          "description": "Leave it alone unless breadth IS "
+                                         "the point. The default is sized to "
+                                         "an agent's evidence budget, and "
+                                         "every extra hit is paid for twice: "
+                                         "once to read, and again in the room "
+                                         "it leaves for everything after it."},
+                "offset": {"type": "integer", "default": 0,
+                           "description": "Skip this many before the first "
+                                          "result. For paging through a long "
+                                          "list you have already read, not "
+                                          "for a second attempt at one."},
+                "decided": {"type": "boolean",
+                            "description": "true for items the minutes "
+                                           "disposed of; false for items with "
+                                           "no recorded outcome - which means "
+                                           "the minutes are missing, not that "
+                                           "nothing happened. It FILTERS, so "
+                                           "read an empty result as 'not "
+                                           "among the decided ones' and not "
+                                           "as 'not there'."},
+                "outcome": OUTCOME, "phase": PHASE,
             },
         },
     },

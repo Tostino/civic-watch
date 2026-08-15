@@ -25,7 +25,7 @@ pending** [measured, `logs/job.json`]:
 | `segment` (incremental) | 2m24s | **the 1 pending recording** — the only correctly-scoped stage |
 | `bind_spans(redo)` | 1m00s | archive-wide |
 | `index_passages` | 1m36s | all 167,225 passages, 4,352 re-embedded |
-| `audit` + `eval_votes` | 59s | archive-wide |
+| `audit` + `eval_agent` | 59s | archive-wide |
 
 One of seven stages matched the work that was pending. The console reported
 "1 transcribed recording is waiting", which described the *trigger*, not the

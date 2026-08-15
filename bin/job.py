@@ -133,7 +133,7 @@ def plan(name):
             for st in JOBS[name]["steps"]]
 
 # Steps that may report review items without that being a job failure.
-TOLERATED = {"bin/audit.py", "bin/eval_votes.py"}
+TOLERATED = {"bin/audit.py", "bin/eval_agent.py"}
 
 
 def now():
