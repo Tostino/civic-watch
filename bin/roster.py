@@ -45,6 +45,33 @@ OFFICE = {"chairman": "chair", "chairwoman": "chair", "chair": "chair",
 # Words that are part of the honorific, never part of a name.
 NOISE = {"esq", "ph", "d", "jr", "sr", "ii", "iii", "honorable"}
 
+# An honorific is not part of a name, and `full_name` is now something a reader
+# sees: it is what a board surname expands to on every speaker chip, search hit
+# and citation. The older Planning Commission agendas write "Mr. Calvin
+# Branche", the whole matched string was stored, and 11 of 28 people carried an
+# honorific - so the speaker of 33,122 utterances would have rendered as
+# "Mr. Jaimie Girardi".
+#
+# Only personal honorifics. Offices are parsed out separately by both readers,
+# and stripping "Chairman" here would mean two places decide what an office is.
+HONORIFIC = re.compile(r"^(?:the\s+)?(?:honorable|hon|mr|mrs|ms|miss|dr)\.?\s+",
+                       re.I)
+# The same rule, for the upsert below and for the audit check that asserts no
+# stored full_name carries one. Keep the two in step.
+HONORIFIC_SQL = r"^(the )?(honorable|hon|mr|mrs|ms|miss|dr)\.? "
+
+
+def clean_name(name):
+    """'Mr. Calvin Branche' -> 'Calvin Branche'. Suffixes are kept: 'Jr.' is
+    how the county distinguishes two people, and 'Art Woodworth Jr.' is the
+    whole name."""
+    out = " ".join((name or "").split())
+    while True:
+        less = HONORIFIC.sub("", out)
+        if less == out:
+            return out
+        out = less
+
 
 def surname(name):
     """The last real word of a name: 'Ronald E. Oakley' -> 'Oakley'."""
@@ -65,7 +92,7 @@ def read_roster(text, head_lines=48):
         office = OFFICE.get(re.sub(r"[-\s]", "", (m.group("office") or "")).lower())
         d = int(m.group("district"))
         # First mention of a district wins; later ones are cross-references.
-        out.setdefault(d, (sn, " ".join(m.group("name").split()), office))
+        out.setdefault(d, (sn, clean_name(m.group("name")), office))
     return out
 
 
@@ -115,7 +142,7 @@ def read_planning_roster(text, head_lines=60):
         m = PC_ENTRY.match(line)
         if not m:
             continue
-        name = " ".join(m.group("name").split())
+        name = clean_name(m.group("name"))
         sn = surname(name)
         if not sn:
             continue
@@ -189,10 +216,20 @@ def main():
 
     with con.cursor() as cur:
         for sn in {s for s, _ in seats}:
+            # First-seen wins, because twelve years of agendas spell a name
+            # several ways and churning it would churn every surface that now
+            # displays it - EXCEPT when what is stored still carries an
+            # honorific this parser used to keep. Without that arm the fix
+            # would live only in the database, and replaying this file over a
+            # repaired row would leave the row repaired but the rule unproven
+            # (gotcha 68).
             cur.execute("INSERT INTO people (surname, full_name) VALUES (%s,%s) "
-                        "ON CONFLICT (surname) DO UPDATE SET "
-                        "full_name = COALESCE(people.full_name, EXCLUDED.full_name)",
-                        (sn, full.get(sn)))
+                        "ON CONFLICT (surname) DO UPDATE SET full_name = "
+                        "  CASE WHEN people.full_name IS NULL "
+                        "         OR people.full_name ~* %s "
+                        "       THEN COALESCE(EXCLUDED.full_name, people.full_name) "
+                        "       ELSE people.full_name END",
+                        (sn, full.get(sn), HONORIFIC_SQL))
         for (sn, d), ds in seats.items():
             cur.execute("""
                 INSERT INTO board_terms (person_id, body, district, first_seen,

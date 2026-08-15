@@ -138,7 +138,7 @@ function DividedSection({ d }: { d: Divided }) {
                       {shortTitle(r.title, 96) || "(no title published)"}
                     </span>
                     <span className={s.quote}>
-                      <b className={s.who}>{r.speaker}</b>
+                      <b className={s.who}>{r.speaker_display ?? r.speaker}</b>
                       <q>{r.quote}</q>
                     </span>
                     <span className={s.dWhy}>{clock(r.seconds)} into the recording</span>

@@ -148,8 +148,11 @@ export function FilterRail({
           <Row
             key={v.speaker}
             on={query.speaker === v.speaker}
+            // The href carries the KEY and the label shows the name. A board
+            // member is filtered by surname, so sending the full name here
+            // would return nothing and read as "she never spoke".
             href={href({ speaker: query.speaker === v.speaker ? undefined : v.speaker })}
-            label={v.speaker}
+            label={v.speaker_display ?? v.speaker}
             n={v.lines}
           />
         ))}

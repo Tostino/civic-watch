@@ -140,7 +140,18 @@ export interface Line {
   /** Diarization cluster. Groups lines within a page. NOT a name, NOT durable. */
   voice: number | null;
   local_label: string | null;
+  /**
+   * The resolved name, and the KEY. A board member is keyed by surname
+   * throughout — the roster, the filters and every correction are written
+   * against it — so this is what to send back, never what to print.
+   */
   name: string | null;
+  /**
+   * What to print: `name` with a board member's surname expanded to the full
+   * name on the county's published roster. Everyone else is unchanged. Always
+   * render through SpeakerChip, which prefers this and falls back to `name`.
+   */
+  display_name: string | null;
   confidence: number | null;
   /** A person stated this. Outranks everything derived (R5.8.7). */
   human: boolean;
@@ -373,6 +384,7 @@ export interface DividedInRoom extends DividedBase {
   /** `vote` is a tally or a failed motion; `objection` is a member saying so. */
   kind: "vote" | "objection";
   speaker: string;
+  speaker_display: string;
   quote: string;
   video_id: string;
   seconds: number;
@@ -492,7 +504,10 @@ export interface TranscriptHit {
   video_id: string;
   start: number;
   end: number;
+  /** The key the `speaker` facet filters on. A board member's surname. */
   speaker: string | null;
+  /** What to print. See Line.display_name. */
+  speaker_display: string | null;
   text: string;
   phase: string | null;
   agenda_item_id: number | null;
@@ -554,6 +569,14 @@ export interface AskStage {
 }
 
 export interface AskResult {
+  /** The kept run's id, from `web/answers.py` — what `/ask/<id>` reads and
+   *  what makes an answer sendable. Absent if the row could not be written;
+   *  the answer is still the answer, it just has no link. */
+  id?: string;
+  /** When the run happened, on a saved answer only. An answer is a reading of
+   *  the archive on a particular day and an undated one would be claiming to
+   *  be current. ISO 8601. */
+  asked_at?: string;
   question: string;
   answer: string;
   /** Only what the answer CITED — see agent.ask. */
@@ -564,6 +587,13 @@ export interface AskResult {
   looked_at: { passages: number; items: number };
   /** Citations removed because this run never saw them. */
   struck: string[];
+  /**
+   * Saved answers only. A saved answer stores what it CITED, not the words —
+   * the quotes are read back out of the archive when this renders — so a
+   * passage whose boundaries have moved since (which a redaction does) no
+   * longer resolves. Counted rather than quietly dropped.
+   */
+  missing?: { passages: number; items: number };
   /** Non-null when the agent hit a cap rather than finishing on its own. */
   stopped: string | null;
 }
@@ -572,7 +602,8 @@ export interface Facets {
   bodies: { body: string; items: number }[];
   phases: { phase: string; items: number }[];
   outcomes: { outcome: Outcome; items: number }[];
-  speakers: { speaker: string; lines: number }[];
+  /** `speaker` is the filter value and goes in the URL; `speaker_display` is the label. */
+  speakers: { speaker: string; speaker_display: string; lines: number }[];
   years: { year: string; meetings: number }[];
 }
 

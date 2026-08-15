@@ -1,7 +1,7 @@
 # Launch plan
 
 State as of 2026-08-14, **after the migration to Postgres 18 on Unraid**.
-`audit.py`: **2 failing of 47**, identically from both machines — the redaction
+`audit.py`: **2 failing of 50**, identically from both machines — the redaction
 residue in §4, left on purpose. Run live, not quoted.
 
 Target architecture: **persistent services on the Unraid box (64 GB, Docker),
@@ -103,7 +103,10 @@ for public search.
    `deploy/nginx-proxy-manager.md`. Then `ASK_TRUST_PROXY=1`, **only** once NPM
    is really in front and setting `X-Forwarded-For` (§3.5).
 8. **Repoint this workstation.** `PASCO_DSN` → the Unraid host. Then run
-   `bin/audit.py` from *both* machines; all 47 checks should pass from each.
+   `bin/audit.py` from *both* machines; every check should give the same answer
+   from each. There are 50, and matching matters more than green: two redaction
+   checks are failing today and should fail identically on both sides, and
+   `redaction.gone_from_answers` reads EMPTY until somebody has asked something.
 
 Bulk embedding now writes vectors over the LAN. Fine at ~4–8 new recordings
 twice a week; it would not be fine for a full rebuild.

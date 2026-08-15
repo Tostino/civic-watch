@@ -257,7 +257,8 @@ board AS (SELECT DISTINCT p.surname AS s
             FROM board_terms bt JOIN people p ON p.id = bt.person_id)
 SELECT DISTINCT ON (sp.agenda_item_id)
        sp.agenda_item_id AS id, said.video_id, said.start AS seconds,
-       us.name AS speaker, said.text AS quote,
+       us.name AS speaker, us.display_name AS speaker_display,
+       said.text AS quote,
        CASE WHEN said.text ~* %(fail)s OR said.text ~* %(tally)s
             THEN 'vote' ELSE 'objection' END AS kind
   FROM said
@@ -687,10 +688,15 @@ def facets(con):
             SELECT outcome, COUNT(*) AS items FROM agenda_items
              WHERE outcome IS NOT NULL
              GROUP BY outcome ORDER BY items DESC""")],
+        # `speaker` is what the filter is written against and what the URL
+        # carries; `speaker_display` is only the label. Sending one string for
+        # both would mean either a filter that no longer matches
+        # passages.speaker or a rail that reads "Starkey".
         "speakers": [dict(r) for r in con.execute("""
-            SELECT name AS speaker, COUNT(*) AS lines
+            SELECT name AS speaker, display_name AS speaker_display,
+                   COUNT(*) AS lines
               FROM utterance_speaker WHERE name IS NOT NULL
-             GROUP BY name HAVING COUNT(*) >= 500
+             GROUP BY name, display_name HAVING COUNT(*) >= 500
              ORDER BY lines DESC LIMIT 40""")],
         "years": [dict(r) for r in con.execute("""
             SELECT left(m.date, 4) AS year, COUNT(*) AS meetings
@@ -818,7 +824,13 @@ def meeting(con, meeting_id):
 #
 # Speaker identity leaves here as FIELDS, never as a rendered string.
 #
-#   name        the resolved name, or null. Never a diarization label.
+#   name        the resolved name, or null. Never a diarization label. This is
+#               the KEY - a board member's surname - and it is what a filter,
+#               an override or a dispute has to be written against.
+#   display_name what to SHOW. A board member's surname expanded to the full
+#               name on the county's own roster; everyone else unchanged. Sent
+#               beside `name` and never instead of it, so the page can render
+#               "Kathryn Starkey" while still addressing her as "Starkey".
 #   confidence  how the voice matched. Null when human-labelled.
 #   human       a person stated this. Outranks everything derived (R5.8.7).
 #   voice       the cluster id - stable enough to group by within a page, and
@@ -830,7 +842,7 @@ def meeting(con, meeting_id):
 LINES = """
     SELECT u.video_id, u.idx, u.start, u."end", u.text,
            u.cluster AS voice, u.local_label,
-           us.name, us.confidence, us.human,
+           us.name, us.display_name, us.confidence, us.human,
            -- How the name was arrived at, so the page can say so rather than
            -- presenting four very different kinds of claim identically
            -- (R2.3). 'cluster' is the weakest: it is the archive-wide

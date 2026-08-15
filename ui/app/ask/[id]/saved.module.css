@@ -1,0 +1,86 @@
+/* The frame around a kept answer. The answer itself is Answer.module.css and
+ * is identical to the live one on purpose — what differs is only the header
+ * that says whose question this was and when it was answered. */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  max-width: 58rem;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.kicker {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* The question is the title of the page, so it is set like one. */
+.question {
+  font-family: var(--font-record);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  color: var(--ink);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+
+.when {
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-3);
+  max-width: 66ch;
+}
+
+/* Same block as the live page's trace, settled: no pulse, nothing pending. */
+.trace {
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.traceHead {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.traceList {
+  margin-block-start: var(--sp-2);
+}
+
+.after {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--rule);
+}
+
+.again {
+  font-family: var(--font-record);
+  font-size: var(--text-sm);
+  color: var(--accent);
+}
+
+.sep {
+  color: var(--ink-4);
+}
+
+.limits {
+  flex-basis: 100%;
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+}

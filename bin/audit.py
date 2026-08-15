@@ -26,6 +26,7 @@ import argparse
 import sys
 
 import db
+import roster
 
 CHECKS = []
 
@@ -407,6 +408,25 @@ def _(con):
         FROM board_terms bt JOIN people p ON p.id = bt.person_id
         WHERE bt.person_id IN (SELECT person_id {q})
         GROUP BY 1,2 LIMIT 5""", "SELECT COUNT(*) FROM people"
+
+
+@check("people.full_name_is_a_name",
+       "no stored full_name carries an honorific")
+def _(con):
+    # full_name stopped being reference data the day display_name() started
+    # expanding a board surname into it: it is now what a reader sees on every
+    # speaker chip, search hit and citation for that person. The older Planning
+    # Commission agendas write "Mr. Calvin Branche" and roster.py kept the
+    # whole matched string, so 11 of 28 people carried one and 33,122
+    # utterances were a deploy away from being spoken by "Mr. Jaimie Girardi".
+    #
+    # roster.clean_name strips them on the way in now. This is the assertion
+    # that the parser and the stored rows have not drifted apart again - and
+    # the pattern is roster.HONORIFIC_SQL, which is where to change it.
+    q = f"""FROM people WHERE full_name ~* '{roster.HONORIFIC_SQL}'"""
+    return count(con, f"SELECT COUNT(*) {q}"), \
+        f"SELECT surname, full_name {q} LIMIT 5", \
+        "SELECT COUNT(*) FROM people WHERE full_name IS NOT NULL"
 
 
 @check("cases.dates_sane", "a case's first_seen never follows its last_seen")
@@ -976,12 +996,14 @@ def _(con):
 # ---------------------------------------------------------------- redaction
 #
 # A redaction is only worth anything if the address is gone from EVERY surface
-# a reader can reach, and there are five of them holding the same words: the
-# transcript, the passage text, the passage's search_text, the BM25 postings
-# and the full-text vector. bin/redact.py removes it at the source and
-# re-indexes, so all five should follow - but "should follow" is exactly the
-# assumption that leaves an address in the search index and nowhere else, and
-# a spot check of a few rows cannot find that.
+# a reader can reach, and there are six of them holding the same words: the
+# transcript, the passage text, the passage's search_text, the BM25 postings,
+# the full-text vector, and the prose of a saved answer. bin/redact.py removes
+# it at the source and re-indexes, so the first five should follow - but
+# "should follow" is exactly the assumption that leaves an address in the
+# search index and nowhere else, and a spot check of a few rows cannot find
+# that. The sixth is the odd one out and gets its own check below: it is the
+# only copy in the archive, because generated prose cannot be recomputed.
 #
 # So the invariant is stated over every applied redaction at once: no span we
 # took out may still be found anywhere. This is the check that makes the
@@ -1033,7 +1055,112 @@ def _(con):
         "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
 
-# The other half of the guarantee. The three checks above say the address is
+# A saved answer's citations, one row each, expanded ONCE so the two checks
+# below can hash-join against `redaction` instead of re-expanding every answer's
+# jsonb for every applied redaction. The CASE is the guard that keeps a
+# malformed row from raising: jsonb_array_elements refuses anything that is not
+# an array, and a check that errors is a check that stops being run.
+#
+# Two shapes because the two checks ask different questions of the same data.
+# CITED_VIDEOS is "which recordings does this answer quote from", and must NOT
+# drop a citation with a malformed range - the answer's PROSE is what is being
+# tested and a bad index cannot excuse it. CITED_RANGES is "which utterances
+# does it cover", where a range that is not a number cannot be compared at all
+# and is dropped.
+_CITED = """
+      FROM answers a
+      CROSS JOIN LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_typeof(a.cites -> 'passages') = 'array'
+                 THEN a.cites -> 'passages' ELSE '[]'::jsonb END) p"""
+
+CITED_VIDEOS = f"""SELECT DISTINCT a.id AS answer_id, a.answer, a.question,
+                          p ->> 'video_id' AS video_id {_CITED}"""
+
+CITED_RANGES = f"""SELECT DISTINCT a.id AS answer_id, a.question,
+                          p ->> 'video_id' AS video_id,
+                          (p ->> 'start_idx')::int AS lo,
+                          (p ->> 'end_idx')::int   AS hi {_CITED}
+                    WHERE jsonb_typeof(p -> 'start_idx') = 'number'
+                      AND jsonb_typeof(p -> 'end_idx')   = 'number'"""
+
+
+@check("redaction.gone_from_answers",
+       "no saved answer still carries an address a redaction removed")
+def _(con):
+    # The sixth surface, and the only text in this archive that is a COPY. A
+    # saved answer (web/answers.py) stores what it cited and reads its quotes
+    # back out of `passages` at render time, so the five checks above cover
+    # them. Its prose cannot be read back from anywhere - it is what the model
+    # wrote, quoting what it cited - and it sits at a URL somebody may have
+    # circulated. bin/redact.py takes the span out of that prose and leaves the
+    # row standing; this is what says it actually happened.
+    #
+    # LOCATING is load-bearing, and it is here because of a real failure. The
+    # first version of this check flagged a correct answer over the word
+    # 'Florida' - an applied span - in the sentence "Florida Statute
+    # 163.31801(6) caps annual impact-fee increases". A number and a place-name
+    # together locate a house; either half alone is a ZIP, a town or a state,
+    # and the applied set is full of halves. A length floor cannot separate
+    # them either: '9641 Jerome' is eleven characters and is somebody's house.
+    # The length arm catches the addresses the recogniser spelled out in words,
+    # which carry no digit at all. Keep this identical to redact.LOCATING -
+    # grep the name to find both, they have to agree or the check and the fix
+    # are describing different things.
+    #
+    # jsonb_array_elements RAISES on a non-array, and a check that errors is a
+    # check that stops being run. Same guard as redact.scrub_answers.
+    #
+    # CITED_VIDEOS expands each answer's citations ONCE and the join does the
+    # rest. Written as an EXISTS it re-expanded every answer's jsonb for every
+    # one of the 3,440 applied redactions: measured over 5,000 answers, 4.1s
+    # here and 15.8s for the review check below, both growing linearly with the
+    # table. This shape is 0.06s and 0.04s for identical counts, planted
+    # violations included. An audit that runs after every rebuild has to stay
+    # cheap or it stops being run, which is the same failure as one that errors.
+    locating = ("((r.span ~ '[0-9]' AND r.span ~ '[A-Za-z]{3}')"
+                " OR length(r.span) >= 20)")
+    q = f"""FROM redaction r JOIN ({CITED_VIDEOS}) c
+              ON c.video_id = r.video_id
+             AND {locating} AND strpos(c.answer, r.span) > 0
+            WHERE r.status = 'applied'"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"""
+        SELECT r.id, c.answer_id AS answer, left(r.span, 40) AS span,
+               left(c.question, 40) AS question {q} LIMIT 5""", \
+        "SELECT COUNT(*) FROM answers"
+
+
+@check("redaction.answers_quoting_a_redacted_line",
+       "saved answers that cited a line a redaction removed - read the wording",
+       review=True)
+def _(con):
+    # The one case a string search cannot settle, and therefore the one this
+    # file refuses to settle on its own.
+    #
+    # `scrub_answers` replaces a span it can find. It cannot find a PARAPHRASE:
+    # an answer that cited the moment and wrote the address in its own words,
+    # reordered or half of it. Nothing can, so nothing here pretends to - these
+    # are listed for a person, which is bin/redact.py's own rule (a detector
+    # proposes, a person decides) applied to the residue.
+    #
+    # review=True on purpose: a non-zero count is expected and is not a defect.
+    # An answer citing a passage that happened to contain an address is normal,
+    # and usually its prose says nothing about the address at all.
+    #
+    # The range guards are here rather than in CITED_RANGES' shared shape for a
+    # reason: a citation whose start_idx is not a number cannot be compared, and
+    # dropping it is right HERE but would be wrong in the text check above,
+    # where a malformed range must not hide an answer whose prose carries the
+    # span. Same data, two different questions.
+    q = f"""FROM redaction r JOIN ({CITED_RANGES}) c
+              ON c.video_id = r.video_id AND r.idx BETWEEN c.lo AND c.hi
+            WHERE r.status = 'applied'"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"""
+        SELECT c.answer_id AS answer, left(c.question, 50) AS question,
+               r.video_id, r.idx {q} LIMIT 5""", \
+        "SELECT COUNT(*) FROM answers"
+
+
+# The other half of the guarantee. The four checks above say the address is
 # gone from everything a reader can reach; these two say it is still in the
 # record, and that what is published is exactly derivable from it.
 #

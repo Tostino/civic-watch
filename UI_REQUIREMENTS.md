@@ -121,6 +121,7 @@ The last column is where it stands.
 |---|---|---|---|
 | `/` | the archive — browse by time and body | a bare search box | **built** (slice 5) |
 | `/ask` | research assistant | exists, flat output | **built** (slice 4) |
+| `/ask/:id` | one answer the archive gave, kept | **missing** — `?q=` re-ran the agent on the recipient | **built** |
 | `/search` | search across record + transcript | searches transcript only | **built** (slice 3) |
 | `/meeting/:id` | one meeting: agenda spine, roster, recording, transcript | **missing** — trapped in a modal inside search | **built** (slice 1) |
 | `/item/:id` | one agenda item | a stopgap page nothing linked to | **built** (slice 2) |
@@ -437,6 +438,50 @@ you see the answer" before the reader has seen anything is a failure mode
 dressed as a feature: it tells them the tool invents citations, which invites
 the obvious question about everything else in the answer. State it where it
 happened, not where it might.
+
+**R5.5.8** An answer MUST have a URL that serves *that answer*, and asking MUST
+NOT be the only way to reach one. `/ask?q=…` satisfies R4.2 — the URL
+reproduces the view — but on this surface reproducing the view means running a
+paid agent again and sampling a different answer over a changed archive, so the
+one thing a reader wants to do with a good answer, send it to somebody, is the
+one thing the URL cannot do. Every completed run is kept (`web/answers.py`) and
+`/ask/:id` renders it.
+
+**R5.5.8a** Asking MUST leave the reader at the answer's own URL. `?q=` holds
+the question only while the run is in flight, so a reload does not lose it;
+when the answer arrives the view replaces the URL with `/ask/:id`. A reader who
+copies what is in front of them then sends the answer rather than an
+instruction to re-run the agent, which is what a share control existed to work
+around — so there is no share control. The replacement MUST NOT push a history
+entry: `?q=` behind the Back button makes Back a paid run.
+
+**R5.5.9** A saved answer MUST store what it cited and not the words it quoted,
+and MUST read its evidence back out of the archive when it renders. The archive
+is the record and an answer is a reading of it; a reading that froze the words
+would slowly disagree with the thing it claims to quote, and — because a
+redaction is a decision a person made about a real address — would keep
+publishing what the archive had stopped publishing. *Passages are keyed on
+`(video_id, start_idx, end_idx)`; `passages.id` is reassigned by every re-index
+and MUST NOT be stored outside it.*
+
+**R5.5.10** A citation that no longer resolves MUST be reported, never dropped
+silently. The passage is gone because a redaction moved its boundaries, and
+"four quotes" and "six quotes, two of which the archive no longer stands
+behind" are different statements. *The generated prose is the one thing that
+cannot be read back, so it is a redaction surface: `bin/redact.py` replaces a
+removed span there with the same marker the transcript carries, and
+`redaction.gone_from_answers` proves it happened.*
+
+**R5.5.12** A saved answer MUST NOT be deleted — not by a redaction and not by
+a retention sweep. It is a URL somebody may have circulated, and a link that
+stops resolving is a worse outcome than the disk it costs. Where a redaction
+reaches an answer, the address is removed from the wording and the answer
+stands; what cannot be settled by removing a string is listed for a person
+rather than resolved by destroying the row.
+
+**R5.5.11** A saved answer MUST NOT be indexed. It is a machine-written reading
+of the archive, and the pages a search engine should be sending people to are
+the record itself — the meeting, the item, the case.
 
 **R5.5.6** MUST NOT display a numeric confidence for speaker attribution. It is
 not currently measured, and the previous UI asserted "~78% precise" from a

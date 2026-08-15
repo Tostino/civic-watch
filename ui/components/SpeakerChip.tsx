@@ -5,7 +5,18 @@ import type { Line, Office } from "@/lib/types";
 import s from "./SpeakerChip.module.css";
 
 export interface SpeakerChipProps {
+  /**
+   * The resolved name, and the KEY the archive is addressed by: a board
+   * member's surname. Kept as the prop of record because a dispute, a filter
+   * and an override are all written against it.
+   */
   name: string | null;
+  /**
+   * What to show, when the API knows a fuller form — "Kathryn Starkey" for
+   * `name` of "Starkey". Optional: a surface that has not been taught to send
+   * it degrades to the surname rather than to nothing.
+   */
+  displayName?: string | null;
   /** True when a human stated this name. Outranks everything derived (R5.8.7). */
   human?: boolean;
   /** How the name was established. See Line.basis. */
@@ -50,6 +61,7 @@ export interface SpeakerChipProps {
  */
 export function SpeakerChip({
   name,
+  displayName = null,
   human = false,
   basis = null,
   office = null,
@@ -60,6 +72,12 @@ export function SpeakerChip({
   onDispute,
 }: SpeakerChipProps) {
   const role = office ? officeLabel(office.office) : null;
+  /* Rule 3 in practice. `name` decides WHETHER there is a name and is what
+   * everything downstream is addressed by; `shown` is the only thing that ever
+   * reaches the reader. Board members are stored by surname, so without this
+   * the page said "Starkey" where the county's own roster says Kathryn
+   * Starkey — on 63% of all named lines. */
+  const shown = displayName ?? name;
   /* `cluster` is a materially weaker claim than `voice` and gets its own
    * treatment: it is the name this voice goes by across the whole archive, not
    * evidence about this meeting. Collapsing the two is what let one cluster be
@@ -79,7 +97,7 @@ export function SpeakerChip({
     <>
       <span aria-hidden className={s.glyph} data-state={state} />
       <span className={s.name}>
-        {several ? "Several speakers" : (name ?? "Unidentified speaker")}
+        {several ? "Several speakers" : (shown ?? "Unidentified speaker")}
       </span>
       {role ? <span className={s.role}>{role}</span> : null}
       {!name && !several && voiceTag ? (
@@ -97,11 +115,11 @@ export function SpeakerChip({
 
   const label =
     state === "confirmed"
-      ? `${name} — ${basis === "override" ? "corrected by a person for this passage" : "confirmed by a person"}`
+      ? `${shown} — ${basis === "override" ? "corrected by a person for this passage" : "confirmed by a person"}`
       : state === "inferred"
-        ? `${name} — matched by voice at this meeting. Inferred, and it can be wrong.`
+        ? `${shown} — matched by voice at this meeting. Inferred, and it can be wrong.`
         : state === "weak"
-          ? `${name} — the name this voice goes by across the archive, not evidence about this meeting. It is the most likely to be wrong.`
+          ? `${shown} — the name this voice goes by across the archive, not evidence about this meeting. It is the most likely to be wrong.`
           : undefined;
 
   const className = `${s.chip} ${s[state]} ${size === "sm" ? s.sm : ""} ${contested ? s.isContested : ""}`;
@@ -120,7 +138,7 @@ export function SpeakerChip({
         type="button"
         className={s.dispute}
         onClick={onDispute}
-        aria-label={name ? `Correct the speaker name ${name}` : "Identify this speaker"}
+        aria-label={shown ? `Correct the speaker name ${shown}` : "Identify this speaker"}
       >
         {name ? "Correct this name" : "Identify"}
       </button>

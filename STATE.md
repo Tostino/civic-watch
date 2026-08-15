@@ -34,12 +34,23 @@ pasco-meetings/
    811 MB of pre-Postgres stores. Nothing read them; see gotcha 95.)
 ```
 
-**Storage is Postgres 17 + pgvector 0.8.6**, database `pasco_meetings` in the
-existing local cluster on 127.0.0.1:5432. It replaced three separate stores: a
-SQLite catalog, an FTS5 index, and a 257 MB `passages.npy` that had to be read
-into RAM whole and scanned in full on every query. Embeddings now sit in
-`passages.embedding` under an HNSW index. Nothing else in that cluster was
-touched — the other nine databases are unrelated projects.
+**Storage is Postgres 18.6 + pgvector 0.8.6**, database `pasco_meetings` on
+**10.0.0.6:5432** — the containerised cluster on the Unraid box, not this
+workstation. It replaced three separate stores: a SQLite catalog, an FTS5
+index, and a 257 MB `passages.npy` that had to be read into RAM whole and
+scanned in full on every query. Embeddings now sit in `passages.embedding`
+under an HNSW index.
+
+**`PASCO_DSN` in `env.local.sh` is the only thing that says which database is
+real**, and `bin/db.py` reads nothing else: with it unset every script raises
+`MissingConfig` rather than falling back to a localhost cluster. Keep it that
+way. A `pasco_meetings` from before the move is still sitting on this
+workstation's local cluster at 127.0.0.1:5432, reachable as
+`LOCAL_DSN_PREMIGRATION`, and it is **stale** — as of 2026-08-14 it still
+holds the honorific-prefixed `full_name` rows and has no `display_name()`
+function. It is not a backup and nothing reads it. A shell that forgets to
+source `env.local.sh` fails loudly; one that points at that DSN on purpose
+gets a plausible-looking archive that is months behind.
 
 **Three venvs is deliberate** — NeMo and pyannote conflict on torch/lightning
 pins. The web server runs from `emb-venv` because the agent needs the embedding
@@ -151,6 +162,7 @@ npm --prefix ui run dev            # http://localhost:3000
 #   /case/:id      one application across every meeting that took it up
 #   /search        both sources, over the web/tools.py surface (slice 3)
 #   /ask           the agent, streaming its real tool calls (slice 4)
+#   /ask/:id       one kept answer, so a run can be sent to somebody
 #   /admin         curation console: queues, corrections, ops (slice 6)
 #   /person/:id    NOT BUILT, and blocked on the roll-call split
 
@@ -2795,6 +2807,223 @@ and paying for it on every question, an item that is already in play has its
 terse cross-speaker exchanges fetched directly, from the end of the item
 backwards. Costs one query and about five extra passages. Only possible
 because segmentation exists.
+
+## An answer can be sent to somebody (`/ask/:id`)
+
+`/ask?q=…` looks like a link to an answer and is not one. It is an instruction
+to spend money: the recipient sits through a fresh run — minutes, at
+`ASK_DEADLINE` — takes one out of `ASK_DAILY_MAX`, and is shown a *different*
+answer, sampled again over an archive that has gained meetings. Forwarded to
+twenty people it is twenty paid runs and twenty different answers to the same
+question, none of them the one the sender was talking about.
+
+So every completed run is kept. `web/answers.py` writes it under a 12-character
+`secrets.token_urlsafe(9)`; the id comes back to the page in the `answer` event,
+and `/ask/<id>` is a server-rendered read of the row. Free, instant, and it says
+the same thing tomorrow.
+
+**What is stored is the answer and what it CITED — never the words it quoted.**
+
+| | stored | read back at render |
+|---|---|---|
+| the prose | verbatim, markers intact | — nothing can reconstruct generated text |
+| a transcript citation | `(video_id, start_idx, end_idx)` | `tools.passages_at` |
+| a record citation | `agenda_items.id` | `tools.items_at` |
+| the trace, `looked_at`, `struck` | verbatim | — numbers and tool arguments |
+
+That is the whole design, and what it buys is that **a redaction applied since
+is already in `passages.text`**, a corrected speaker name is already on the row,
+a re-parsed disposition is already on the item. Nothing has to go back and find
+old copies, because there are no old copies.
+
+- **A passage is named by its range, not its id.** `index_passages.rebuild_video`
+  reassigns ids on every rebuild and says in as many words that *nothing outside
+  the index stores one*. Verified on the live archive: `(video_id, start_idx,
+  end_idx)` is unique across all **166,998** passages, no nulls, and resolving a
+  dozen of them takes **1.1 ms**. Agenda item ids *are* durable — `/item/<id>` is
+  a public URL — so those are stored as plain ids.
+- **A range that stops resolving is reported, not papered over.** Boundaries move
+  for one reason: a redaction shortened a line and the passage fell under the
+  indexing floor. The citation then renders struck-through and the footer says
+  *"1 citation no longer resolves"*. Silently serving the text from before it
+  went is the failure this design exists to avoid.
+- **Measured on a real run** — "What was decided about the school zone speed
+  cameras?", 8 tool calls in 26s, 20 passages and 2 items cited across 2
+  recordings, 0 struck: **2,762 bytes stored**. The first version of this table,
+  which copied the hit objects, was 6.3 KB for a *smaller* answer. `ASK_DAILY_MAX
+  =400` bounds the table around a megabyte a day at full saturation, so **nothing
+  expires and there is deliberately no knob to make it.** A saved answer is a URL
+  somebody may have put in an email; a link that stops resolving is a worse
+  outcome than the disk.
+- **`bin/schema.sql` drops the superseded table on sight.** It is the only DROP
+  in that file, guarded on a `result` column that only the dead shape has. The
+  first shape existed for about an hour on 2026-08-14 and never shipped, but a
+  dump taken in that window would otherwise survive re-applying the schema —
+  every other statement is `IF NOT EXISTS` — and `web/answers.py` would fail
+  against it complaining about a missing column rather than about the real
+  problem. Verified both ways: it replaces the dead shape and is a no-op on the
+  current one. Delete the block once no dump from before 2026-08-15 is in play.
+- **The server writes the row, never the browser.** A POST that took the answer
+  from the page would be a public endpoint minting permanent URLs on this domain
+  out of attacker-supplied content.
+- **The id is random, not a hash of the question.** A hash makes two askers share
+  one row, which is a cache of questions and not a link to an answer: the second
+  reader would be shown, with no way to tell, what the archive said to somebody
+  else last spring.
+- **The page says which half is which.** *"The answer is not re-run when this
+  page is opened, so the wording is that day's. What it cites is read from the
+  archive as it stands now."* Dating the whole page would imply the citations
+  are that old; calling it current would imply the reasoning had been revisited.
+- **Asking leaves you at `/ask/<id>`, and there is no share control.** The view
+  `router.replace()`s to the answer's own URL the moment it arrives, so the
+  address bar always holds the thing worth copying and the copy-link component
+  that used to sit above the answer is deleted. `replace` and not `push`, on
+  purpose: `?q=` behind the Back button makes Back a paid agent run. `?q=` still
+  holds the question while the run is in flight so a reload does not lose it.
+  **The navigation is its own effect, keyed on the answer's id, and that is
+  load-bearing.** Doing it inside the SSE `answer` handler put `router` in
+  `open`'s dependency list, and `open` is a dependency of the effect that opens
+  the stream — so any render that changed the router's identity would tear the
+  stream down and open a new one, which is another paid run. `useRouter()` is
+  stable in practice, and "in practice" is not what should stand between a
+  re-render and the bill. Verified by counting `EventSource` constructions
+  across a whole ask: **1**.
+- **Not indexed** — `noindex` on the page and `Disallow: /ask/` in robots.txt
+  (which does *not* match `/ask`; a prefix rule needs the trailing slash). A
+  machine-written reading of the archive is not the record, and the record is
+  what a search engine should be sending people to.
+
+### Measured on a table that is not empty
+
+Everything above was built and checked against an empty `answers` table, which
+is the condition under which every query looks fast. Loaded with **5,000
+synthetic answers** it looked different, and three things came out of it.
+
+**The two new audit checks were quadratic.** Written as `EXISTS (SELECT ...
+jsonb_array_elements(...))`, each one re-expanded every answer's jsonb for every
+one of the 3,440 applied redactions:
+
+| | as written | expanded once, then joined |
+|---|---|---|
+| `redaction.gone_from_answers` | 4.06 s | **0.06 s** |
+| `redaction.answers_quoting_a_redacted_line` | 15.83 s | **0.04 s** |
+
+Identical counts, planted violations included. The fix is `CITED_VIDEOS` /
+`CITED_RANGES` in `bin/audit.py` — one LATERAL expansion per answer, hash-joined
+against `redaction`. An audit that runs after every rebuild has to stay cheap or
+it stops being run, which is the same failure as one that errors.
+
+**`answers_cited_video` is the only index anything needs.** "Which answers quote
+this recording" is the only lookup in the table, and `bin/redact.py` asks it once
+per span while applying a redaction. Containment (`@>`) against a GIN
+`jsonb_path_ops` index: **10.1 ms → 1.3 ms**, for 168 kB at 5,000 rows. `@>` also
+returns false on a malformed row where `jsonb_array_elements` raises, which
+inside the apply transaction is the difference between "no match" and "removing
+this address failed".
+
+**The `cites` CHECK is VALIDATED, and the first attempt at it was not.** `NOT
+VALID` skips existing rows but still enforces every later INSERT *and UPDATE* —
+and the update that matters is `scrub_answers` taking an address out of an
+answer. One legacy malformed row would have turned "apply this redaction" into a
+CheckViolation rolling back the whole apply, archive-wide. Found by writing the
+constraint that way and watching a test fail. It validates now: `web/answers.py`
+cannot write a row that fails it, so if the scan ever does fail, that is the
+finding — and it surfaces while applying the schema rather than mid-redaction.
+
+**A constraint in `CREATE TABLE IF NOT EXISTS` reaches exactly one database.**
+The column list is documentation everywhere else, so the CHECK is added by a
+guarded `DO` block instead — stated once, so a fresh database and an existing
+one cannot end up with different constraints. Caught by adding it, re-running
+the file, and watching a malformed row insert happily.
+
+### The prose is the sixth redaction surface, and the only copy in the archive
+
+Five surfaces hold an address — the transcript, the passage text, its
+`search_text`, the BM25 postings, the full-text vector — and all five are
+*derived*, so `republish()` plus a re-index fixes them. A saved answer's
+citations are now covered by exactly that, because they are read back out of
+`passages` when the page renders.
+
+Its **prose** is not. The agent's own sentences quote what they cite, they are
+generated text, and nothing can recompute them — so they are the one copy of
+transcript text this archive keeps, at a URL somebody may have circulated.
+`redact.scrub_answers()` therefore replaces the span with `[address removed]`
+— the same marker `republish()` puts in the transcript — in the same
+transaction that applies the redaction, and `redaction.gone_from_answers` is
+the check that it happened.
+
+**Nothing is deleted, and that is deliberate.** An earlier version dropped the
+whole row. That was the wrong instrument twice over: it destroyed a public link
+over one string, and because the applied set is full of fragments it destroyed
+*correct* answers. Replacing rather than removing makes the blast radius the
+address itself, which is the only thing anyone objected to. The reading
+survives, the link keeps working, and the archive stops publishing the address —
+which is the same trade `republish()` already makes for the transcript, applied
+to the one piece of text that cannot be recomputed.
+
+There is also no retention sweep and deliberately no knob for one. A saved
+answer is a URL somebody may have put in an email or a news story; a link that
+stops resolving is a worse outcome than the four kilobytes it costs.
+
+**Scoping it to the recording was not enough, and a real run is what proved
+it.** The first version deleted a saved answer whose prose contained an applied
+span, scoped to answers citing that recording. Run against a real answer — "How
+has the board handled impact fees since 2023?", 28 citations, correct — the
+invariant went red on the span **`Florida`**, matched inside the sentence
+*"Florida Statute 163.31801(6) caps annual impact-fee increases."* A correct
+answer, deleted by a garbage redaction.
+
+The applied set is full of halves of addresses: of 3,440 spans, 70 are under 10
+characters (`A`, `L`, `one`, `4314`, `34110`) and plenty more are bare town
+names (`Palm Harbor`, `Hudson`, `Florida`). A reviewer accepting a redaction
+accepts whatever the detector proposed, fragments included.
+
+**A length floor cannot fix it** — `9641 Jerome` is eleven characters and is
+somebody's house. What separates a fragment from an address is that an address
+carries **a number AND a place-name**; either half alone is a ZIP, a town or a
+state. So `LOCATING` is `(has a digit AND a 3-letter word) OR length >= 20`,
+the length arm being for the addresses the recogniser spelled out (`Sixty
+three, twenty seven Grand Boulevard` has no digit in it). Only a locating span
+is scrubbed; scrubbing on the fragments would blank ordinary words out of
+correct sentences. The same predicate is in `bin/redact.py` and `bin/audit.py`
+— grep `LOCATING` to find both, and they have to agree or the check and the fix
+are describing different things.
+
+**What a string search cannot settle is left to a person.** An answer that
+cited the redacted line and *paraphrased* the address — reordered, half of it —
+matches nothing, and no rule can find it. `cites` keeps the passage RANGE, so
+the question "did this answer cite the line that was redacted?" is answerable
+exactly, without any text matching at all; those answers are listed by
+`redaction.answers_quoting_a_redacted_line`, which is `review=True` because a
+non-zero count is expected and is not a defect. An answer citing a passage that
+happened to contain an address is normal, and usually its prose says nothing
+about the address. That is this file's own rule — a detector proposes, a person
+decides — applied to the residue.
+
+Verified on the cases that matter: the `Florida` answer is untouched, an answer
+quoting a real address has exactly that string replaced by the marker and stays
+readable, an unrelated answer is untouched, no row is removed, the hard check
+fires on an unscrubbed answer and passes after the scrub, and the review check
+surfaces the answer that cited the redacted line.
+
+### Run the real thing before believing a stub
+
+The whole path was run twice against the paid endpoint rather than a stub, and
+both runs found something no stub could.
+
+- **8 tool calls, 26s, 20 transcript citations and 2 record ones.** Exercised
+  `get_item` — the one tool whose passages reach the agent through `_cover()`
+  rather than a search, and which nothing else had covered. Row: 2,762 bytes.
+- **10 tool calls, 28 citations across several recordings.** Row: 4,635 bytes.
+  This is the run that caught `Florida`.
+
+A stub answers instantly, with evidence you chose, over text you wrote. It is
+exactly the shape of test that agrees with whatever you already believed —
+here, that scoping to the recording was enough.
+
+**Noticed while doing this, and NOT fixed:** `redaction.gone_from_index` (6
+violations) and `redaction.unfindable` (84) are currently failing, and were
+before this work. Both look like the same degenerate-span problem.
 
 ## Next
 

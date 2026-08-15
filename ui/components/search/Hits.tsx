@@ -186,6 +186,8 @@ export function TranscriptHits({
  * name must not read as an unattributed quote (R6.2.1).
  */
 function speakerOf(h: TranscriptHit): string {
+  // `speaker` decides — it is the key, and `(exchange)` is a value only it
+  // carries — while `speaker_display` is the only thing printed.
   if (!h.speaker || h.speaker === "(exchange)") return "Several speakers";
-  return h.speaker;
+  return h.speaker_display ?? h.speaker;
 }

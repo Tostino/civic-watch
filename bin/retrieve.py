@@ -165,7 +165,10 @@ def search(query, limit=40, spread=None, speaker=None, kind=None,
         # caller: a hit is unreadable without the item it sits under (R5.6.3),
         # and the item is addressed through its meeting.
         meta = {r["id"]: dict(r) for r in con.execute("""
-            SELECT p.id, p.video_id, p.start, p."end", p.speaker, p.text,
+            SELECT p.id, p.video_id, p.start, p."end", p.speaker,
+                   -- The key stays `speaker`; this is the same person as a
+                   -- reader should see them (bin/schema.sql, display_name).
+                   display_name(p.speaker) AS speaker_display, p.text,
                    p.phase, p.agenda_item_id,
                    ai.title AS item, ai.code, ai.case_id, ai.section,
                    ai.outcome, ai.recommendation, ai.department,
@@ -248,7 +251,8 @@ def decisions_in_play(con, passages, max_segments=8, per_segment=4):
     have = {p["id"] for p in passages}
     rows = con.execute("""
         SELECT * FROM (
-            SELECT p.id, p.video_id, p.start, p."end", p.speaker, p.text,
+            SELECT p.id, p.video_id, p.start, p."end", p.speaker,
+                   display_name(p.speaker) AS speaker_display, p.text,
                    p.phase, p.agenda_item_id,
                    ai.title AS item, ai.code, ai.case_id, ai.outcome,
                    v.title, v.upload_date, v.kind,

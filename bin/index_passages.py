@@ -60,9 +60,23 @@ TURN_WORDS = 12
 
 
 def indexable(passages):
-    """Drop passages with too little retrievable signal, judged on search_text."""
+    """Drop passages with too little retrievable signal, judged on search_text.
+
+    Minus `name_pad`, which is what the display names added over the surnames
+    the archive keys on - and that discount is the whole point. WHICH passages
+    are indexed must not move when a NAME changes: the floor is calibrated on
+    substance, and without the discount "Kathryn Starkey" spends two of the
+    twelve words where "Starkey" spent one. Measured when the display names
+    went in: 1,043 passages crossed the floor on the strength of the extra
+    words alone, 879 of them landing exactly on 12, and they read
+    "Ron Oakley: Thank you." - precisely the noise this exists to catch.
+
+    A correction is the same hazard in miniature. Relabel one voice from
+    "Grey" to "Barbara Wilhite" and, undiscounted, a passage that says nothing
+    would appear in the index because a person fixed a name.
+    """
     return [p for p in passages
-            if len(p["search_text"].split()) >= MIN_INDEXED]
+            if len(p["search_text"].split()) - p.get("name_pad", 0) >= MIN_INDEXED]
 
 
 def build_passages(con, video_id=None):
@@ -84,9 +98,18 @@ def build_passages(con, video_id=None):
     # per-meeting assignment on 10.7% of named lines. A name baked in here
     # reaches search, the agent's citations and every quote it prints, so it
     # has to be the same answer the transcript gives.
+    #
+    # Two names come back per row and they are not interchangeable.
+    # `speaker` is the canonical one - a board member's SURNAME - and it is
+    # what lands in passages.speaker, because that column is a KEY: the
+    # `speaker` facet on retrieve.search and /search filters on equality
+    # against it, and the facet list itself is built from utterance_speaker.
+    # `speaker_display` is what a reader should see, and it is what goes into
+    # the indexed TEXT, because the text is what gets embedded and posted.
     rows = con.execute(f"""
         SELECT u.video_id, u.idx, u.start, u."end", u.text, u.cluster,
-               u.local_label, us.name AS speaker
+               u.local_label, us.name AS speaker,
+               us.display_name AS speaker_display
         FROM utterances u
         JOIN utterance_speaker us
           ON us.video_id = u.video_id AND us.idx = u.idx
@@ -99,6 +122,7 @@ def build_passages(con, video_id=None):
     def emit(chunk, speaker=None, exchange=False):
         if not chunk:
             return
+        pad = 0
         if exchange:
             # Label each turn, so a retrieved vote still says who said what.
             #
@@ -111,12 +135,17 @@ def build_passages(con, video_id=None):
             # "aye".
             letters, parts, last = {}, [], object()
             for r in chunk:
-                who = r["speaker"]
+                # The DISPLAY name, so the string that gets embedded and posted
+                # is the one the page shows. A bare "Starkey:" here meant the
+                # index held a surname while the county's own roster - and now
+                # every chip and citation - says Kathryn Starkey, and a reader
+                # searching the full name matched only half of it.
+                who, canon = r["speaker_display"], r["speaker"]
                 if not who:
                     key = r["local_label"]
                     if key not in letters:
                         letters[key] = chr(ord("A") + len(letters) % 26)
-                    who = f"Unidentified {letters[key]}"
+                    who = canon = f"Unidentified {letters[key]}"
                 # Label only when the speaker CHANGES. Diarization splits one
                 # person's sentence across several utterances, so labelling
                 # every turn produced "Mariano: We have no one online Mariano:
@@ -124,7 +153,11 @@ def build_passages(con, video_id=None):
                 # this text is what gets embedded, repeats the surname four
                 # times and drags the vector toward the name and away from
                 # what was said.
-                parts.append(f"{who}: {r['text']}" if who != last else r["text"])
+                if who != last:
+                    parts.append(f"{who}: {r['text']}")
+                    pad += len(who.split()) - len(canon.split())
+                else:
+                    parts.append(r["text"])
                 last = who
             text = " ".join(parts).strip()
         else:
@@ -140,6 +173,9 @@ def build_passages(con, video_id=None):
                     # ended up looking like a person's name in search results.
                     "speaker": speaker if not exchange else "(exchange)",
                     "cluster": chunk[0]["cluster"] if not exchange else None,
+                    # How many words the DISPLAY labels added over the
+                    # canonical ones. The floor discounts it. See indexable().
+                    "name_pad": pad,
                     "text": text})
 
     by_video = {}

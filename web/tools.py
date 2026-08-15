@@ -107,11 +107,33 @@ def _clean(d):
     return {k: v for k, v in d.items() if v not in (None, "", [])}
 
 
+def canonical_speaker(con, name):
+    """Fold a board member's full name back to the surname the index holds.
+
+    `passages.speaker` is keyed by surname and the filter is an equality test,
+    so "Kathryn Starkey" matches nothing at all - it returns zero hits and
+    looks exactly like "she never said that", which is the worst failure this
+    archive can produce. The agent now READS full names in every passage line
+    it is shown, so it will reach for one here; so will a reader who types the
+    name they just saw on a chip.
+
+    The inverse of display_name, and deliberately not its mirror image: this
+    accepts either form, because both are now in circulation.
+    """
+    if not name:
+        return name
+    r = con.execute(
+        "SELECT surname FROM people WHERE lower(full_name) = lower(%s) "
+        "AND lower(surname) <> lower(%s)", (name, name)).fetchone()
+    return r[0] if r else name
+
+
 # -------------------------------------------------------- search_transcript
 def search_transcript(con, query, limit=12, spread=None, speaker=None,
                       phase=None, case=None, body=None, since=None,
                       until=None, outcome=None):
     """What was SAID. Hybrid retrieval over the passage index."""
+    speaker = canonical_speaker(con, speaker)
     r = retrieve()
     hits, degraded = [], None
     try:
@@ -131,12 +153,21 @@ def search_transcript(con, query, limit=12, spread=None, speaker=None,
             "degraded": degraded or _dense_error}
 
 
-def _plain(con, ranked, limit, spread=None, **f):
-    """Keyword-only fallback. Same shape as retrieve.search, no `score`."""
-    if not ranked:
-        return []
-    meta = {r["id"]: dict(r) for r in con.execute("""
-        SELECT p.id, p.video_id, p.start, p."end", p.speaker, p.text,
+# One passage, as a hit. Shared rather than written twice because two callers
+# now read it by two different keys - the fallback search below by passage id,
+# and web/answers.py by the range a passage covers - and a saved answer that
+# described the same row differently from a live one would be a quiet lie about
+# what the archive said.
+PASSAGE_HIT = """
+        SELECT p.id, p.video_id, p.start, p."end", p.speaker,
+               -- `speaker` is the key the `speaker` facet filters on; this is
+               -- the same person as the reader should see them. A board member
+               -- is keyed by surname on purpose (bin/schema.sql, display_name).
+               display_name(p.speaker) AS speaker_display,
+               p.text,
+               -- The passage's NATURAL key, and the only durable way to name
+               -- one: bin/index_passages reassigns `id` on every rebuild.
+               p.start_idx, p.end_idx,
                p.phase, p.agenda_item_id,
                ai.title AS item, ai.code, ai.case_id, ai.section,
                ai.outcome, ai.recommendation, ai.department,
@@ -146,8 +177,15 @@ def _plain(con, ranked, limit, spread=None, **f):
         FROM passages p
         JOIN videos v ON v.id = p.video_id
         LEFT JOIN meetings mt ON mt.id = v.meeting_id
-        LEFT JOIN agenda_items ai ON ai.id = p.agenda_item_id
-        WHERE p.id = ANY(%s)""", (ranked[:600],))}
+        LEFT JOIN agenda_items ai ON ai.id = p.agenda_item_id"""
+
+
+def _plain(con, ranked, limit, spread=None, **f):
+    """Keyword-only fallback. Same shape as retrieve.search, no `score`."""
+    if not ranked:
+        return []
+    meta = {r["id"]: dict(r) for r in con.execute(
+        f"{PASSAGE_HIT} WHERE p.id = ANY(%s)", (ranked[:600],))}
     out, per = [], {}
     for i in ranked:
         m = meta.get(i)
@@ -172,6 +210,71 @@ def _plain(con, ranked, limit, spread=None, **f):
         if len(out) >= limit:
             break
     return out
+
+
+# ------------------------------------------------------- resolving citations
+#
+# A saved answer stores WHAT it cited and not the words (web/answers.py). These
+# two read the words back at render time, which is what makes a shared answer
+# quote the archive as it stands rather than as it stood: a redaction applied
+# since is already in `passages.text`, a corrected speaker name is already on
+# the row, and neither needs anything to go back and find old copies.
+def passages_at(con, ranges):
+    """Passages by the utterance range each covers, keyed by that range.
+
+    Keyed on `(video_id, start_idx, end_idx)` rather than on the passage id
+    because `index_passages.rebuild_video` reassigns ids on every rebuild and
+    says so in as many words: *nothing outside the index stores one*. The range
+    is the passage's natural key - unique across all 166,998 of them - and it
+    survives every rebuild that does not move boundaries.
+
+    A range that no longer resolves is not an error. Boundaries move for
+    exactly one reason: a redaction shortened a line and the passage fell under
+    the indexing floor. The citation is then genuinely gone, and the caller
+    says so rather than showing text from before it went.
+    """
+    if not ranges:
+        return {}
+    vids, starts, ends = zip(*ranges)
+    rows = con.execute(f"""
+        {PASSAGE_HIT}
+        JOIN unnest(%s::text[], %s::int[], %s::int[]) AS k(v, s, e)
+          ON p.video_id = k.v AND p.start_idx = k.s AND p.end_idx = k.e""",
+        (list(vids), list(starts), list(ends))).fetchall()
+    out = {}
+    for r in rows:
+        d = dict(r)
+        # Relevance is a property of the search that found it, not of the
+        # passage. A saved answer is not a search, so there is no score to
+        # honestly report; the field stays for shape parity with a live hit.
+        d["score"] = 0.0
+        out[(d["video_id"], d["start_idx"], d["end_idx"])] = d
+    return out
+
+
+def items_at(con, ids):
+    """Published items by id, keyed by id.
+
+    Agenda item ids ARE durable - `/item/<id>` is a public URL and the archive
+    already depends on it - so unlike a passage there is nothing cleverer to
+    key on. The columns are `retrieve.search_items`' minus its ranking score;
+    if that projection gains a field a reader needs, this is the other place
+    to add it.
+    """
+    if not ids:
+        return {}
+    rows = con.execute("""
+        SELECT ai.id, ai.seq, ai.code, ai.title, ai.search_title,
+               ai.case_id, ai.section, ai.phase, ai.department,
+               ai.recommendation, ai.disposition, ai.outcome,
+               ai.outcome_source, ai.source, ai.districts, ai.file_number,
+               m.id AS meeting_id, m.date, m.body, m.title AS meeting_title,
+               EXISTS (SELECT 1 FROM item_spans sp
+                       WHERE sp.agenda_item_id = ai.id) AS has_recording
+        FROM agenda_items ai
+        JOIN meetings m ON m.id = ai.meeting_id
+        WHERE ai.id = ANY(%s)""", (list(ids),)).fetchall()
+    return {r["id"]: {**dict(r), "score": 0.0} for r in rows}
 
 
 # ------------------------------------------------------------ search_record
@@ -229,8 +332,11 @@ SPECS = [
                                           "it most and the earliest "
                                           "occurrence never surfaces."},
                 "speaker": {"type": "string",
-                            "description": "Exact speaker name as the archive "
-                                           "holds it, e.g. 'Mariano'. Names "
+                            "description": "A speaker name as it appears on "
+                                           "the passages you have been shown, "
+                                           "e.g. 'Jack Mariano' or 'Mariano' "
+                                           "- board members match on either. "
+                                           "Everyone else must be exact. Names "
                                            "are inferred from voice and can "
                                            "be wrong."},
                 "phase": PHASE, "case": CASE, "body": BODY,

@@ -15,6 +15,14 @@ import { siteUrl } from "@/lib/site";
  *           walking it would spend money for nobody's benefit. The rate
  *           limiter stops the bill either way (web/limits.py); this stops
  *           the well-behaved ones from queueing up against it at all.
+ *   /ask/   saved answers. NOT /ask, which is the page and is in the sitemap:
+ *           a Disallow matches by prefix, so the trailing slash is what makes
+ *           this the answers and not the surface that produces them. They are
+ *           machine-written readings of the archive, and the pages a search
+ *           engine should be sending people to are the record itself — the
+ *           meeting, the item, the case. Each one also carries `noindex` in
+ *           its own metadata, which is the half that works on a crawler
+ *           following a shared link from somewhere else.
  *
  * /legacy is no longer listed: the rewrite that served it is deleted and the
  * pages behind it no longer exist, so naming the path here would only tell a
@@ -41,7 +49,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/api"],
+      disallow: ["/admin", "/api", "/ask/"],
     },
     sitemap: `${siteUrl()}/sitemap.xml`,
   };

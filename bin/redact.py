@@ -46,6 +46,17 @@ otherwise quote an address straight into an answer - is covered because the
 text it reads from was already redacted. Filtering at each read path instead
 would mean one forgotten path is a leak.
 
+A saved answer (web/answers.py) is covered by the same argument and only just:
+it stores what it cited rather than the words, and reads its quotes back out of
+`passages` when the page renders, so the re-index reaches it like everything
+else. Its PROSE is the exception - generated sentences that quote what they
+cite, which nothing can reconstruct and which sit at a public URL. Applying
+replaces the span there with MARKER, in place, exactly as it does in the
+transcript: nothing is deleted, the reading survives, the address does not.
+`redaction.gone_from_answers` in bin/audit.py is the check that says so, and
+`redaction.answers_quoting_a_redacted_line` lists for a person the one case a
+string search cannot settle - an answer that cited the line and paraphrased.
+
     bin/redact.py --propose              # scan, adjudicate, write proposals
     bin/redact.py --propose --limit 50   # a cheap first pass
     bin/redact.py --sections --passes 2  # the section pass, union of 2 runs
@@ -647,6 +658,83 @@ def republish(con, pairs):
             (text, video_id, idx))
 
 
+# Whether a span could LOCATE somebody's home on its own, as opposed to being
+# a fragment of one. A number and a place-name together locate a house: '9641
+# Jerome', '2027 Essex Drive'. Neither half alone does - '34110' is a ZIP,
+# 'Palm Harbor' is a town, 'Florida' is a state - and the applied set is full
+# of those halves, because a reviewer accepting a redaction accepts whatever
+# the detector proposed, fragments included.
+#
+# The length arm is for the addresses the recogniser SPELLED OUT: 'Sixty three,
+# twenty seven Grand Boulevard' has no digit in it and is a home address. No
+# fragment in this archive is that long.
+#
+# This exists because a real answer was deleted by the word 'Florida', which is
+# an applied span and which appeared in the sentence "Florida Statute
+# 163.31801(6) caps annual impact-fee increases". Length alone cannot fix that:
+# '9641 Jerome' is eleven characters and is somebody's house.
+#
+# bin/audit.py carries the same predicate for `redaction.gone_from_answers`.
+# Grep LOCATING to find both; they have to agree or the check and the fix are
+# describing different things.
+LOCATING = ("((%(span)s ~ '[0-9]' AND %(span)s ~ '[A-Za-z]{3}')"
+            " OR length(%(span)s) >= 20)")
+
+
+def scrub_answers(con, pairs):
+    """Take these (video_id, span) out of saved answers' prose. Returns how
+    many rows changed.
+
+    Nothing is deleted here, and that is the point. A saved answer
+    (web/answers.py) stores what it cited and not the words: its quotes are
+    read back out of `passages` when the page renders, so they are redacted by
+    the same republish() and re-index as every other reader.
+
+    Its prose is the exception - the agent's own sentences, quoting what they
+    cite, which nothing can reconstruct. So it gets the same treatment the
+    transcript gets: the span is replaced by MARKER, in place, leaving the
+    reading intact and the address gone. An answer at a URL somebody circulated
+    keeps working and keeps saying what it found; the one string that should
+    not be published stops being published.
+
+    An earlier version DELETED the whole row. That was the wrong instrument
+    twice over. It destroyed a public link over one string, and because the
+    applied set is full of fragments it destroyed correct answers: a real one
+    went for the word 'Florida', inside "Florida Statute 163.31801(6)".
+    Replacing rather than removing makes the blast radius the address itself,
+    which is the only thing anybody objected to.
+
+    Only spans that LOCATE a home, for the same reason: 'Florida' and 'Hudson'
+    are applied spans, and scrubbing those would blank ordinary words out of
+    correct sentences.
+
+    What this cannot reach is a PARAPHRASE - an answer that cited the line and
+    wrote the address in its own wording. No string search finds that;
+    `redaction.answers_quoting_a_redacted_line` in bin/audit.py lists those for
+    a person, which is this file's rule (nothing is decided by a detector)
+    applied to the one case a detector cannot settle.
+    """
+    n = 0
+    for video_id, span in {(v, s) for v, s in pairs if v and s}:
+        # Containment rather than expanding the array per row, for two reasons.
+        # It is what `answers_cited_video` indexes - measured over 5,000 saved
+        # answers, 10.1 ms per span expanding, 1.3 ms through the index, and
+        # this runs once per span inside the apply. And `@>` simply returns
+        # false on a row whose `cites` is malformed, where jsonb_array_elements
+        # RAISES: inside the transaction that applies a redaction, that
+        # difference is between "this answer did not match" and "removing this
+        # address failed", which would leave the address published.
+        n += con.execute(f"""
+            UPDATE answers a
+               SET answer = replace(a.answer, %(span)s, %(marker)s)
+             WHERE {LOCATING}
+               AND strpos(a.answer, %(span)s) > 0
+               AND a.cites -> 'passages' @> jsonb_build_array(
+                       jsonb_build_object('video_id', %(video)s::text))
+        """, {"video": video_id, "span": span, "marker": MARKER}).rowcount
+    return n
+
+
 def _settle(con, rows, device, verb):
     """Republish every line the decision touched, then re-index its recording.
 
@@ -695,7 +783,19 @@ def apply(con, ids, device=DEVICE):
                               before_text = %s
                         WHERE id = %s""", (raw[0], rid))
         kept.append(r)
-    return _settle(con, kept, device, "applied") if kept else 0
+    if not kept:
+        return 0
+    # In the same transaction as the status change and the republish, so the
+    # archive cannot end up in the state where the address is out of the
+    # transcript and still readable at a saved answer's URL. Only on apply: a
+    # revert puts the text back, and there is nothing to scrub - an answer
+    # quoting it could not have been produced while it was redacted. A revert
+    # does NOT restore a scrubbed answer, which is the one thing here that is
+    # not recomputable; the reading survives, the address does not come back.
+    scrubbed = scrub_answers(con, {(r[1], r[3]) for r in kept})   # gotcha 13
+    if scrubbed:
+        print(f"  scrubbed the span from {scrubbed} saved answer(s)")
+    return _settle(con, kept, device, "applied")
 
 
 def revert(con, ids, device=DEVICE):

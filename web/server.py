@@ -33,6 +33,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 import psycopg                                    # noqa: E402
 
 import admin                                     # noqa: E402
+import answers                                   # noqa: E402
 import archive                                   # noqa: E402
 import db                                        # noqa: E402
 import limits                                    # noqa: E402
@@ -463,6 +464,22 @@ class Handler(BaseHTTPRequestHandler):
             if u.path.startswith("/api/transcript/"):
                 d = archive.transcript(con, u.path.rsplit("/", 1)[-1])
                 return self._send(200, d) if d else self._send(404, {})
+            # A kept run of the agent (web/answers.py), which is what a shared
+            # /ask/<id> link reads. Free, unlike the endpoint that produced it.
+            if u.path.startswith("/api/answer/"):
+                d = answers.load(con, unquote(u.path.rsplit("/", 1)[-1]))
+                if not d:
+                    return self._send(404, {"error": "no such answer"})
+                # A minute, and deliberately not `immutable`. The ROW barely
+                # changes, but this response is not the row: every quote in it
+                # is read out of `passages` on the way past, which is the whole
+                # mechanism by which a redaction reaches a saved answer. Any
+                # cache lifetime is therefore a window in which an address
+                # somebody has removed is still being served, so this is as
+                # short as is worth having - the endpoint is two indexed
+                # queries and no model.
+                return self._send(200, d, headers={
+                    "Cache-Control": "public, max-age=60"})
             if u.path == "/api/stats":
                 return self._send(200, stats(con))
             if u.path.startswith("/api/item/"):
@@ -617,6 +634,17 @@ class Handler(BaseHTTPRequestHandler):
             result = agent.ask(question, con,
                                on_event=lambda s, d: send("stage",
                                                           {"stage": s, **d}))
+            # Filed before it is sent, because the id travels IN the answer
+            # event and the page navigates to /ask/<id> the moment it arrives.
+            # A failure here is NOT fatal: the reader has waited minutes for
+            # this and is owed it whether or not it could be kept - without an
+            # id the page simply stays put and renders the answer itself.
+            # `con` is autocommit (connect(write=False)), so the row lands on
+            # its own.
+            try:
+                result["id"] = answers.save(con, result)
+            except Exception as e:                            # noqa: BLE001
+                print(f"answer not saved: {type(e).__name__}: {e}", flush=True)
             send("answer", result)
         except (BrokenPipeError, ConnectionResetError):
             pass

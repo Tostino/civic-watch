@@ -1,4 +1,5 @@
 import type {
+  AskResult,
   Body,
   CaseDetail,
   Facets,
@@ -43,6 +44,15 @@ export const getCase = (id: string) =>
   get<CaseDetail>(`/api/case/${encodeURIComponent(id)}`);
 
 export const getBodies = () => get<Body[]>(`/api/bodies`);
+
+/**
+ * A run of the agent the server kept, which is what a shared `/ask/<id>` link
+ * resolves to. Not `/api/ask`: that one runs the agent and charges for it.
+ * This is a row, and reading it costs nothing.
+ */
+export const getAnswer = (id: string) =>
+  get<AskResult & { id: string; asked_at: string }>(
+    `/api/answer/${encodeURIComponent(id)}`);
 
 export const getOverview = (body?: string) =>
   get<Overview>(`/api/overview${body ? `?body=${encodeURIComponent(body)}` : ""}`);

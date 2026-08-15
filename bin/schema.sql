@@ -453,6 +453,35 @@ RETURNS boolean LANGUAGE sql STABLE AS $$
                           BETWEEN bt.first_seen - 120 AND bt.last_seen + 400);
 $$;
 
+-- What a reader should SEE for this name.
+--
+-- Board members are stored, matched and filtered by SURNAME, and that is
+-- deliberate: every guard above keys on it, `speaker_id` assigns from it, and
+-- admin.canonical_name folds a full name back to it on write. It is a KEY.
+-- It is a poor thing to read, though - 148,237 of 233,963 named utterances
+-- (63%) showed a bare "Starkey" where the county's own roster says Kathryn
+-- Starkey - and the fix for that must not disturb the key.
+--
+-- So the surname stays the key and this is the one place it becomes a name.
+-- Everything that is not a board member passes through untouched: staff,
+-- applicants and public comment already arrive as full names.
+--
+-- Deliberately NOT a stored column on speaker_identity, speaker_label or
+-- speaker_override. A rendered name denormalised into a row is how the archive
+-- gets two spellings of one person and no way to tell which is current; the
+-- one exception is passages.text, which has to carry the name because the name
+-- is embedded and indexed (see bin/index_passages.py).
+--
+-- `people` is UNIQUE (surname), so this returns at most one row - and the day
+-- two boards seat the same surname that uniqueness is already the defect, and
+-- audit's people.one_body_per_surname check is what says so.
+CREATE OR REPLACE FUNCTION display_name(nm text)
+RETURNS text LANGUAGE sql STABLE AS $$
+    SELECT COALESCE((SELECT p.full_name FROM people p
+                      WHERE lower(p.surname) = lower(nm)
+                        AND p.full_name IS NOT NULL), nm);
+$$;
+
 -- Does a voice actually sound like the person its cluster is named after?
 --
 -- Most speakers get a name only by inheriting one from their cluster, which
@@ -586,7 +615,14 @@ WHERE NOT EXISTS (SELECT 1 FROM people p
 -- Keyed on (video_id, local_label), the VOICE, not (video_id, cluster): 30
 -- (video, cluster) pairs hold two diarization labels, and collapsing them
 -- merges two people at display time.
+--
+-- `display_name` is the last column and is computed OVER the resolved name,
+-- not beside it. Written inline it would need the precedence CASE a second
+-- time, and a precedence rule stated twice is a precedence rule that will
+-- disagree with itself - which is the exact defect the level-3-before-level-4
+-- paragraph above is about.
 CREATE OR REPLACE VIEW utterance_speaker AS
+SELECT s.*, display_name(s.name) AS display_name FROM (
 SELECT
     u.video_id,
     u.idx,
@@ -651,7 +687,8 @@ LEFT JOIN voice_name vn
       AND NOT EXISTS (SELECT 1 FROM speaker_identity si2
                        WHERE si2.video_id = u.video_id
                          AND si2.name = vn.name
-                         AND si2.local_label <> u.local_label);
+                         AND si2.local_label <> u.local_label)
+) s;
 
 -- ------------------------------------------------------------- redaction
 --
@@ -707,3 +744,135 @@ CREATE TABLE IF NOT EXISTS redaction (
 );
 CREATE INDEX IF NOT EXISTS redaction_utt ON redaction (video_id, idx);
 CREATE INDEX IF NOT EXISTS redaction_queue ON redaction (status, created_at DESC);
+
+-- ================================================================ answers
+-- One completed run of the agent, kept so that the answer has a URL.
+--
+-- /ask?q=... is not that URL: it is an INSTRUCTION to spend money, and sending
+-- it to somebody makes them sit through a fresh run - minutes, at ASK_DEADLINE
+-- - for a different answer than the one being shown to them. This table is
+-- what /ask/<id> reads, so a shared link is the answer that was actually
+-- given, at no cost and in one round trip.
+--
+-- What is kept is the answer and what it CITED, never the words it quoted.
+-- The evidence is read back out of the archive when the page renders
+-- (web/answers.py, web/tools.py: passages_at/items_at), which is the whole
+-- design: a redaction applied since is already in `passages.text`, a corrected
+-- speaker name is already on the row, and nothing has to go back and find old
+-- copies. The archive is the record; a saved answer is a reading of it, and a
+-- reading that froze the words would slowly start disagreeing with the thing
+-- it claims to be quoting.
+--
+-- Passages are named by `(video_id, start_idx, end_idx)` and not by id:
+-- bin/index_passages reassigns ids on every rebuild and states that nothing
+-- outside the index stores one. The range is unique across all 166,998
+-- passages. A range that stops resolving means a redaction moved the
+-- boundaries, and the citation is then honestly gone rather than quietly
+-- serving pre-redaction text.
+--
+-- Agenda item ids ARE durable - `/item/<id>` is a public URL - so `cites.items`
+-- is a plain list of them.
+--
+-- One thing cannot be read back: `answer` is generated prose that quotes the
+-- transcript, and nothing can reconstruct it. It is the only copied text here
+-- and therefore the only redaction surface. Nothing deletes it - bin/redact.py
+-- replaces the span with its marker, in place, the way republish() does in the
+-- transcript, so a circulated link keeps working and stops carrying the
+-- address. `redaction.gone_from_answers` in bin/audit.py proves it happened.
+-- The range in `cites` also makes "did this answer cite the line that was
+-- redacted?" answerable with no string matching at all, which is what
+-- `redaction.answers_quoting_a_redacted_line` lists for a person to read.
+-- Rows are never removed here, and there is no retention sweep.
+-- A one-time correction, and the only DROP in this file. `answers` had a first
+-- shape for about an hour on 2026-08-14 which stored the whole payload,
+-- evidence text and all, in a single `result` column. It never shipped, but a
+-- dump taken in that window carries it - and because every statement here is
+-- IF NOT EXISTS, re-applying the schema over one of those would leave the dead
+-- shape in place and web/answers.py would fail against it with an error about
+-- a missing column rather than about the real problem.
+--
+-- Guarded on a column name only the dead shape has, so this cannot touch the
+-- current table. Anything it drops is unreadable by the current code anyway.
+-- Delete this block once no dump from before 2026-08-15 is still in play.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'answers'
+                 AND column_name = 'result') THEN
+        RAISE NOTICE 'dropping the superseded `answers` table (it had `result`)';
+        DROP TABLE answers;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS answers (
+    -- Opaque, not a hash of the question: two runs of the same question can
+    -- differ (the archive gains meetings, the model is not deterministic) and
+    -- a permalink has to be the answer that was given, not the current one.
+    id         text PRIMARY KEY,
+    question   text NOT NULL,
+    -- The prose, with its `[N]` and `[item:N]` markers intact. `cites.passages`
+    -- carries the N each marker used, because those were passage ids at the
+    -- time and will not be after the next rebuild - the render maps them back.
+    answer     text NOT NULL,
+    -- {"passages": [{"n": 220030, "video_id": ..., "start_idx": 0,
+    --                "end_idx": 1}, ...],
+    --  "items": [17923, ...]}
+    cites      jsonb NOT NULL,
+    -- What the run did, for the page that shows it: looked_at, struck,
+    -- stopped, trace. Numbers and tool arguments, no archive text.
+    run        jsonb NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+    -- `cites` has a shape, and it is asserted below rather than here. See the
+    -- DO block: stating it in both places would be two definitions that can
+    -- disagree, and a fresh database would then get a different constraint
+    -- from an existing one.
+);
+-- The shape `cites` is READ as, asserted where it is written. Both keys are
+-- addressed as arrays by bin/redact.py and bin/audit.py, and
+-- jsonb_array_elements RAISES on anything else - so without this a malformed
+-- row does not degrade a query, it turns applying a redaction into an error.
+-- coalesce because a MISSING key yields SQL NULL and a CHECK passes on NULL:
+-- "no passages key at all" has to fail too.
+--
+-- Stated HERE and not in the CREATE TABLE above, for two reasons. Written in
+-- both places it would be two definitions that can disagree, and a fresh
+-- database would get a different constraint from an existing one. And
+-- CREATE TABLE IF NOT EXISTS does nothing at all when the table exists, so a
+-- constraint written there alone never reaches any database but the first -
+-- caught by adding it, re-running this file, and watching a malformed row
+-- insert happily.
+--
+-- VALIDATED, and the first attempt at this was NOT VALID, which was wrong in a
+-- way worth writing down. NOT VALID skips the rows already there but still
+-- enforces every later INSERT *and UPDATE* - and the update that matters here
+-- is redact.scrub_answers, taking an address out of an answer's prose. One
+-- legacy malformed row would therefore turn "apply this redaction" into a
+-- CheckViolation that rolls back the whole apply, archive-wide, until somebody
+-- noticed. That is a worse failure than the malformed row.
+--
+-- So it validates: web/answers.py cannot write a row that fails this, so on any
+-- real database the scan passes. If it ever does NOT, that is the finding, and
+-- it surfaces while applying the schema - a deliberate act, at a keyboard -
+-- rather than in the middle of removing somebody's address.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                    WHERE conname = 'answers_cites_shape'
+                      AND conrelid = 'answers'::regclass) THEN
+        ALTER TABLE answers ADD CONSTRAINT answers_cites_shape CHECK (
+            coalesce(jsonb_typeof(cites -> 'passages'), 'missing') = 'array'
+            AND coalesce(jsonb_typeof(cites -> 'items'), 'missing') = 'array');
+    END IF;
+END $$;
+
+-- Answers that quote a given recording, which is the only way anything looks
+-- this table up: bin/redact.py asks it once per span when a redaction is
+-- applied. Measured over 5,000 answers - 10.1 ms expanding the jsonb per row,
+-- 1.3 ms through this index, for 168 kB. jsonb_path_ops rather than the
+-- default: it indexes only the containment operator, which is the only one
+-- used here, and is smaller and faster for it.
+CREATE INDEX IF NOT EXISTS answers_cited_video
+    ON answers USING gin ((cites -> 'passages') jsonb_path_ops);
+-- What has been asked, most recent first. For a person reading the queue, not
+-- for expiry: nothing here expires (web/answers.py).
+CREATE INDEX IF NOT EXISTS answers_recent ON answers (created_at DESC);

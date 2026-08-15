@@ -15,7 +15,7 @@ its own recordings. The codebase is generic; the county is configuration.
 | transcript | 298,737 utterances, 1,036 hours |
 | retrieval | 167,174 passages, BM25 + pgvector HNSW + curated thread keys |
 | published record | 23,122 agenda items, their dispositions and case histories |
-| invariants | 47 data checks, run after every rebuild, repairing nothing |
+| invariants | 50 data checks, run after every rebuild, repairing nothing |
 
 ## How it fits together
 

@@ -1,13 +1,11 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { OutcomeBadge } from "@/components/OutcomeBadge";
-import { ProvenanceMark } from "@/components/ProvenanceMark";
-import { usePlayer } from "@/components/player/PlayerProvider";
-import { clock, meetingDate, phaseLabel, shortBody, shortTitle } from "@/lib/format";
-import type { AskResult, AskStage, RecordHit, TranscriptHit } from "@/lib/types";
+import { Answer, Lookups, TOOL_LABEL, type Lookup } from "./Answer";
+import type { AskResult, AskStage } from "@/lib/types";
 import s from "./AskView.module.css";
 
 /**
@@ -42,6 +40,7 @@ export function AskView({ q }: { q: string }) {
   const [question, setQuestion] = useState(q);
   const [run, setRun] = useState<Run>(() => fresh(Boolean(q.trim())));
   const es = useRef<EventSource | null>(null);
+  const router = useRouter();
 
   /** Opens the stream. Every state change from here is asynchronous, in an
    *  event handler — the effect itself sets nothing. */
@@ -77,6 +76,29 @@ export function AskView({ q }: { q: string }) {
     return () => src.close();
   }, [q, open]);
 
+  /* The answer has a URL of its own, so go and be at it: the address bar then
+   * holds the thing a reader would send somebody, which is the whole feature —
+   * no button to find, no second way to get the link, nothing to explain.
+   *
+   * REPLACE, never push. `?q=` behind the Back button makes Back a paid agent
+   * run against the daily cap, which is not what Back is for.
+   *
+   * Deliberately its OWN effect rather than a line in the `answer` handler.
+   * Doing it there put `router` in `open`'s dependency list, and `open` is a
+   * dependency of the effect above — so any render that changed the router's
+   * identity would tear down the stream and open a new one, spending another
+   * paid run. Reacting to the id instead keeps that list empty, and re-running
+   * this is free.
+   *
+   * The answer stays rendered below while the navigation is in flight, and
+   * stays for good if `id` is absent: a save that failed costs the reader a
+   * permalink and must not also cost them the answer they waited out a run
+   * for. */
+  const answerId = run.result?.id;
+  useEffect(() => {
+    if (answerId) router.replace(`/ask/${answerId}`);
+  }, [answerId, router]);
+
   const { stages, result, error, running } = run;
 
   return (
@@ -87,9 +109,13 @@ export function AskView({ q }: { q: string }) {
           e.preventDefault();
           const t = question.trim();
           if (!t || running) return;
-          // The URL is the question (R4.2), so an answer can be sent to
-          // somebody. replaceState rather than a route change: navigating
-          // would remount and tear down the stream we are about to open.
+          // The URL holds the question for as long as the run lasts, so a
+          // reload part way through asks the same thing again rather than
+          // losing it (R4.2). It is not the URL anyone shares — when the
+          // answer lands we go to /ask/<id>, which is.
+          //
+          // replaceState rather than a route change: navigating would remount
+          // and tear down the stream we are about to open.
           window.history.replaceState(null, "", `/ask?q=${encodeURIComponent(t)}`);
           setRun(fresh(true));
           open(t);
@@ -137,6 +163,10 @@ export function AskView({ q }: { q: string }) {
         </p>
       ) : null}
 
+      {/* Usually on screen for the length of one navigation: the `answer`
+          event sends us to /ask/<id>, which renders the same answer from the
+          row. It is not dead code — it is what a reader sees when the save
+          failed and there is no row to go to. */}
       {result ? <Answer r={result} /> : null}
 
       {!stages.length && !result && !error ? <Examples /> : null}
@@ -146,44 +176,31 @@ export function AskView({ q }: { q: string }) {
 
 /* ------------------------------------------------------------- what it did */
 
-const TOOL_LABEL: Record<string, string> = {
-  search_transcript: "searched the recordings",
-  search_record: "searched the published record",
-  get_item: "opened an agenda item",
-  get_case: "followed a case across meetings",
-  get_meeting: "opened a meeting’s agenda",
-};
-
 function Trace({ stages, running }: { stages: AskStage[]; running: boolean }) {
   const calls = stages.filter((x) => x.stage === "tool");
   const done = new Map(
     stages.filter((x) => x.stage === "tool_done").map((x) => [x.id, x]),
   );
+  const lookups: Lookup[] = calls.map((c) => ({
+    id: c.id,
+    name: c.name ?? "",
+    args: c.args,
+    // Undefined and false are not the same answer: a call with no `tool_done`
+    // yet is still running, one that came back with ok=false was rejected.
+    ok: done.has(c.id) ? (done.get(c.id)!.ok ?? false) : null,
+  }));
   const last = stages[stages.length - 1];
   return (
     <section className={s.trace} aria-label="What the agent did" aria-live="polite">
       <h2 className={s.traceHead}>
         {running ? <span className={s.pulse} aria-hidden /> : null}
-        {running ? currently(last) : `${calls.length} lookups`}
+        {running
+          ? currently(last)
+          : `${calls.length} lookup${calls.length === 1 ? "" : "s"}`}
       </h2>
-      <ol className={s.calls}>
-        {calls.map((c, i) => {
-          const d = done.get(c.id);
-          return (
-            <li key={c.id ?? i} className={`${s.call} ${d ? "" : s.pending}`}>
-              <span className={s.callWhat}>{TOOL_LABEL[c.name ?? ""] ?? c.name}</span>
-              <code className={s.callArgs}>{args(c.args)}</code>
-              {d ? (
-                <span className={d.ok ? s.callOk : s.callBad}>
-                  {d.ok ? "✓" : "rejected"}
-                </span>
-              ) : (
-                <span className={s.callWait}>…</span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+      <div className={s.traceList}>
+        <Lookups lookups={lookups} />
+      </div>
     </section>
   );
 }
@@ -199,257 +216,6 @@ function currently(x: AskStage | undefined): string {
     default:
       return "deciding what to look up";
   }
-}
-
-const args = (a: Record<string, unknown> | undefined) =>
-  Object.entries(a ?? {})
-    .map(([k, v]) => (k === "query" ? `“${v}”` : `${k}=${v}`))
-    .join(" · ");
-
-/* -------------------------------------------------------------- the answer */
-
-function Answer({ r }: { r: AskResult }) {
-  const byId = new Map(r.evidence.map((e) => [e.id, e]));
-  const items = new Map(r.record.map((i) => [i.id, i]));
-  const empty = !r.evidence.length && !r.record.length;
-
-  return (
-    <div className={s.answer}>
-      <article className={s.prose}>{cite(r.answer, byId, items)}</article>
-
-      {/* R5.5.5: no answer without evidence, and the empty result is designed
-          rather than treated as a failure. */}
-      {empty ? (
-        <p className={s.nothing}>
-          Nothing in the archive was cited for that, which means it did not find
-          evidence it was willing to stand behind. It looked at{" "}
-          {r.looked_at.items.toLocaleString()} published items and{" "}
-          {r.looked_at.passages.toLocaleString()} passages.
-        </p>
-      ) : null}
-
-      {/* R5.5.4: the official record is its own block, above the transcript. */}
-      {r.record.length ? (
-        <section className={s.block} aria-labelledby="ev-record">
-          <header className={s.blockHead}>
-            <h2 id="ev-record" className={s.blockTitle}>
-              What the county published
-            </h2>
-            <ProvenanceMark kind="minutes" compact />
-          </header>
-          <ul className={s.list}>
-            {r.record.map((i) => (
-              <li key={i.id}>
-                <RecordCite item={i} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {r.evidence.length ? <Evidence hits={r.evidence} /> : null}
-
-      <footer className={s.note}>
-        Looked at {r.looked_at.items.toLocaleString()} items and{" "}
-        {r.looked_at.passages.toLocaleString()} passages; cited{" "}
-        {(r.record.length + r.evidence.length).toLocaleString()}.
-        {r.struck.length ? (
-          <>
-            {" "}
-            <b className={s.struck}>
-              {r.struck.length} citation{r.struck.length === 1 ? "" : "s"} removed
-            </b>{" "}
-            — the answer referred to {r.struck.join(", ")}, which this search never
-            returned.
-          </>
-        ) : null}
-        {r.stopped ? <> It stopped searching early, so this may not be everything.</> : null}
-      </footer>
-    </div>
-  );
-}
-
-/**
- * R5.5.2: the two citation types render distinctly. `[item:N]` reveals the
- * published record; `[N]` seeks the player to that moment.
- */
-function cite(
-  text: string,
-  byId: Map<number, TranscriptHit>,
-  items: Map<number, RecordHit>,
-) {
-  /* Citations and `**bold**` in one pass. The agent is told to write plain
-   * prose, and mostly does; when it does not, the asterisks used to reach the
-   * page literally — "**What the record shows.**" — which reads as a bug in
-   * the archive rather than a slip by the model. Bold is the only markdown
-   * honoured: anything more would let the answer style the page. */
-  const re = /\[(item:)?(\d{1,7})\]|\*\*(.+?)\*\*/g;
-  const out: React.ReactNode[] = [];
-  let at = 0;
-  let m: RegExpExecArray | null;
-  let n = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > at) out.push(<Fragment key={`t${n}`}>{text.slice(at, m.index)}</Fragment>);
-    if (m[3] !== undefined) {
-      out.push(<strong key={`b${n}`}>{m[3]}</strong>);
-    } else {
-      const id = Number(m[2]);
-      if (m[1]) {
-        const i = items.get(id);
-        out.push(
-          <a
-            key={`c${n}`}
-            href={`#item-${id}`}
-            className={s.citeRecord}
-            title={i?.title ?? "the published record"}
-          >
-            {/* The item's own identifier where it has one. A transcript-derived
-                item has no code, so the meeting date is the next most useful
-                thing a reader can act on — "record" told them nothing. */}
-            {i?.code ?? (i ? meetingDate(i.date, "short") : "record")}
-          </a>,
-        );
-      } else {
-        out.push(<PlayCite key={`c${n}`} hit={byId.get(id)} id={id} />);
-      }
-    }
-    at = m.index + m[0].length;
-    n += 1;
-  }
-  out.push(<Fragment key="tail">{text.slice(at)}</Fragment>);
-  return <div className={s.paras}>{out}</div>;
-}
-
-function PlayCite({ hit, id }: { hit: TranscriptHit | undefined; id: number }) {
-  const player = usePlayer();
-  if (!hit) return <span className={s.citeDead}>[{id}]</span>;
-  return (
-    <button
-      type="button"
-      className={s.citePlay}
-      title={`${hit.speaker ?? "Unidentified speaker"} · ${clock(hit.start)} — play`}
-      onClick={() =>
-        player.play(
-          { videoId: hit.video_id, title: hit.title ?? "", href: hit.meeting_id ? `/meeting/${hit.meeting_id}` : undefined },
-          hit.start,
-          true,
-        )
-      }
-    >
-      ▸ {clock(hit.start)}
-    </button>
-  );
-}
-
-function RecordCite({ item }: { item: RecordHit }) {
-  return (
-    <div className={s.recRow} id={`item-${item.id}`}>
-      <div className={s.recTop}>
-        <Link href={`/meeting/${item.meeting_id}`} className={s.when}>
-          {meetingDate(item.date, "short")}
-        </Link>
-        <span className={s.bodyTag}>{shortBody(item.body)}</span>
-        {item.code ? <span className={s.code}>{item.code}</span> : null}
-        <OutcomeBadge outcome={item.outcome} size="sm" />
-      </div>
-      <Link href={`/item/${item.id}`} className={s.recTitle}>
-        {shortTitle(item.title, 150) || "(no title published)"}
-      </Link>
-      {item.disposition ? (
-        <p className={s.disposition}>{item.disposition}</p>
-      ) : (
-        <p className={s.noDisposition}>The minutes show no disposition for this item.</p>
-      )}
-    </div>
-  );
-}
-
-/** R5.5.3: grouped meeting → agenda item, never a flat chronological list. */
-function Evidence({ hits }: { hits: TranscriptHit[] }) {
-  const meetings = new Map<string, { label: string; items: Map<string, TranscriptHit[]> }>();
-  for (const h of hits) {
-    const mk = String(h.meeting_id ?? h.video_id);
-    const label = `${meetingDate(h.meeting_date ?? h.upload_date ?? "", "long")}${
-      h.body ? ` · ${h.body}` : ""
-    }`;
-    const m = meetings.get(mk) ?? { label, items: new Map() };
-    const ik = String(h.agenda_item_id ?? "none");
-    (m.items.get(ik) ?? m.items.set(ik, []).get(ik)!).push(h);
-    meetings.set(mk, m);
-  }
-  return (
-    <section className={s.block} aria-labelledby="ev-said">
-      <header className={s.blockHead}>
-        <h2 id="ev-said" className={s.blockTitle}>
-          What was said
-        </h2>
-        <ProvenanceMark kind="transcript" compact />
-      </header>
-      <p className={s.blockWhy}>
-        Machine transcription. Speaker names are inferred from voice and can be wrong.
-      </p>
-      {[...meetings.entries()].map(([mk, m]) => (
-        <div key={mk} className={s.meeting}>
-          <h3 className={s.meetingHead}>
-            {hits.find((h) => String(h.meeting_id ?? h.video_id) === mk)?.meeting_id ? (
-              <Link href={`/meeting/${hits.find((h) => String(h.meeting_id) === mk)!.meeting_id}`}>
-                {m.label}
-              </Link>
-            ) : (
-              m.label
-            )}
-          </h3>
-          {[...m.items.entries()].map(([ik, group]) => (
-            <div key={ik} className={s.item}>
-              {ik !== "none" ? (
-                <Link href={`/item/${ik}`} className={s.itemHead}>
-                  {group[0].code ? <span className={s.code}>{group[0].code}</span> : null}
-                  {shortTitle(group[0].item, 90) || "(untitled item)"}
-                </Link>
-              ) : (
-                <span className={s.itemNone}>Not matched to an agenda item</span>
-              )}
-              <ul className={s.quotes}>
-                {group.map((h) => (
-                  <li key={h.id} className={s.quote}>
-                    <Quote hit={h} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function Quote({ hit }: { hit: TranscriptHit }) {
-  const player = usePlayer();
-  const who =
-    !hit.speaker || hit.speaker === "(exchange)" ? "Several speakers" : hit.speaker;
-  return (
-    <>
-      <div className={s.quoteTop}>
-        <span className={s.who}>{who}</span>
-        <button
-          type="button"
-          className={s.at}
-          onClick={() =>
-            player.play(
-              { videoId: hit.video_id, title: hit.title ?? "", href: hit.meeting_id ? `/meeting/${hit.meeting_id}` : undefined },
-              hit.start,
-              true,
-            )
-          }
-        >
-          ▸ {clock(hit.start)}
-        </button>
-        {hit.phase ? <span className={s.phase}>{phaseLabel(hit.phase)}</span> : null}
-      </div>
-      <p className={s.said}>{hit.text}</p>
-    </>
-  );
 }
 
 function Examples() {

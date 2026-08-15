@@ -339,6 +339,7 @@ function Turn({
       <div className={s.who}>
         <SpeakerChip
           name={first.name}
+          displayName={first.display_name}
           human={first.human}
           basis={first.basis}
           contested={first.contested}

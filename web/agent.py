@@ -225,7 +225,12 @@ def _clip(s, n):
 
 
 def _passage_line(p, width=420):
-    who = p.get("speaker") or "unidentified"
+    # The display name, so the model writes the name the reader will see under
+    # the citation. Shown "Starkey", it wrote "Starkey said" while the chip
+    # beneath said Kathryn Starkey, and the answer read like it was about
+    # somebody else. `speaker` is still what the speaker facet takes, and
+    # tools.canonical_speaker accepts the full name back.
+    who = p.get("speaker_display") or p.get("speaker") or "unidentified"
     if who == "(exchange)":
         who = "several speakers"
     where = p.get("meeting_date") or p.get("upload_date") or "?"
@@ -281,7 +286,15 @@ def _cover(con, item_id):
     that moment.
     """
     rows = con.execute("""
-        SELECT p.id, p.video_id, p.start, p."end", p.speaker, p.text,
+        SELECT p.id, p.video_id, p.start, p."end", p.speaker,
+               -- The same person as the reader will see them, for the same
+               -- reason _passage_line takes it: these passages go into `seen`
+               -- and become the answer's evidence. Without it a citation the
+               -- agent reached through get_item printed the surname on /ask
+               -- while the SAME citation printed the full name on /ask/<id>,
+               -- which re-reads it from tools.PASSAGE_HIT. Measured: 'Grey'
+               -- against 'Charles Grey', same passage, two pages.
+               display_name(p.speaker) AS speaker_display, p.text,
                p.start_idx, p.end_idx, p.phase, p.agenda_item_id,
                ai.title AS item, ai.code, ai.case_id, ai.outcome,
                v.title, v.upload_date, v.meeting_id,
@@ -422,7 +435,7 @@ def render(name, result, seen, con=None):
 
 
 def _line(ln, p=None):
-    who = ln.get("name") or "unidentified"
+    who = ln.get("display_name") or ln.get("name") or "unidentified"
     # The citable id is the containing PASSAGE's, never the line index. Lines
     # inside one passage repeat an id, which is correct: they are one moment.
     tag = f"[{p['id']}]" if p else "[not citable]"
@@ -601,7 +614,8 @@ def main():
             on_event=lambda k, d: print(f"[{k}] {d}", file=sys.stderr))
     print("\n" + r["answer"] + "\n" + "-" * 70)
     for e in r["evidence"]:
-        print(f"[{e['id']}] {e.get('meeting_date')} {(e.get('speaker') or '?')[:18]:<18} "
+        who = e.get("speaker_display") or e.get("speaker") or "?"
+        print(f"[{e['id']}] {e.get('meeting_date')} {who[:18]:<18} "
               f"{_clip(e.get('text'), 70)}")
     for i in r["record"]:
         print(f"[item:{i['id']}] {i.get('date')} {i.get('code') or '':5s} "

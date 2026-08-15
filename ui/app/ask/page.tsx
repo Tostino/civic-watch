@@ -5,8 +5,12 @@ import s from "./ask.module.css";
  *
  * A thin server shell around a client view, because the answer arrives over
  * SSE and takes anywhere up to ASK_DEADLINE — seven minutes on a question that
- * reads widely. The question is in the URL (R4.2) so an answer can be sent to
- * somebody.
+ * reads widely. The question is in the URL (R4.2) so a reload mid-run asks the
+ * same thing rather than losing it — but this is not the URL anyone sends.
+ * `?q=` is an instruction to spend money and, at that deadline, up to seven
+ * minutes of somebody else's patience. When the answer lands the view replaces
+ * it with `/ask/<id>`, which is the answer itself, so the address bar always
+ * holds the right thing to copy and there is no share control to find.
  *
  * UI_PLAN §7: no conversational chat here, deliberately. Memory and persona
  * would make this a different product and would undermine every citation —
