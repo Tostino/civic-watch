@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
+import { DisputePassage } from "@/components/admin/DisputePassage";
 import { usePlayer } from "@/components/player/PlayerProvider";
 import { clock, meetingDate, phaseLabel, shortBody, shortTitle } from "@/lib/format";
 import type { AskResult, RecordHit, TranscriptHit } from "@/lib/types";
@@ -316,6 +317,9 @@ function Quote({ hit }: { hit: TranscriptHit }) {
     <>
       <div className={s.quoteTop}>
         <span className={s.who}>{who}</span>
+        {/* A cited name is the one a reader is most likely to check, and the
+            most costly to have wrong. Readers see nothing (R9.1). */}
+        <DisputePassage hit={hit} />
         <button
           type="button"
           className={s.at}

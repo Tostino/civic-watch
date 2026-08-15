@@ -1,0 +1,21 @@
+/* The same affordance as SpeakerChip's dispute button, and it says so by
+ * looking the same: accent, underlined, small enough to sit beside a name.
+ *
+ * It does NOT hide until hover the way the chip's does. On a reading surface
+ * the chip is the thing the eye is already on, so revealing the correction on
+ * hover keeps a page of 2,252 turns quiet. A hit is a list row an operator is
+ * working through deliberately, and a correction they cannot see is one they
+ * do not make. */
+.dispute {
+  margin-inline-start: 0.5em;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--accent);
+  border-bottom: 1px solid var(--accent-line);
+  /* So it never reads as part of what was said. */
+  white-space: nowrap;
+}
+
+.dispute:hover {
+  border-bottom-color: var(--accent);
+}

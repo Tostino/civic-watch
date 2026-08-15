@@ -4,11 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useRouter } from "next/navigation";
-
 import { ProvenanceMark } from "@/components/ProvenanceMark";
 import { SpeakerChip, voiceTags } from "@/components/SpeakerChip";
-import { useOperator } from "@/components/admin/useOperator";
+import { useDispute } from "@/components/admin/useDispute";
 import { usePlayhead } from "@/components/player/PlayerProvider";
 import { getTranscript } from "@/lib/api";
 import { clock, shortTitle } from "@/lib/format";
@@ -75,9 +73,10 @@ export function TranscriptView({
 }) {
   const playhead = usePlayhead();
   /* The console bridge (R5.8.3): the error is noticed while reading, so the
-   * fix starts here. Readers never see it — the probe answers false. */
-  const operator = useOperator();
-  const router = useRouter();
+   * fix starts here. Readers never see it — the probe answers false. Shared
+   * with the item and the case views, which raise the same correction from
+   * their own layout: components/admin/useDispute. */
+  const dispute = useDispute();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   /** Set when the reader scrolls by hand: following stops until they resume. */
   const [following, setFollowing] = useState(true);
@@ -362,17 +361,7 @@ export function TranscriptView({
                     activeIdx={activeIdx}
                     onSeek={onSeek}
                     onSeekStart={() => setFollowing(true)}
-                    onDispute={
-                      operator
-                        ? () => {
-                            const f = row.lines[0];
-                            const last = row.lines[row.lines.length - 1];
-                            const q = new URLSearchParams({ sel: `${f.idx}-${last.idx}` });
-                            if (f.local_label) q.set("label", f.local_label);
-                            router.push(`/admin/review/${encodeURIComponent(video.id)}?${q}`);
-                          }
-                        : undefined
-                    }
+                    onDispute={dispute ? () => dispute(row.lines) : undefined}
                   />
                 )}
               </div>
@@ -424,6 +413,20 @@ function ItemBreak({
   );
 }
 
+/**
+ * NOT components/Turn.tsx, and deliberately so.
+ *
+ * That one is laid out in flow: the chip sticks beside a long turn, every
+ * timestamp is on show, and the narrow layout is a media query. This one is
+ * one row of a virtualiser - it cannot be a list, it is measured, and its
+ * column is sized against the player's lane rather than the window - and it
+ * carries a transcript of up to 2,252 utterances, where a visible timestamp on
+ * every line is noise. Two layouts, for two jobs.
+ *
+ * What they share is what must never differ: SpeakerChip decides how the claim
+ * about who spoke is presented, and `useDispute` decides what "that is wrong"
+ * does.
+ */
 function Turn({
   lines,
   tags,

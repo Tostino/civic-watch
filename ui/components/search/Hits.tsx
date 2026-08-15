@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { ItemCard } from "@/components/ItemCard";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
+import { DisputePassage } from "@/components/admin/DisputePassage";
 import { clock, highlight, meetingDate, phaseLabel, shortBody } from "@/lib/format";
 import type { RecordHit, TranscriptHit } from "@/lib/types";
 import s from "./Hits.module.css";
@@ -160,7 +161,10 @@ export function TranscriptHits({
                 {/* Its own line, not an inline prefix. A margin puts space on
                     screen and none in the text, so an inline name copied and
                     pasted as "MARIANOI object" — and read aloud that way. */}
-                <span className={s.who}>{speakerOf(h)}</span>{" "}
+                <span className={s.who}>{speakerOf(h)}</span>
+                {/* R5.8.3 from the other end: an error is often noticed in a
+                    LIST, not while reading one meeting. Readers see nothing. */}
+                <DisputePassage hit={h} />{" "}
                 {highlight(h.text, query).map((run, i) => (
                   <Fragment key={i}>
                     {run.hit ? <mark className={s.mark}>{run.s}</mark> : run.s}

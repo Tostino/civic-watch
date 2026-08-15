@@ -169,6 +169,12 @@ def search(query, limit=40, spread=None, speaker=None, kind=None,
                    -- The key stays `speaker`; this is the same person as a
                    -- reader should see them (bin/schema.sql, display_name).
                    display_name(p.speaker) AS speaker_display, p.text,
+                   -- The passage's NATURAL key - `id` is reassigned by every
+                   -- rebuild - and the range a correction is raised against.
+                   -- tools.PASSAGE_HIT and the agent's own projection have
+                   -- carried these for a while; this one did not, so which
+                   -- arm answered decided whether a hit knew where it was.
+                   p.start_idx, p.end_idx,
                    p.phase, p.agenda_item_id,
                    ai.title AS item, ai.code, ai.case_id, ai.section,
                    ai.outcome, ai.recommendation, ai.department,
@@ -253,6 +259,7 @@ def decisions_in_play(con, passages, max_segments=8, per_segment=4):
         SELECT * FROM (
             SELECT p.id, p.video_id, p.start, p."end", p.speaker,
                    display_name(p.speaker) AS speaker_display, p.text,
+                   p.start_idx, p.end_idx,
                    p.phase, p.agenda_item_id,
                    ai.title AS item, ai.code, ai.case_id, ai.outcome,
                    v.title, v.upload_date, v.kind,

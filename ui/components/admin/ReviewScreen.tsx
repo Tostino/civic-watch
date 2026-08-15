@@ -75,6 +75,28 @@ export function ReviewScreen({
     return by;
   }, [lines]);
 
+  /**
+   * A key, as it should be READ.
+   *
+   * The surname is what this screen writes and what every guard joins on, so
+   * it stays in every value and every count above. It was also what the screen
+   * PRINTED, which is the defect: a reader clicks "Correct this name" on
+   * Kathryn Starkey and arrives here to be asked about Starkey. Same rule the
+   * diarization id already follows further down — an id is shown AS an id, in
+   * mono and labelled, never where a name goes.
+   *
+   * Both sources are already fetched: the roster the county published for this
+   * meeting, then display_name on the lines for anyone else the pipeline has
+   * resolved. A name from another meeting's voice match is in neither, and
+   * falls back to the key rather than to a guess.
+   */
+  const printed = useMemo(() => {
+    const by = new Map<string, string>();
+    for (const r of review.data?.roster ?? []) if (r.full_name) by.set(r.surname, r.full_name);
+    for (const l of lines) if (l.name && l.display_name) by.set(l.name, l.display_name);
+    return (key: string | null) => (key ? (by.get(key) ?? key) : key);
+  }, [review.data, lines]);
+
   const [onlyFocus, setOnlyFocus] = useState(Boolean(name || label));
   const shown = useMemo(
     () =>
@@ -219,6 +241,7 @@ export function ReviewScreen({
     review.data.voices.filter((vc) => rangeLabels.has(vc.local_label)).flatMap((vc) => vc.affinity),
     review.data.roster,
     nameCounts,
+    printed,
   );
 
   const click = (l: Line, shift: boolean) => {
@@ -248,7 +271,7 @@ export function ReviewScreen({
           <p className={s.sub}>
             {name ? (
               <>
-                Reviewing the voices attributed to <strong>{name}</strong> ·{" "}
+                Reviewing the voices attributed to <strong>{printed(name)}</strong> ·{" "}
               </>
             ) : label ? (
               <>
@@ -293,8 +316,9 @@ export function ReviewScreen({
               key={voice.local_label}
               video={video}
               voice={voice}
-              candidates={rankedCandidates(voice.affinity, review.data.roster, nameCounts)}
+              candidates={rankedCandidates(voice.affinity, review.data.roster, nameCounts, printed)}
               color={voiceColors.get(voice.local_label)}
+              printed={printed}
               onJump={() => jumpToVoice(voice.local_label)}
               onPlay={listen}
               onDone={done}
@@ -404,6 +428,7 @@ export function ReviewScreen({
                       <span className={s.meta}>
                         <SpeakerChip
                           name={l.name}
+                          displayName={l.display_name}
                           human={l.human}
                           basis={l.basis}
                           contested={l.contested}
@@ -473,7 +498,10 @@ function short(label: string | null) {
 const VOICE_HUES = 6;
 
 interface Candidate {
+  /** The KEY. What gets written, and what the option's value carries. */
   name: string;
+  /** The same person, as the operator reads them everywhere else. */
+  label: string;
   /** Why this name is offered — the evidence, stated beside the choice. */
   hint: string;
 }
@@ -490,6 +518,7 @@ function rankedCandidates(
   affinity: { name: string; similarity: number }[],
   roster: { surname: string; office: string | null }[],
   nameCounts: Map<string, number>,
+  printed: (key: string | null) => string | null,
 ): Candidate[] {
   const out = new Map<string, string>();
   for (const a of [...affinity].sort((x, y) => y.similarity - x.similarity)) {
@@ -503,7 +532,11 @@ function rankedCandidates(
   for (const [nm] of [...nameCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)) {
     if (!out.has(nm)) out.set(nm, "named in this meeting");
   }
-  return [...out.entries()].map(([name, hint]) => ({ name, hint }));
+  return [...out.entries()].map(([name, hint]) => ({
+    name,
+    label: printed(name) ?? name,
+    hint,
+  }));
 }
 
 const officeWord = (o: string) =>
@@ -553,9 +586,10 @@ function NamePicker({
         aria-label={ariaLabel}
       >
         <option value="">who is it?</option>
+        {/* The label reads; the VALUE is the key that gets written. */}
         {candidates.map((c) => (
           <option key={c.name} value={c.name}>
-            {c.name} — {c.hint}
+            {c.label} — {c.hint}
           </option>
         ))}
         <option value="__other__">someone else — type the name</option>
@@ -579,6 +613,7 @@ function VoiceCard({
   voice,
   candidates,
   color,
+  printed,
   onJump,
   onPlay,
   onDone,
@@ -587,6 +622,8 @@ function VoiceCard({
   voice: ReviewVoice;
   candidates: Candidate[];
   color: number | undefined;
+  /** A key, as it should be read. See the note where it is built. */
+  printed: (key: string | null) => string | null;
   onJump: () => void;
   onPlay: (video: string, at: number) => void;
   onDone: (msg: string) => void;
@@ -627,12 +664,12 @@ function VoiceCard({
       <p className={s.claim}>
         {voice.labeled ? (
           <>
-            Human label: <strong>{voice.label_name}</strong>
+            Human label: <strong>{printed(voice.label_name)}</strong>
             {voice.label_note ? ` — ${voice.label_note}` : null}
           </>
         ) : voice.name ? (
           <>
-            Pipeline says <strong>{voice.name}</strong>
+            Pipeline says <strong>{printed(voice.name)}</strong>
             <span className={s.dim}>
               {" "}
               ({voice.source ?? "matched"}
@@ -649,7 +686,7 @@ function VoiceCard({
         <ul className={s.affinity}>
           {voice.affinity.map((a) => (
             <li key={a.name} data-verdict={a.similarity >= 0.7 ? "ok" : a.similarity < 0.35 ? "no" : "unsure"}>
-              sounds like {a.name}? <strong>{a.similarity.toFixed(3)}</strong>
+              sounds like {printed(a.name)}? <strong>{a.similarity.toFixed(3)}</strong>
               <span className={s.dim}>
                 {a.similarity >= 0.7
                   ? " — consistent"
@@ -693,7 +730,7 @@ function VoiceCard({
               title={e.title}
             >
               ▶ {e.upload_date ? meetingDate(e.upload_date, "short") : e.video_id}
-              {e.name ? ` · as ${e.name}` : " · unnamed"}{" "}
+              {e.name ? ` · as ${printed(e.name)}` : " · unnamed"}{" "}
               <span className={s.quote}>“{e.text}…”</span>
             </button>
           ))}

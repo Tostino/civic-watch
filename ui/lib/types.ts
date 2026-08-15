@@ -508,6 +508,19 @@ export interface TranscriptHit {
   speaker: string | null;
   /** What to print. See Line.display_name. */
   speaker_display: string | null;
+  /**
+   * The utterances this passage covers: its NATURAL key - `id` is reassigned
+   * by every rebuild - and the range a correction is raised against, which is
+   * what lets a hit reach the review screen at all.
+   *
+   * Nullable because the column was added by an ALTER and older rows could
+   * predate it. None do: 0 of 166,998 passages, measured 2026-08-14. The UI
+   * still checks, because a null here means "this row cannot say which
+   * utterances it is", and offering a correction against a guess is worse than
+   * offering none.
+   */
+  start_idx: number | null;
+  end_idx: number | null;
   text: string;
   phase: string | null;
   agenda_item_id: number | null;
