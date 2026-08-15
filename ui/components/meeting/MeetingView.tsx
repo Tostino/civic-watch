@@ -202,6 +202,25 @@ export function MeetingView({
     [seek, videoId],
   );
 
+  /**
+   * The masthead is this meeting's identity card, and it is worth its full
+   * height exactly once: on arrival, before the reader knows what they are
+   * looking at. After that it is 255px of a 900px window spent on six rows
+   * that never change again, while the transcript they came for gets 46%.
+   *
+   * It cannot simply scroll away. The rail and the panel are their own
+   * scrollers and chain to the page only at their ends, so a wheel over the
+   * transcript never reaches the page and a masthead that left on page scroll
+   * would never leave. The signal is ENGAGEMENT instead: the first wheel,
+   * touch or key inside the panes, or the moment audio starts. Nothing is
+   * lost - the coverage, the roster and the county's documents are all on
+   * screen when the page opens (R3.2), and one click brings them back.
+   *
+   * Nothing else has to know: --pane-h is measured from the split's top, and
+   * the observer below already watches the masthead's own height.
+   */
+  const [brief, setBrief] = useState(false);
+
   /* How tall the panes may be, MEASURED rather than guessed. Two constants
    * stood in for this - 14rem in the transcript, --sp-6 in the rail - and
    * neither knows how tall this meeting's masthead is, so both panes hung off
@@ -244,18 +263,49 @@ export function MeetingView({
     };
   }, []);
 
+  // The reader has started working the panes: give them the masthead's room.
+  // Capture, because a scroll event does not bubble out of the box it scrolls,
+  // and these are the same gestures the transcript already treats as "the
+  // reader is driving now".
+  useEffect(() => {
+    const el = splitRef.current;
+    if (!el || brief) return;
+    const kinds = ["wheel", "touchmove", "keydown"] as const;
+    const engage = () => setBrief(true);
+    for (const kind of kinds) {
+      el.addEventListener(kind, engage, { capture: true, passive: true, once: true });
+    }
+    return () => {
+      for (const kind of kinds) el.removeEventListener(kind, engage, { capture: true });
+    };
+  }, [brief]);
+
+  /* Pressing play is the same statement, made from the dock rather than the
+   * page: what the reader wants now is the recording and the words under it.
+   *
+   * Adjusted during render rather than in an effect, which is the documented
+   * shape for "state that follows from a change in something else" - and the
+   * EDGE, not the level. Folding whenever `playing` is true would re-fold the
+   * masthead the instant a reader opened it again during playback, which is
+   * an argument with the reader rather than an answer to them. */
+  const [wasPlaying, setWasPlaying] = useState(false);
+  if (playhead.playing !== wasPlaying) {
+    setWasPlaying(playhead.playing);
+    if (playhead.playing) setBrief(true);
+  }
+
   return (
     <article className={s.page}>
-      <header className={s.masthead}>
+      <header className={s.masthead} data-brief={brief}>
         <div className={s.mastheadInner}>
-          <nav className={s.crumbs} aria-label="Breadcrumb">
-            <Link href="/">Archive</Link>
-            <span aria-hidden>/</span>
-            <Link href={`/?body=${encodeURIComponent(meeting.body)}`}>{meeting.body}</Link>
-          </nav>
-
-          <div className={s.titleRow}>
-            <h1 className={s.date}>{meetingDate(meeting.date)}</h1>
+          {/* The two navigations share a row: neither is about this meeting,
+              they are both about which meeting you are on. */}
+          <div className={s.topRow}>
+            <nav className={s.crumbs} aria-label="Breadcrumb">
+              <Link href="/">Archive</Link>
+              <span aria-hidden>/</span>
+              <Link href={`/?body=${encodeURIComponent(meeting.body)}`}>{meeting.body}</Link>
+            </nav>
             <div className={s.step}>
               {data.prev ? (
                 <Link href={`/meeting/${data.prev.id}`} className={s.stepLink} title={data.prev.date}>
@@ -270,8 +320,26 @@ export function MeetingView({
             </div>
           </div>
 
-          <p className={s.body}>{meeting.body}</p>
+          {/* The date is the identity and the body is the qualifier, so they
+              are one line and not two. */}
+          <div className={s.titleRow}>
+            <h1 className={s.date}>{meetingDate(meeting.date)}</h1>
+            <p className={s.body}>{meeting.body}</p>
+            <button
+              type="button"
+              className={s.detailToggle}
+              onClick={() => setBrief((b) => !b)}
+              aria-expanded={!brief}
+              aria-controls="meeting-detail"
+            >
+              <span aria-hidden className={s.chev} data-open={!brief}>
+                ▸
+              </span>
+              {brief ? "Coverage, roster and documents" : "Hide"}
+            </button>
+          </div>
 
+          <div id="meeting-detail" className={s.detail} hidden={brief}>
           {/* R3.2: this meeting's own coverage, not a site-wide disclaimer. */}
           <ul className={s.coverage}>
             <Fact
@@ -308,6 +376,9 @@ export function MeetingView({
             />
           </ul>
 
+          {/* Who was seated sits on the same rule as what was covered: they
+              are one statement about this meeting, and at any width that fits
+              them side by side they cost one row instead of two. */}
           {roster.length > 0 ? (
             <div className={s.roster}>
               <ProvenanceMark kind="agenda" />
@@ -364,6 +435,7 @@ export function MeetingView({
               }}
               label="Cite this meeting"
             />
+          </div>
           </div>
         </div>
       </header>

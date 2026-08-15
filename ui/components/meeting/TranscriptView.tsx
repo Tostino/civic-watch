@@ -97,7 +97,10 @@ export function TranscriptView({
   const virtual = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (i) => (rows[i]?.kind === "item" ? 44 : 84),
+    estimateSize: (i) => {
+      const kind = rows[i]?.kind;
+      return kind === "item" ? 44 : kind === "caveat" ? 40 : 84;
+    },
     overscan: 8,
     getItemKey: (i) => rows[i].key,
     /* Both of these exist because scrolling a 2,000-line transcript otherwise
@@ -311,23 +314,16 @@ export function TranscriptView({
 
   return (
     <section className={s.wrap} aria-label="Transcript">
-      <header className={s.head}>
-        <ProvenanceMark kind="transcript" />
-        <p className={s.caveat}>
-          Machine transcription with speaker names inferred from voice matching.{" "}
-          {Math.round((named / lines.length) * 100)}% of {lines.length.toLocaleString()} lines
-          carry a name; the rest are unidentified. Both can be wrong — the recording is the
-          source.
-        </p>
-        {/* The button sets nothing but the flag: the effect above is what
-            moves the pane, and it is the one place that knows where the line
-            being spoken actually is. */}
-        {!following && playhead.playing ? (
-          <button type="button" className={s.resume} onClick={() => setFollowing(true)}>
-            Follow the recording
-          </button>
-        ) : null}
-      </header>
+      {/* Floats OVER the pane rather than costing it a row. It exists only
+          while the reader is somewhere else in a recording that is playing,
+          and it sets nothing but the flag: the effect above is what moves the
+          pane, and it is the one place that knows where the line being spoken
+          actually is. */}
+      {!following && playhead.playing ? (
+        <button type="button" className={s.resume} onClick={() => setFollowing(true)}>
+          Follow the recording
+        </button>
+      ) : null}
 
       <div
         className={s.scroll}
@@ -347,7 +343,19 @@ export function TranscriptView({
                 className={s.row}
                 style={{ transform: `translateY(${v.start}px)` }}
               >
-                {row.kind === "item" ? (
+                {row.kind === "caveat" ? (
+                  /* R2.3, said where it belongs: at the top of the words it
+                     is about, as the first thing in the transcript rather
+                     than a header above it. Every claim is here — what this
+                     is, that the names are inferred, how many carry one, that
+                     both can be wrong, and what to check instead. */
+                  <p className={s.caveat}>
+                    <ProvenanceMark kind="transcript" /> Machine transcription; names
+                    inferred from voice — {Math.round((named / lines.length) * 100)}% of{" "}
+                    {lines.length.toLocaleString()} lines carry one. Both can be wrong; the
+                    recording is the source.
+                  </p>
+                ) : row.kind === "item" ? (
                   <ItemBreak
                     item={row.item}
                     active={row.item?.id === activeItem}
@@ -493,6 +501,9 @@ function Turn({
 }
 
 type Row =
+  /** The pane's own caption, as row zero so that it scrolls away with the
+   *  words rather than standing over them for the rest of the session. */
+  | { kind: "caveat"; key: string }
   | { kind: "item"; key: string; item: Item | null }
   /** `from`/`to` are ARRAY POSITIONS into `lines`, not utterance ids. */
   | { kind: "turn"; key: string; lines: Line[]; from: number; to: number };
@@ -515,7 +526,7 @@ function posAt(lines: Line[], seconds: number): number {
 /** Flattens the transcript into virtualisable rows: an agenda break whenever
  *  the item changes, then one row per turn (a run of lines from one voice). */
 function toRows(lines: Line[], items: Map<number, Item>): Row[] {
-  const rows: Row[] = [];
+  const rows: Row[] = [{ kind: "caveat", key: "caveat" }];
   let itemId: number | null | undefined;
   let turn: Line[] = [];
   let turnFrom = 0;

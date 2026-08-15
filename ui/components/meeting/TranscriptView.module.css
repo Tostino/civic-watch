@@ -1,6 +1,10 @@
 .wrap {
   display: flex;
   flex-direction: column;
+  /* The follow button is positioned against this. `container-type` below
+   * already makes it a containing block; saying so is cheaper than finding
+   * that out again. */
+  position: relative;
   /* flex: 1 matters as much as min-height: 0 here - this sits inside the
    * meeting column, and without it the scroller below flexes against a
    * content-sized parent and falls back to its min-height. */
@@ -13,33 +17,39 @@
   container-type: inline-size;
 }
 
-.head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-  padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--rule);
-  margin-bottom: var(--sp-2);
-}
-
-/* R2.3. The transcript says up front what it is and how it can be wrong. */
+/* R2.3. The transcript says up front what it is and how it can be wrong -
+ * and then gets out of the way, because it is the FIRST ROW of the scroller
+ * rather than a header standing over it. A caption that is read once on
+ * arrival should not hold a row of the pane for the rest of the session;
+ * scrolling back to the top brings it back.
+ *
+ * No `--measure` cap either. That is a rule for PROSE, and it was holding
+ * this to ~65 characters and wrapping a caption to two lines beside a metre
+ * of empty space. */
 .caveat {
-  flex: 1;
-  min-width: 16rem;
+  padding: 0 var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--rule);
   font-size: var(--text-xs);
   line-height: var(--leading-snug);
   color: var(--ink-3);
-  max-width: var(--measure);
 }
 
+/* Over the words, not above them: this exists only while the reader is
+ * somewhere else in a recording that is playing, so it does not get to spend
+ * a row of the pane on the times it is absent. Opaque and shadowed, because
+ * it lands ON a line of transcript. */
 .resume {
-  flex: none;
+  position: absolute;
+  top: var(--sp-2);
+  /* Clear of the scrollbar the pane may be showing. */
+  inset-inline-end: var(--sp-4);
+  z-index: 2;
   padding: 0.2rem 0.6rem;
   border-radius: var(--radius-full);
   background: var(--live-soft);
   color: var(--live);
-  border: 1px solid color-mix(in srgb, var(--live) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--live) 45%, transparent);
+  box-shadow: var(--shadow-2);
   font-size: var(--text-xs);
   font-weight: 600;
 }
