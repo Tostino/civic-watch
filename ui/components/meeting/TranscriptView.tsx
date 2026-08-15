@@ -341,7 +341,17 @@ export function TranscriptView({
                 data-index={v.index}
                 ref={virtual.measureElement}
                 className={s.row}
-                style={{ transform: `translateY(${v.start}px)` }}
+                /* `top`, and NOT the usual `transform: translateY()`. A
+                 * transformed ancestor is a containing block, and a sticky
+                 * descendant inside one resolves against that rather than
+                 * against the scroller - so the speaker's name computed its
+                 * offset against a box that moves with it, pinned itself to
+                 * the bottom of its own turn, and never stuck to anything.
+                 * Measured: with the transform it tracked the row 1:1 through
+                 * a 2,835px turn; with `top` it holds at 8px from the top of
+                 * the pane. Seventeen rendered rows is not a number where the
+                 * compositor's help is worth losing the behaviour. */
+                style={{ top: v.start }}
               >
                 {row.kind === "caveat" ? (
                   /* R2.3, said where it belongs: at the top of the words it
@@ -424,12 +434,13 @@ function ItemBreak({
 /**
  * NOT components/Turn.tsx, and deliberately so.
  *
- * That one is laid out in flow: the chip sticks beside a long turn, every
- * timestamp is on show, and the narrow layout is a media query. This one is
- * one row of a virtualiser - it cannot be a list, it is measured, and its
- * column is sized against the player's lane rather than the window - and it
- * carries a transcript of up to 2,252 utterances, where a visible timestamp on
- * every line is noise. Two layouts, for two jobs.
+ * That one is laid out in flow, with every timestamp on show and a media
+ * query for its narrow case. This one is one row of a virtualiser - it cannot
+ * be a list, it is measured, and its column is sized against the player's
+ * lane rather than the window - and it carries a transcript of up to 2,252
+ * utterances, where a visible timestamp on every line is noise. Two layouts,
+ * for two jobs. Both stick the speaker's name beside a long turn; getting
+ * that to work here took `top` rather than a transform, below.
  *
  * What they share is what must never differ: SpeakerChip decides how the claim
  * about who spoke is presented, and `useDispute` decides what "that is wrong"

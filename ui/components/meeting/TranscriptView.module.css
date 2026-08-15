@@ -81,6 +81,8 @@
   width: 100%;
 }
 
+/* `top` is set per row from the virtualizer's offset - see the note at the
+ * call site for why it is not a transform. */
 .row {
   position: absolute;
   inset-inline: 0;
@@ -150,11 +152,28 @@
   grid-template-columns: 11rem minmax(0, 1fr);
   gap: var(--sp-3);
   padding: 0.35rem 0;
+  /* Load-bearing for the sticky name below: a grid item stretches to its
+   * row's full height by default, and something already as tall as the box it
+   * would stick inside has nowhere to stick. */
+  align-items: start;
 }
 
+/* The name follows its own words down the pane.
+ *
+ * A turn is one speaker's whole run, and on this material that can be 35
+ * utterances and a quarter of an hour - 3,987px of it. Four screens into one,
+ * the only thing on the page saying who is talking had scrolled off the top,
+ * and the answer to "is that me?" was to scroll back and lose your place.
+ *
+ * It sticks within its own turn and stops at the end of it, because the
+ * containing block is the row: the next speaker pushes this one out rather
+ * than covering it. Nothing scrolls underneath it either - the words are in
+ * the other grid column - so it needs no background to stay legible. */
 .who {
   padding-top: 0.1rem;
   min-width: 0;
+  position: sticky;
+  top: var(--sp-2);
 }
 
 .said {
@@ -263,6 +282,23 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 0.15rem;
     padding: var(--sp-2) 0;
+  }
+
+  /* One column, so the name is ABOVE the words rather than beside them - and
+   * it still has to answer "who is this" four screens into a turn. It pins
+   * with a surface under it, because here the sentence really does pass
+   * underneath. Flush to the top, not --sp-2: an 8px gap above an opaque bar
+   * is 8px of a sentence sliding through it.
+   *
+   * This case is not only phones. A 1280px window with the player in its lane
+   * leaves this column 507px, which is inside the query. */
+  .who {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.15rem 0 0.2rem;
+    background: var(--bg);
+    box-shadow: 0 1px 0 var(--rule);
   }
 }
 
