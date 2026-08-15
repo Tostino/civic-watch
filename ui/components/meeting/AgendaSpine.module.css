@@ -101,7 +101,17 @@
   /* Chains to the page on purpose — see the note in TranscriptView.module.css.
    * This list does reach its end, so containment here was the surface a reader
    * most often got stuck against. */
-  padding: var(--sp-2) 0 var(--sp-4);
+  /* No padding at the TOP. A sticky child sticks to the content edge, not to
+   * the border edge, so 8px of padding here left an 8px strip above the stuck
+   * heading in which rows scrolled past, clipped and half-legible — the
+   * "AFTERNOON SESSION" heading with the tail of a morning item floating over
+   * it. The gap the padding was for belongs to the first lane instead, where
+   * it scrolls away with the content it separates. */
+  padding: 0 0 var(--sp-4);
+}
+
+.list > *:first-child {
+  margin-top: var(--sp-2);
 }
 
 /* ---------------------------------------------------------------- lanes */
@@ -152,8 +162,13 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(6px);
+  /* OPAQUE, and no blur behind it. A sticky heading is there to stay readable
+   * while rows pass underneath, and 8% of transparency is enough to read a
+   * row's timestamp straight through the words of the heading. A
+   * backdrop-filter cannot rescue that: it is glass, not a surface, and a
+   * browser that declines it leaves plain 92% white. This is the same colour
+   * the rail is drawn on, so the seam does not show. */
+  background: var(--surface);
   padding: 0.25rem var(--sp-3);
   border-bottom: 1px solid var(--rule);
 }

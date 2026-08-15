@@ -37,8 +37,24 @@ import s from "./TranscriptView.module.css";
  * Collapsing the two is what made clicking an agenda item move the recording
  * and leave the transcript behind.
  *
+ * Both of them move to a LINE and not to a row. See `target`: a row is a turn,
+ * and a turn can be a quarter of an hour long.
+ *
  * Every name here is an inference and is drawn as one. See SpeakerChip.
  */
+
+/** The share of the pane kept clear at each edge. A line resting on the
+ *  boundary is in view and is not really readable. */
+const EDGE = 0.12;
+
+/** Frames to keep watching a line after aiming at it. The aim itself takes two
+ *  or three; the rest is for measurement, which arrives late and moves what is
+ *  already on screen - a font swapping in on a cold load re-measures every row
+ *  and shifted a centred line 231px, out of the pane it had just been put in.
+ *  Watching is a `querySelector` and two rects a frame, which is cheap enough
+ *  to do for two thirds of a second and be sure. */
+const SETTLE = 40;
+
 export function TranscriptView({
   video,
   items,
@@ -65,6 +81,9 @@ export function TranscriptView({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   /** Set when the reader scrolls by hand: following stops until they resume. */
   const [following, setFollowing] = useState(true);
+  /** Bumped every time they do. Anything already in flight stops on the spot,
+   *  rather than at the next render. */
+  const handled = useRef(0);
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ["transcript", video.id],
@@ -119,6 +138,102 @@ export function TranscriptView({
     [activePos, rows],
   );
 
+  /**
+   * Where the pane has to be for a line to be read, or null when it is already
+   * somewhere readable.
+   *
+   * The unit of movement is the LINE, and that is the whole of this. A row is
+   * a turn, and a turn is not a small thing: the longest in the 2026-07-14
+   * morning is 35 utterances - a quarter of an hour of one speaker - and
+   * measures 3,987px against a 486px pane. A virtualizer can only address
+   * rows, so following centred that row and left the words being spoken
+   * 2,000px below the bottom of the pane, where they stayed for the whole
+   * quarter hour because the row index never changed. "Follow the recording"
+   * did exactly what it said and nothing appeared to happen.
+   */
+  const target = useCallback((line: HTMLElement, centre: boolean): number | null => {
+    const box = scrollRef.current;
+    if (!box) return null;
+    /* clientHeight counts the padding that the dock's height puts at the foot
+     * of the scroller, and that strip is covered by the player rather than
+     * seen - so centring against it centres into the player. The floor is for
+     * the phone, where a sheet 248px tall sits over a 320px pane: below a
+     * third of the pane there is not enough left to place anything in, and a
+     * dock taller than the pane would otherwise leave a negative one. */
+    const covered = parseFloat(getComputedStyle(box).paddingBottom) || 0;
+    const view = Math.max(box.clientHeight - covered, box.clientHeight / 3);
+    const top = line.getBoundingClientRect().top - box.getBoundingClientRect().top;
+    const edge = view * EDGE;
+    /* Following must not mean the words move under the reader's eye every few
+     * seconds. While the line is comfortably inside the pane it stays where it
+     * is, and the pane moves only once it reaches an edge. */
+    if (!centre && top >= edge && top + line.offsetHeight <= view - edge) return null;
+    return box.scrollTop + top - (view - line.offsetHeight) / 2;
+  }, []);
+
+  /**
+   * Go to utterance `idx`, which is in row `row`. Returns a cancel.
+   *
+   * Two steps, because neither half knows enough alone: where an unrendered
+   * row starts is the virtualizer's answer, since it holds the measurements,
+   * and where a line sits inside a rendered row is the DOM's. A turn arrives
+   * whole - every line of it is in the one row - so once the first step lands
+   * the second always has a box to measure.
+   */
+  const goTo = useCallback(
+    (row: number, idx: number, centre: boolean) => {
+      const box = scrollRef.current;
+      if (!box || row < 0) return;
+      if (idx < 0) {
+        virtualRef.current.scrollToIndex(row, { align: "center" });
+        return;
+      }
+      let raf = 0;
+      let frames = 0;
+      let force = centre;
+      let sent: number | null = null;
+      /* The reader's hand wins, and wins at once. `following` says so too, but
+       * only on the next render and only for the passive caller - a cue is
+       * obeyed whatever `following` says, and two thirds of a second of it
+       * insisting is exactly the "the wheel does nothing" the panes were fixed
+       * for once already. */
+      const hand = handled.current;
+      const run = () => {
+        if (handled.current !== hand) return;
+        const line = box.querySelector<HTMLElement>(`[data-line="${idx}"]`);
+        if (!line) {
+          /* Not rendered, so it has no box and the virtualizer is the only one
+           * who knows where its row begins. It gets us there; the frames after
+           * this one place the line inside it. */
+          virtualRef.current.scrollToIndex(row, { align: "center" });
+          force = true;
+        } else {
+          const to = target(line, force);
+          force = false;
+          /* Being right once is not being right - hence SETTLE - but only a
+           * MOVED answer is worth acting on. Re-issuing the same offset every
+           * frame restarts the smooth scroll from wherever it had got to,
+           * which is how a glide becomes a crawl. */
+          if (to === null) sent = null;
+          else if (sent === null || Math.abs(to - sent) > 1) {
+            sent = to;
+            virtualRef.current.scrollToOffset(to, {
+              align: "start",
+              /* Smooth is for the small correction that following makes as one
+               * line gives way to the next. A pane's worth is not a correction,
+               * and a 2,000px slide is not a courtesy. */
+              behavior: Math.abs(to - box.scrollTop) > box.clientHeight ? "auto" : "smooth",
+            });
+          }
+        }
+        if (++frames < SETTLE) raf = requestAnimationFrame(run);
+      };
+      run();
+      return () => cancelAnimationFrame(raf);
+    },
+    [target],
+  );
+
   // An explicit instruction. Runs when the cue changes, and again when the
   // lines arrive if the cue beat the fetch - which it does whenever a click
   // switches to the other session.
@@ -130,14 +245,16 @@ export function TranscriptView({
     const pos = posAt(lines, cue.seconds);
     const row = pos < 0 ? 0 : rows.findIndex((r) => r.kind === "turn" && r.to >= pos);
     setFollowing(true);
-    virtualRef.current.scrollToIndex(row < 0 ? rows.length - 1 : row, { align: "center" });
-  }, [cue, lines, rows]);
+    return goTo(row < 0 ? rows.length - 1 : row, pos < 0 ? -1 : lines[pos].idx, true);
+  }, [cue, lines, rows, goTo]);
 
-  // Passive drift with the playhead.
+  // Passive drift with the playhead. On `activeIdx` rather than `activeRow`:
+  // inside a long turn the row does not change for minutes at a time, which
+  // is exactly when the reader needs it to.
   useEffect(() => {
     if (!following || activeRow < 0 || !playhead.playing) return;
-    virtualRef.current.scrollToIndex(activeRow, { align: "center", behavior: "smooth" });
-  }, [activeRow, following, playhead.playing]);
+    return goTo(activeRow, activeIdx, false);
+  }, [activeRow, activeIdx, following, playhead.playing, goTo]);
 
   /* When nothing is playing, what the reader has scrolled to is the best
    * answer to "which item are we on", so the spine follows their reading
@@ -157,6 +274,7 @@ export function TranscriptView({
   }, [onReading, rows]);
 
   const onManualScroll = useCallback(() => {
+    handled.current++;
     setFollowing(false);
     report();
   }, [report]);
@@ -202,17 +320,11 @@ export function TranscriptView({
           carry a name; the rest are unidentified. Both can be wrong — the recording is the
           source.
         </p>
+        {/* The button sets nothing but the flag: the effect above is what
+            moves the pane, and it is the one place that knows where the line
+            being spoken actually is. */}
         {!following && playhead.playing ? (
-          <button
-            type="button"
-            className={s.resume}
-            onClick={() => {
-              setFollowing(true);
-              if (activeRow >= 0) {
-                virtualRef.current.scrollToIndex(activeRow, { align: "center" });
-              }
-            }}
-          >
+          <button type="button" className={s.resume} onClick={() => setFollowing(true)}>
             Follow the recording
           </button>
         ) : null}
@@ -353,7 +465,10 @@ function Turn({
         {lines.map((l) => {
           const on = l.idx === activeIdx;
           return (
-            <p key={l.idx} className={`${s.line} ${on ? s.lineActive : ""}`}>
+            /* `data-line` is how following finds this line's box. The utterance
+               id, not the array position: the two agree today and one of them
+               is a database key. */
+            <p key={l.idx} data-line={l.idx} className={`${s.line} ${on ? s.lineActive : ""}`}>
               <button
                 type="button"
                 className={s.at}
