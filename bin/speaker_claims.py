@@ -44,14 +44,23 @@ import db
 # to be scoped, not global. With re.I on the whole pattern `[A-Z]` matches
 # lowercase too, so "my name is Dina Fox and I live at" captured "Dina Fox
 # and". Every name in the first run came out with a trailing conjunction.
-SAYS_NAME = re.compile(r"(?i:\bmy name is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z']+){0,2})")
+# The name pattern is speaker_id.QUEUE_NAME's, and it is borrowed rather than
+# rewritten for a measured reason: an internal capital is PART of a surname -
+# McBride, DeSantis, O'Neil - and a pattern that stops at one truncates the
+# name instead of failing loudly. Written fresh here, it turned "Barbara
+# McGuinness" into "Barbara Mc" and "Cheryl McElho" into "Cheryl Mc", and
+# those were CORROBORATED claims outranking a correct archive name. The
+# existing extractor has known this since it was written; this one had to be
+# told twice.
+NAME = r"[A-Z][a-z']+(?:[A-Z][a-z']+)*(?:\s+[A-Z][a-z']+(?:[A-Z][a-z']+)*){0,2}"
+SAYS_NAME = re.compile(r"(?i:\bmy name is)\s+(" + NAME + r")")
 # Anchored at the START of what the person says, because that is where the
 # convention puts it, and required to be followed by a comma and an address.
 # Unanchored it matched street names out of the address itself - "Margaret St"
 # from "1234 Margaret Street" - and invented a speaker for every one.
 PODIUM = re.compile(
     r"^(?:good (?:morning|afternoon|evening),?\s+)?"
-    r"([A-Z][a-z]+\s+[A-Z][a-z']+),\s+"
+    r"(" + NAME + r"),\s+"
     r"(?:\d{2,6}\s|\[address removed\])")
 SWORN = re.compile(r"\b(?:i have been sworn|been duly sworn|i was sworn)\b", re.I)
 
@@ -249,7 +258,32 @@ def extract(con):
         # Reading somebody else's words: the name belongs to the author and
         # the claim covers only this utterance, so the reader keeps her own
         # name either side of it.
-        if READING.search(text):
+        #
+        # The test is the RUN, not the line. Somebody reading correspondence
+        # into the record reads SEVERAL letters in one go - "Next email is
+        # from Michael Killian", "Next letter is from Joanne Killian" - and
+        # the self-introduction inside one of them sits several utterances
+        # away from any word that says a letter is being read. Testing only
+        # the line, one letter-author's name spread over the whole run and
+        # landed on a commissioner: measured, SPEAKER_27 in BTQQU-4nOq8 became
+        # "Daniel Honeywell Jun" across letters by three different people,
+        # over a voice the archive calls Starkey. That is gotcha 72 arriving
+        # through a new door.
+        #
+        # 18 of 1,682 self claims sit in a run like this. Small, and the
+        # worst thing on the list: it puts a private citizen's name on a
+        # commissioner's voice.
+        reading_run = con.execute("""
+            SELECT EXISTS (SELECT 1 FROM utterances u
+                            WHERE u.video_id = %s
+                              AND u.idx BETWEEN %s AND %s
+                              AND u.text ~* '(email|letter) is from|next (email|letter)'
+                                          '|read (it|this) into the record'
+                                          '|i am writing|to whom it may') AS x""",
+            (r["video_id"], *next(
+                (sp for sp in voice_runs.get((r["video_id"], r["local_label"]), [])
+                 if sp[0] <= r["idx"] <= sp[1]), (r["idx"], r["idx"])))).fetchone()["x"]
+        if READING.search(text) or reading_run:
             claim(cur, r["video_id"], r["idx"], r["idx"], name, "read_aloud",
                   quote)
             n["read_aloud"] += 1
