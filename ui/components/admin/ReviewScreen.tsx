@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { SpeakerChip } from "@/components/SpeakerChip";
+import { SpeakerChip, speakerOf } from "@/components/SpeakerChip";
 import { usePlayer, usePlayhead } from "@/components/player/PlayerProvider";
 import {
   correct,
@@ -427,11 +427,7 @@ export function ReviewScreen({
                       </button>
                       <span className={s.meta}>
                         <SpeakerChip
-                          name={l.name}
-                          displayName={l.display_name}
-                          human={l.human}
-                          basis={l.basis}
-                          contested={l.contested}
+                          {...speakerOf(l)}
                           size="sm"
                         />
                         {/* A curation surface shows the diarization id AS an

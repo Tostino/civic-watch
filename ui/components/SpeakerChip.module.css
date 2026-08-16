@@ -83,7 +83,10 @@
   border-color: var(--ink-4);
 }
 
-.read {
+/* The BADGE beside the name, not the chip's state class. It was called
+ * `.read`, which the chip root also applies for that state, so a read-aloud
+ * chip inherited 0.8em and went grey entire. */
+.aloud {
   font-size: 0.8em;
   color: var(--ink-4);
   white-space: nowrap;
@@ -97,6 +100,22 @@
   background: none;
   border-style: dotted;
   border-color: var(--ink-4);
+}
+
+/* They gave the name themselves: as legible as a confirmed one, because the
+ * evidence is a person saying who they are. The glyph carries the difference. */
+.stated .name {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Somebody else's words. The name is the AUTHOR's, so it stays legible - the
+ * "read aloud" badge is what says they were not in the room, not a faded name
+ * that would read as low confidence. It is not low confidence; it is a
+ * different claim. */
+.read .name {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .weak .name {

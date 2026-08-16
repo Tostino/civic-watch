@@ -5,7 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ProvenanceMark } from "@/components/ProvenanceMark";
-import { SpeakerChip, voiceTags } from "@/components/SpeakerChip";
+import { SpeakerChip, speakerOf, voiceTags } from "@/components/SpeakerChip";
 import { useDispute } from "@/components/admin/useDispute";
 import { usePlayhead } from "@/components/player/PlayerProvider";
 import { getTranscript } from "@/lib/api";
@@ -472,11 +472,7 @@ function Turn({
     <div className={s.turn}>
       <div className={s.who}>
         <SpeakerChip
-          name={first.name}
-          displayName={first.display_name}
-          human={first.human}
-          basis={first.basis}
-          contested={first.contested}
+          {...speakerOf(first)}
           office={office ?? null}
           voiceTag={first.voice != null ? (tags.get(first.voice) ?? null) : null}
           size="sm"

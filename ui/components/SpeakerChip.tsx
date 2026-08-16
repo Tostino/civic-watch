@@ -1,8 +1,37 @@
 "use client";
 
 import { officeLabel } from "@/lib/format";
-import type { Line, Office, SpeakerBasis } from "@/lib/types";
+import type { DividedInRoom, Line, Office, SpeakerBasis, TranscriptHit } from "@/lib/types";
 import s from "./SpeakerChip.module.css";
+
+/**
+ * How sure the archive is that this name belongs to this voice, in the only
+ * vocabulary the reader ever sees. Derived from `human` and `basis` and from
+ * nothing else — see the switch below, which is the single place it happens.
+ */
+export type SpeakerState =
+  | "confirmed"   // a person on this archive said so
+  | "stated"      // the speaker gave the name themselves
+  | "inferred"    // matched to a voice at this meeting
+  | "weak"        // the name this voice goes by archive-wide, and no more
+  | "read"        // their written words, read aloud by somebody else
+  | "unknown"     // no name resolved
+  | "several";    // an exchange: more than one person speaks here
+
+/* Keyed on SpeakerState, so adding a state without styling it is a TYPE ERROR
+ * rather than a class of `undefined` in the markup. It was exactly that: the
+ * chip root read `s[state]`, `stated` had no class at all, and `read` matched
+ * the BADGE class further down and shrank the whole chip to 0.8em. Neither
+ * failed loudly, which is what dynamic indexing into a CSS module buys you. */
+const STATE_CLASS: Record<SpeakerState, string> = {
+  confirmed: s.confirmed,
+  stated: s.stated,
+  inferred: s.inferred,
+  weak: s.weak,
+  read: s.read,
+  unknown: s.unknown,
+  several: s.several,
+};
 
 export interface SpeakerChipProps {
   /**
@@ -100,7 +129,7 @@ export function SpeakerChip({
    * `self_weak` joins `cluster` at WEAK: a self-introduction the archive
    * cannot attribute to this voice is evidence about a name and not about who
    * said it. */
-  const state = several
+  const state: SpeakerState = several
     ? "several"
     : !name
       ? "unknown"
@@ -121,7 +150,7 @@ export function SpeakerChip({
         {several ? "Several speakers" : (shown ?? "Unidentified speaker")}
       </span>
       {state === "read" ? (
-        <span className={s.read} title="Their written words, read aloud by somebody else at the meeting">
+        <span className={s.aloud} title="Their written words, read aloud by somebody else at the meeting">
           read aloud
         </span>
       ) : null}
@@ -152,7 +181,8 @@ export function SpeakerChip({
               ? `${shown} — the name this voice goes by across the archive, not evidence about this meeting. It is the most likely to be wrong.`
               : undefined;
 
-  const className = `${s.chip} ${s[state]} ${size === "sm" ? s.sm : ""} ${contested ? s.isContested : ""}`;
+  const className = [s.chip, STATE_CLASS[state], size === "sm" ? s.sm : "",
+                     contested ? s.isContested : ""].filter(Boolean).join(" ");
 
   if (!onDispute) {
     return (
@@ -174,6 +204,47 @@ export function SpeakerChip({
       </button>
     </span>
   );
+}
+
+/**
+ * THE WAY TO RENDER A SPEAKER. `<SpeakerChip {...speakerOf(x)} />`, whatever x
+ * is.
+ *
+ * The archive says the same four things in three different spellings, because
+ * the three shapes grew at different times: a `Line` calls them name /
+ * display_name / human / basis, a `TranscriptHit` calls them speaker /
+ * speaker_display / name_human / name_basis, and a `DividedInRoom` splits the
+ * difference. A caller had to know which convention this particular object
+ * followed, and got no help if it guessed - the fields are all optional-ish
+ * and a wrong one reads as "no name" rather than as an error.
+ *
+ * Worse, the rule that `(exchange)` is an internal token and never a label
+ * (R6.2.1) was written out separately in Hits.tsx and Answer.tsx. Two copies
+ * of a rule that exists to be in one place.
+ *
+ * So the mapping lives here, next to the component that consumes it, and a
+ * new field is added in one file rather than four.
+ */
+export function speakerOf(x: Line | TranscriptHit | DividedInRoom): SpeakerChipProps {
+  if ("speaker" in x) {
+    // `speaker` is the KEY and `(exchange)` is a value only it carries. A
+    // passage with no speaker at all is a different fact and stays unknown.
+    const several = x.speaker === "(exchange)";
+    return {
+      name: several ? null : x.speaker,
+      displayName: x.speaker_display,
+      human: ("name_human" in x ? x.name_human : x.human) ?? false,
+      basis: "name_basis" in x ? x.name_basis : x.basis,
+      several,
+    };
+  }
+  return {
+    name: x.name,
+    displayName: x.display_name,
+    human: x.human,
+    basis: x.basis,
+    contested: x.contested,
+  };
 }
 
 /**
