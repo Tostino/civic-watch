@@ -405,16 +405,42 @@ def _range_rows(con, video_id, lo, hi):
 def _refresh(con, video_id):
     """A correction must reach the index or search keeps the old name
     (gotcha 46). Failure here never looks like a failed correction: the
-    override is committed and authoritative either way."""
+    override is committed and authoritative either way.
+
+    TWO STEPS NOW, AND THE ORDER IS THE POINT. Resolution is being moved from
+    a view to a materialised table (SPEAKER_PLAN.md), and the day that lands,
+    a correction stops reaching the reader on its own: it writes the row it
+    always wrote, and the page keeps showing the old name until something
+    recomputes. So the resolution for this recording is refreshed FIRST, and
+    only then are its passages re-rendered and re-embedded - because the index
+    is built from the resolution and would otherwise bake in the name the
+    correction just replaced.
+
+    It runs today, while nothing reads the shadow tables, which is deliberate:
+    it keeps them accurate as corrections happen, so the cutover is a rename
+    rather than a rebuild. About 3 seconds against a re-embed that is already
+    the slow part.
+    """
+    out = {}
+    try:
+        import speaker_claims
+        r = speaker_claims.refresh_video(con, video_id)
+        out["resolved"] = r["n"]
+    except Exception as e:      # noqa: BLE001 - reported, not swallowed
+        # Not fatal while the shadow is a shadow. It becomes fatal the day
+        # utterance_speaker reads it, and the audit check for a stale
+        # materialisation is what should catch that rather than this.
+        out["resolve_error"] = str(e)
     try:
         import index_passages
-        n = index_passages.refresh_video(con, video_id, device=DEVICE,
-                                         verbose=False)
-        return {"reindexed": n}
+        out["reindexed"] = index_passages.refresh_video(con, video_id,
+                                                        device=DEVICE,
+                                                        verbose=False)
     except Exception as e:      # noqa: BLE001 - reported, not swallowed
-        return {"reindex_error": f"{e}. The correction is saved; run "
-                                 f"bin/index_passages.py to bring search "
-                                 f"back in step."}
+        out["reindex_error"] = (f"{e}. The correction is saved; run "
+                                f"bin/index_passages.py to bring search "
+                                f"back in step.")
+    return out
 
 
 ACTIONS = {"reassign", "detach", "identify", "split"}

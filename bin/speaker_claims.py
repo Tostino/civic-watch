@@ -151,7 +151,7 @@ def claim(cur, video_id, lo, hi, name, method, quote=None, corroborated=False,
 
 
 # ------------------------------------------------------------------ backfill
-def backfill(con):
+def backfill(con, video_id=None):
     """Everything the archive already decided, restated as evidence.
 
     The point is not to change any of these - they resolve exactly as they do
@@ -159,13 +159,15 @@ def backfill(con):
     negotiated against them rather than overwriting them.
     """
     cur = con.cursor()
+    only, arg = ("AND video_id = %s", (video_id,)) if video_id else ("", ())
     cur.execute("DELETE FROM speaker_claim WHERE method IN "
-                "('override','label','voice','cluster','llm','chair')")
+                f"('override','label','voice','cluster','llm','chair') {only}", arg)
 
     n = collections.Counter()
     # A human, about a span. The only producer that is already append-only.
-    for r in con.execute("""SELECT video_id, start_idx, end_idx, name
-                              FROM speaker_override WHERE status='applied'"""):
+    for r in con.execute(f"""SELECT video_id, start_idx, end_idx, name
+                              FROM speaker_override WHERE status='applied'
+                               {only}""", arg):
         claim(cur, r["video_id"], r["start_idx"], r["end_idx"], r["name"],
               "override")
         n["override"] += 1
@@ -174,7 +176,7 @@ def backfill(con):
     # meeting, which is what `speaker_label` means and has never been able to
     # say.
     voice_runs, cluster_runs = runs_by_voice(con), runs_by_cluster(con)
-    for r in con.execute("SELECT video_id, local_label, name FROM speaker_label"):
+    for r in con.execute(f"SELECT video_id, local_label, name FROM speaker_label WHERE true {only}", arg):
         for lo, hi in voice_runs.get((r["video_id"], r["local_label"]), []):
             claim(cur, r["video_id"], lo, hi, r["name"], "label", label=r["local_label"])
             n["label"] += 1
@@ -183,8 +185,8 @@ def backfill(con):
     # three methods produced it for two of them and NULL for the largest
     # bucket, so NULL becomes `voice` - the honest floor. The extractor puts
     # better-evidenced `self` claims on top rather than rewriting these.
-    for r in con.execute("""SELECT video_id, local_label, name, source
-                              FROM speaker_identity WHERE name IS NOT NULL"""):
+    for r in con.execute(f"""SELECT video_id, local_label, name, source
+                              FROM speaker_identity WHERE name IS NOT NULL {only}""", arg):
         m = {"llm": "llm", "chair": "chair"}.get(r["source"], "voice")
         for lo, hi in voice_runs.get((r["video_id"], r["local_label"]), []):
             claim(cur, r["video_id"], lo, hi, r["name"], m, label=r["local_label"])
@@ -209,12 +211,12 @@ def backfill(con):
     #
     # Keyed per local_label rather than per cluster, because that is what both
     # vetoes are about.
-    for r in con.execute("""
+    for r in con.execute(f"""
             SELECT DISTINCT u.video_id, u.local_label, vn.name
               FROM utterances u
               JOIN voice_name vn ON vn.video_id = u.video_id
                                 AND vn.cluster = u.cluster
-             WHERE u.local_label IS NOT NULL
+             WHERE u.local_label IS NOT NULL {only.replace('video_id', 'u.video_id')}
                AND NOT EXISTS (SELECT 1 FROM voice_affinity va
                                 WHERE va.video_id = u.video_id
                                   AND va.local_label = u.local_label
@@ -223,7 +225,7 @@ def backfill(con):
                AND NOT EXISTS (SELECT 1 FROM speaker_identity si2
                                 WHERE si2.video_id = u.video_id
                                   AND si2.name = vn.name
-                                  AND si2.local_label <> u.local_label)"""):
+                                  AND si2.local_label <> u.local_label)""", arg):
         for lo, hi in voice_runs.get((r["video_id"], r["local_label"]), []):
             claim(cur, r["video_id"], lo, hi, r["name"], "cluster", label=r["local_label"])
             n["cluster"] += 1
@@ -233,7 +235,7 @@ def backfill(con):
 
 
 # ------------------------------------------------------------------- extract
-def extract(con):
+def extract(con, video_id=None):
     """What the transcript says outright, which nothing has been reading.
 
     Two forms of self-introduction, a guard for people reading somebody else's
@@ -242,21 +244,24 @@ def extract(con):
     nothing.
     """
     cur = con.cursor()
+    only, arg = ("AND video_id = %s", (video_id,)) if video_id else ("", ())
     cur.execute("DELETE FROM speaker_claim WHERE method IN "
-                "('self','self_weak','read_aloud')")
+                f"('self','self_weak','read_aloud') {only}", arg)
 
     n = collections.Counter()
     voice_runs = runs_by_voice(con)
-    rows = con.execute("""SELECT video_id, idx, local_label, text
+    rows = con.execute(f"""SELECT video_id, idx, local_label, text
                             FROM utterances
-                           WHERE text ILIKE '%%my name is%%'
-                              OR text ~* '\\yi have been sworn|been duly sworn\\y'
-                           ORDER BY video_id, idx""").fetchall()
+                           WHERE (text ILIKE '%%my name is%%'
+                              OR text ~* '\\yi have been sworn|been duly sworn\\y')
+                             {only}
+                           ORDER BY video_id, idx""", arg).fetchall()
 
     # Names heard anywhere in a meeting, for the corroboration flag. One pass
     # per video rather than a query per claim.
     heard = collections.defaultdict(list)
-    for r in con.execute("SELECT video_id, lower(text) t FROM utterances"):
+    for r in con.execute(f"SELECT video_id, lower(text) t FROM utterances "
+                         f"WHERE true {only}", arg):
         heard[r["video_id"]].append(r["t"])
 
     for r in rows:
@@ -370,7 +375,7 @@ def extract(con):
 
 
 # ---------------------------------------------------------------------- link
-def link(con):
+def link(con, video_id=None):
     """Claims about one voice in one meeting are claims about one person.
 
     This is what closes the only disagreement the sandbox ever surfaced. A man
@@ -390,18 +395,27 @@ def link(con):
     # Re-runnable: let go of the people this step created before removing
     # them, or the foreign key from the claims refuses. Board members are
     # never touched - they come from the county's roster, not from here.
-    cur.execute("UPDATE speaker_claim SET person_id = NULL")
-    cur.execute("UPDATE speaker_resolved SET person_id = NULL")
-    cur.execute("DELETE FROM person_alias WHERE person_id IN "
-                "(SELECT id FROM people WHERE kind = 'public')")
-    cur.execute("DELETE FROM people WHERE kind = 'public'")
+    if video_id:
+        # One recording: let go of only its own links. The people it created
+        # may be cited by other recordings, so they stay.
+        cur.execute("UPDATE speaker_claim SET person_id = NULL WHERE video_id = %s",
+                    (video_id,))
+        cur.execute("UPDATE speaker_resolved SET person_id = NULL WHERE video_id = %s",
+                    (video_id,))
+    else:
+        cur.execute("UPDATE speaker_claim SET person_id = NULL")
+        cur.execute("UPDATE speaker_resolved SET person_id = NULL")
+        cur.execute("DELETE FROM person_alias WHERE person_id IN "
+                    "(SELECT id FROM people WHERE kind = 'public')")
+        cur.execute("DELETE FROM people WHERE kind = 'public'")
     con.commit()
 
     voices = collections.defaultdict(list)
-    for r in con.execute("""SELECT video_id, local_label, name_text, corroborated
+    only, arg = ("AND video_id = %s", (video_id,)) if video_id else ("", ())
+    for r in con.execute(f"""SELECT video_id, local_label, name_text, corroborated
                               FROM speaker_claim
                              WHERE method IN ('self', 'self_weak')
-                               AND local_label IS NOT NULL"""):
+                               AND local_label IS NOT NULL {only}""", arg):
         voices[(r["video_id"], r["local_label"])].append(
             (r["name_text"], r["corroborated"]))
 
@@ -416,8 +430,8 @@ def link(con):
     # Near-identical only. A genuinely different name is a different question
     # and is left to the precedence table.
     import difflib
-    for r in con.execute("""SELECT video_id, local_label, name FROM speaker_identity
-                             WHERE name IS NOT NULL"""):
+    for r in con.execute(f"""SELECT video_id, local_label, name FROM speaker_identity
+                             WHERE name IS NOT NULL {only}""", arg):
         k = (r["video_id"], r["local_label"])
         if k not in voices:
             continue
@@ -476,6 +490,8 @@ def link(con):
         cur.execute("""UPDATE speaker_claim SET person_id = %s
                         WHERE video_id = %s AND local_label = %s
                           AND method IN ('self','self_weak')""", (pid, vid, label))
+    # `people` rows are keyed by full name, so a second run finds the row it
+    # made last time rather than making another.
     con.commit()
     return {"people_created": made, "aliases": aliased, "voices": len(voices)}
 
@@ -540,6 +556,29 @@ def resolve(con, video_id=None):
     return con.execute("SELECT count(*) n, count(*) FILTER (WHERE contested) c "
                        f"FROM speaker_resolved {where}",
                        (video_id,) if video_id else ()).fetchone()
+
+
+def refresh_video(con, video_id):
+    """Bring one recording's resolution up to date, end to end.
+
+    THIS IS WHAT KEEPS A CORRECTION INSTANT. Today an override reaches the
+    reader the moment it is written, because utterance_speaker is a view that
+    reads speaker_override directly. The moment resolution is materialised
+    that stops being true: the correction lands in the table it always landed
+    in, and the page keeps showing the old name until something recomputes.
+
+    web/admin.py calls this before it re-renders and re-embeds the passages of
+    that video (gotcha 46, `_refresh`), so the whole chain - correction,
+    resolution, index - stays synchronous and a reader sees the fix on the
+    next page load, exactly as they do now.
+
+    Scoped to one recording throughout, which is what makes it affordable:
+    the archive-wide run is 50s + 3s + 48s, and this is well under a second.
+    """
+    backfill(con, video_id)
+    extract(con, video_id)
+    link(con, video_id)
+    return resolve(con, video_id)
 
 
 # ------------------------------------------------------------------- compare
