@@ -1,6 +1,7 @@
 "use client";
 
-import { SpeakerChip, speakerOf } from "@/components/SpeakerChip";
+import { SpeakerChip } from "@/components/SpeakerChip";
+import { speakerOf } from "@/lib/speaker";
 import { useDispute } from "@/components/admin/useDispute";
 import { clock } from "@/lib/format";
 import { groupTurns } from "@/lib/turns";

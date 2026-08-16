@@ -77,10 +77,16 @@
  * state on this chip is a circle and this is not a degree of confidence about
  * a voice - it is a different kind of claim entirely. */
 .glyph[data-state="read"] {
+  /* A SQUARE, and solid. It was dashed grey, which is what `unknown` is - and
+   * at 8px a dashed square and a dashed circle are the same smudge. They are
+   * opposite claims: unknown means nobody knows who spoke, read means the
+   * author is known exactly and simply was not in the room. So it keeps the
+   * accent it has earned and differs from every other state by SHAPE, which
+   * survives greyscale and small sizes where fill and dash do not. */
   border-radius: 1px;
   background: none;
-  border-style: dashed;
-  border-color: var(--ink-4);
+  border-style: solid;
+  border-color: var(--accent-line);
 }
 
 /* The BADGE beside the name, not the chip's state class. It was called

@@ -5,7 +5,8 @@ import Link from "next/link";
 
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
-import { SpeakerChip, speakerOf } from "@/components/SpeakerChip";
+import { SpeakerChip } from "@/components/SpeakerChip";
+import { speakerOf } from "@/lib/speaker";
 import { DisputePassage } from "@/components/admin/DisputePassage";
 import { usePlayer } from "@/components/player/PlayerProvider";
 import { clock, meetingDate, phaseLabel, shortBody, shortTitle } from "@/lib/format";

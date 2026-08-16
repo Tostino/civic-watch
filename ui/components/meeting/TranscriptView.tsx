@@ -5,7 +5,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ProvenanceMark } from "@/components/ProvenanceMark";
-import { SpeakerChip, speakerOf, voiceTags } from "@/components/SpeakerChip";
+import { SpeakerChip, voiceTags } from "@/components/SpeakerChip";
+import { speakerOf } from "@/lib/speaker";
 import { useDispute } from "@/components/admin/useDispute";
 import { usePlayhead } from "@/components/player/PlayerProvider";
 import { getTranscript } from "@/lib/api";

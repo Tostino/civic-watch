@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { OutcomeBadge } from "@/components/OutcomeBadge";
-import { SpeakerChip, speakerOf } from "@/components/SpeakerChip";
+import { SpeakerChip } from "@/components/SpeakerChip";
+import { speakerOf } from "@/lib/speaker";
 import { clock, duration, meetingDate, shortBody, shortTitle } from "@/lib/format";
 import type { DecidedDay, Divided, Highlights } from "@/lib/types";
 import s from "./Entryways.module.css";

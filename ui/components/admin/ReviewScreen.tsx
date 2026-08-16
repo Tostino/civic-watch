@@ -5,7 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { SpeakerChip, speakerOf } from "@/components/SpeakerChip";
+import { SpeakerChip } from "@/components/SpeakerChip";
+import { speakerOf } from "@/lib/speaker";
 import { usePlayer, usePlayhead } from "@/components/player/PlayerProvider";
 import {
   correct,

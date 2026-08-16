@@ -3,7 +3,8 @@ import Link from "next/link";
 
 import { ItemCard } from "@/components/ItemCard";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
-import { SpeakerChip, speakerOf } from "@/components/SpeakerChip";
+import { SpeakerChip } from "@/components/SpeakerChip";
+import { speakerOf } from "@/lib/speaker";
 import { DisputePassage } from "@/components/admin/DisputePassage";
 import { clock, highlight, meetingDate, phaseLabel, shortBody } from "@/lib/format";
 import type { RecordHit, TranscriptHit } from "@/lib/types";
