@@ -4,7 +4,6 @@ import Link from "next/link";
 import { ItemCard } from "@/components/ItemCard";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
 import { SpeakerChip } from "@/components/SpeakerChip";
-import { speakerOf } from "@/lib/speaker";
 import { DisputePassage } from "@/components/admin/DisputePassage";
 import { clock, highlight, meetingDate, phaseLabel, shortBody } from "@/lib/format";
 import type { RecordHit, TranscriptHit } from "@/lib/types";
@@ -164,7 +163,7 @@ export function TranscriptHits({
                     screen and none in the text, so an inline name copied and
                     pasted as "MARIANOI object" — and read aloud that way. */}
                 <span className={s.who}>
-                  <SpeakerChip {...speakerOf(h)} size="sm" />
+                  <SpeakerChip who={h.who} size="sm" />
                 </span>
                 {/* R5.8.3 from the other end: an error is often noticed in a
                     LIST, not while reading one meeting. Readers see nothing. */}

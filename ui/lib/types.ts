@@ -136,6 +136,29 @@ export interface MeetingDetail {
  * resolver is switched on, and because `override` and `human` remain exactly
  * what they were.
  */
+/**
+ * WHO SAID THIS. One object, sent by every surface that names a speaker, built
+ * once by web/archive.py's `who()`. Three shapes used to spell these four
+ * facts three ways and the UI had to know which; guessing wrong read as "no
+ * name" rather than raising.
+ *
+ * `(exchange)` never appears here. The API cannot emit it: a passage spanning
+ * several people arrives as `several: true` with no name, which is what
+ * R6.2.1 has always required and what two separate files used to enforce by
+ * hand.
+ */
+export interface Speaker {
+  /** The KEY, and what a correction is written against. A board member's surname. */
+  name: string | null;
+  /** What to print. Falls back to the key. */
+  display_name: string | null;
+  basis: SpeakerBasis;
+  human: boolean;
+  contested: boolean;
+  /** More than one person speaks here. `name` is null when this is true. */
+  several: boolean;
+}
+
 export type SpeakerBasis =
   | "override" | "human" | "label"
   | "self" | "self_weak" | "rollcall" | "chair" | "llm"
@@ -169,6 +192,8 @@ export interface Line {
    * render through SpeakerChip, which prefers this and falls back to `name`.
    */
   display_name: string | null;
+  /** The same facts as the loose fields above, in the shape SpeakerChip takes. */
+  who: Speaker;
   confidence: number | null;
   /** A person stated this. Outranks everything derived (R5.8.7). */
   human: boolean;
@@ -405,6 +430,7 @@ export interface DividedInRoom extends DividedBase {
   /** How the name was established — one utterance, so no reduction. See Line. */
   human: boolean;
   basis: SpeakerBasis;
+  who: Speaker;
   quote: string;
   video_id: string;
   seconds: number;
@@ -555,6 +581,8 @@ export interface TranscriptHit {
    */
   name_human: boolean | null;
   name_basis: SpeakerBasis;
+  /** The rendering shape. `speaker` above stays the facet key. */
+  who: Speaker;
   text: string;
   phase: string | null;
   agenda_item_id: number | null;

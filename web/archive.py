@@ -217,6 +217,43 @@ NAY_NAMES = re.compile(
     r"([A-Z][A-Za-z'\-]+)(?=(?:[,\s]+(?:and\s+)?(?:Chair|Vice|Commissioner|Mr\.|Ms\.|Mrs\.)"
     r"\s+[A-Z][A-Za-z'\-]+)*\s+vot(?:ing|ed)\s+nay)")
 
+# ------------------------------------------------------- who said this, once
+#
+# THE ONE SHAPE. Every surface that names a speaker sends this object and
+# nothing else, because three of them grew their own spelling of the same four
+# facts and the UI had to know which was which:
+#
+#     a transcript line   name     display_name     human       basis
+#     a search hit        speaker  speaker_display  name_human  name_basis
+#     a divided-room row  speaker  speaker_display  human       basis
+#
+# Guessing wrong did not raise; it read as "no name". So the shape is built
+# here, once, and `ui/lib/types.ts` names it `Speaker`.
+#
+# `(exchange)` NEVER CROSSES THIS BOUNDARY. It is a value `passages.speaker`
+# carries for a passage spanning several people, it is an internal token, and
+# R6.2.1 says no reader may ever see it. It used to be filtered in the browser
+# - in two different files, which is one more than a rule like that may live
+# in. An API that cannot emit it is a stronger guarantee than a UI that
+# remembers to strip it.
+EXCHANGE = "(exchange)"
+
+
+def who(name=None, display=None, basis=None, human=False, contested=False):
+    """Who said this, in the only shape the UI accepts. R6.2."""
+    several = name == EXCHANGE
+    return {
+        "name": None if several else name,
+        # Falls back to the key, so a caller that has no display name degrades
+        # to the surname rather than to nothing.
+        "display_name": None if several else (display or name),
+        "basis": basis,
+        "human": bool(human),
+        "contested": bool(contested),
+        "several": several,
+    }
+
+
 # Division in the room, in descending order of how little it asks you to
 # believe. Rank 1 is a VOTE - the chair announcing a split tally, or a motion
 # that died - which is a fact about the meeting, not a reading of anyone's
@@ -312,7 +349,11 @@ def _divided_room(con, limit, seen=()):
     slots a side, spending one on a matter the page has already made is a poor
     trade against the ones only the recording knows about.
     """
-    hits = {r["id"]: dict(r) for r in con.execute(ROOM_SQL, ROOM_ARGS)}
+    hits = {}
+    for r in con.execute(ROOM_SQL, ROOM_ARGS):
+        d = dict(r)
+        d["who"] = who(d["speaker"], d["speaker_display"], d["basis"], d["human"])
+        hits[d["id"]] = d
     for dup in seen:
         hits.pop(dup, None)
     if not hits:
@@ -886,7 +927,12 @@ def transcript(con, video_id):
         "FROM videos WHERE id = %s", (video_id,)).fetchone()
     if not v:
         return None
-    lines = [dict(r) for r in con.execute(LINES, (video_id, 0, 2 ** 31 - 1))]
+    lines = []
+    for r in con.execute(LINES, (video_id, 0, 2 ** 31 - 1)):
+        d = dict(r)
+        d["who"] = who(d["name"], d["display_name"], d["basis"], d["human"],
+                       d["contested"])
+        lines.append(d)
     return {"video": dict(v), "lines": lines,
             "offices": _offices(con, v["meeting_id"])}
 

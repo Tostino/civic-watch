@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { SpeakerChip } from "@/components/SpeakerChip";
-import { speakerOf } from "@/lib/speaker";
 import { clock, duration, meetingDate, shortBody, shortTitle } from "@/lib/format";
 import type { DecidedDay, Divided, Highlights } from "@/lib/types";
 import s from "./Entryways.module.css";
@@ -145,7 +144,7 @@ function DividedSection({ d }: { d: Divided }) {
                           this is the claim a person is least willing to have
                           wrong about them (R2.3, R6.2). */}
                       <span className={s.who}>
-                        <SpeakerChip {...speakerOf(r)} size="sm" />
+                        <SpeakerChip who={r.who} size="sm" />
                       </span>
                       <q>{r.quote}</q>
                     </span>

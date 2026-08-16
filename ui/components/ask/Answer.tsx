@@ -6,7 +6,6 @@ import Link from "next/link";
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
 import { SpeakerChip } from "@/components/SpeakerChip";
-import { speakerOf } from "@/lib/speaker";
 import { DisputePassage } from "@/components/admin/DisputePassage";
 import { usePlayer } from "@/components/player/PlayerProvider";
 import { clock, meetingDate, phaseLabel, shortBody, shortTitle } from "@/lib/format";
@@ -320,7 +319,7 @@ function Quote({ hit }: { hit: TranscriptHit }) {
             those by name. So the prose and the evidence agree about how much
             the archive knows, which they did not when this was a string. */}
         <span className={s.who}>
-          <SpeakerChip {...speakerOf(hit)} size="sm" />
+          <SpeakerChip who={hit.who} size="sm" />
         </span>
         {/* A cited name is the one a reader is most likely to check, and the
             most costly to have wrong. Readers see nothing (R9.1). */}

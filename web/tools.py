@@ -238,6 +238,12 @@ def speaker_sure(con, rows):
         got = sure.get((r["video_id"], r["start_idx"], r["end_idx"])) or {}
         r["name_human"] = got.get("name_human")
         r["name_basis"] = got.get("name_basis")
+    # The one shape (archive.who). A hit's own `speaker` stays exactly as it
+    # is - it is the facet key and every saved citation is written against it -
+    # and `who` is what gets rendered.
+    for r in rows:
+        r["who"] = archive.who(r.get("speaker"), r.get("speaker_display"),
+                               r.get("name_basis"), r.get("name_human"))
     return rows
 
 

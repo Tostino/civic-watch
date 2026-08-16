@@ -6,7 +6,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { SpeakerChip } from "@/components/SpeakerChip";
-import { speakerOf } from "@/lib/speaker";
 import { usePlayer, usePlayhead } from "@/components/player/PlayerProvider";
 import {
   correct,
@@ -428,7 +427,7 @@ export function ReviewScreen({
                       </button>
                       <span className={s.meta}>
                         <SpeakerChip
-                          {...speakerOf(l)}
+                          who={l.who}
                           size="sm"
                         />
                         {/* A curation surface shows the diarization id AS an

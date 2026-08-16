@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ProvenanceMark } from "@/components/ProvenanceMark";
 import { SpeakerChip, voiceTags } from "@/components/SpeakerChip";
-import { speakerOf } from "@/lib/speaker";
 import { useDispute } from "@/components/admin/useDispute";
 import { usePlayhead } from "@/components/player/PlayerProvider";
 import { getTranscript } from "@/lib/api";
@@ -473,7 +472,7 @@ function Turn({
     <div className={s.turn}>
       <div className={s.who}>
         <SpeakerChip
-          {...speakerOf(first)}
+          who={first.who}
           office={office ?? null}
           voiceTag={first.voice != null ? (tags.get(first.voice) ?? null) : null}
           size="sm"

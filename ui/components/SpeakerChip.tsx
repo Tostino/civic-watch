@@ -1,7 +1,7 @@
 "use client";
 
 import { officeLabel } from "@/lib/format";
-import type { DividedInRoom, Line, Office, SpeakerBasis, TranscriptHit } from "@/lib/types";
+import type { Line, Office, Speaker } from "@/lib/types";
 import s from "./SpeakerChip.module.css";
 
 /**
@@ -35,29 +35,19 @@ const STATE_CLASS: Record<SpeakerState, string> = {
 
 export interface SpeakerChipProps {
   /**
-   * The resolved name, and the KEY the archive is addressed by: a board
-   * member's surname. Kept as the prop of record because a dispute, a filter
-   * and an override are all written against it.
+   * WHO SAID THIS, as one object rather than four loose props.
+   *
+   * It was four - name, displayName, human, basis - and every call site
+   * assembled them by hand from whichever of three field-namings its source
+   * happened to use. A wrong guess rendered as "no name" instead of failing.
+   * One object means the illegal state cannot be spelled: a caller passes what
+   * the API sent, or it does not compile.
    */
-  name: string | null;
-  /**
-   * What to show, when the API knows a fuller form — "Kathryn Starkey" for
-   * `name` of "Starkey". Optional: a surface that has not been taught to send
-   * it degrades to the surname rather than to nothing.
-   */
-  displayName?: string | null;
-  /** True when a human stated this name. Outranks everything derived (R5.8.7). */
-  human?: boolean;
-  /** How the name was established. See SpeakerBasis. */
-  basis?: SpeakerBasis;
+  who: Speaker;
   /** The office held AT THIS MEETING, if the published roster records one. */
   office?: Office | null;
   /** Page-local letter for an unnamed voice. Never a cluster id (R6.2.1). */
   voiceTag?: string | null;
-  /** A correction is pending: show it as contested, take no side (R5.8.10). */
-  contested?: boolean;
-  /** More than one person speaks in this block (an exchange passage). */
-  several?: boolean;
   size?: "sm" | "md";
   /** Slice 6 (D8) passes a handler; the affordance appears then, here (R6.2.2). */
   onDispute?: () => void;
@@ -89,17 +79,13 @@ export interface SpeakerChipProps {
  * project cannot currently support.
  */
 export function SpeakerChip({
-  name,
-  displayName = null,
-  human = false,
-  basis = null,
+  who,
   office = null,
   voiceTag = null,
-  contested = false,
-  several = false,
   size = "md",
   onDispute,
 }: SpeakerChipProps) {
+  const { name, display_name: displayName, human, basis, contested, several } = who;
   const role = office ? officeLabel(office.office) : null;
   /* Rule 3 in practice. `name` decides WHETHER there is a name and is what
    * everything downstream is addressed by; `shown` is the only thing that ever

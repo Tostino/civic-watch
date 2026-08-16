@@ -1,7 +1,6 @@
 "use client";
 
 import { SpeakerChip } from "@/components/SpeakerChip";
-import { speakerOf } from "@/lib/speaker";
 import { useDispute } from "@/components/admin/useDispute";
 import { clock } from "@/lib/format";
 import { groupTurns } from "@/lib/turns";
@@ -98,7 +97,7 @@ function Turn({
     <div className={s.turn}>
       <div className={s.who}>
         <SpeakerChip
-          {...speakerOf(first)}
+          who={first.who}
           office={office ?? null}
           voiceTag={first.voice != null ? (tags.get(first.voice) ?? null) : null}
           size="sm"
