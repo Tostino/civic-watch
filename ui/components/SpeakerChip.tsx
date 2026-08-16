@@ -1,7 +1,7 @@
 "use client";
 
 import { officeLabel } from "@/lib/format";
-import type { Line, Office } from "@/lib/types";
+import type { Line, Office, SpeakerBasis } from "@/lib/types";
 import s from "./SpeakerChip.module.css";
 
 export interface SpeakerChipProps {
@@ -19,8 +19,8 @@ export interface SpeakerChipProps {
   displayName?: string | null;
   /** True when a human stated this name. Outranks everything derived (R5.8.7). */
   human?: boolean;
-  /** How the name was established. See Line.basis. */
-  basis?: "override" | "human" | "voice" | "cluster" | null;
+  /** How the name was established. See SpeakerBasis. */
+  basis?: SpeakerBasis;
   /** The office held AT THIS MEETING, if the published roster records one. */
   office?: Office | null;
   /** Page-local letter for an unnamed voice. Never a cluster id (R6.2.1). */
@@ -83,15 +83,36 @@ export function SpeakerChip({
    * evidence about this meeting. Collapsing the two is what let one cluster be
    * shown as Starkey in 36 meetings and Yeager in 10 without anything saying
    * so. */
+  /* `basis` carries the resolver's METHOD now, which is more than the four
+   * values this switch was written for, and two of them are not shades of
+   * "inferred" at all.
+   *
+   * READ ALOUD is a different KIND of claim. A staffer reads a resident's
+   * letter into the record: the voice is hers, the words are his, and he was
+   * never in the room. Drawn as an inference it would tell a reader he spoke
+   * at the meeting. It is its own state because it is its own fact.
+   *
+   * STATED is the speaker naming themselves - "my name is ..." - which is
+   * stronger than a voice model's guess and weaker than a person on this
+   * archive checking it. It sat under `inferred` and was indistinguishable
+   * from the machine having a hunch.
+   *
+   * `self_weak` joins `cluster` at WEAK: a self-introduction the archive
+   * cannot attribute to this voice is evidence about a name and not about who
+   * said it. */
   const state = several
     ? "several"
     : !name
       ? "unknown"
       : human
         ? "confirmed"
-        : basis === "cluster"
-          ? "weak"
-          : "inferred";
+        : basis === "read_aloud"
+          ? "read"
+          : basis === "self"
+            ? "stated"
+            : basis === "cluster" || basis === "self_weak"
+              ? "weak"
+              : "inferred";
 
   const body = (
     <>
@@ -99,6 +120,11 @@ export function SpeakerChip({
       <span className={s.name}>
         {several ? "Several speakers" : (shown ?? "Unidentified speaker")}
       </span>
+      {state === "read" ? (
+        <span className={s.read} title="Their written words, read aloud by somebody else at the meeting">
+          read aloud
+        </span>
+      ) : null}
       {role ? <span className={s.role}>{role}</span> : null}
       {!name && !several && voiceTag ? (
         <span className={s.voice} title="A distinct voice in this meeting that has not been identified">
@@ -116,11 +142,15 @@ export function SpeakerChip({
   const label =
     state === "confirmed"
       ? `${shown} — ${basis === "override" ? "corrected by a person for this passage" : "confirmed by a person"}`
-      : state === "inferred"
-        ? `${shown} — matched by voice at this meeting. Inferred, and it can be wrong.`
-        : state === "weak"
-          ? `${shown} — the name this voice goes by across the archive, not evidence about this meeting. It is the most likely to be wrong.`
-          : undefined;
+      : state === "read"
+        ? `${shown} — their letter, read aloud by somebody else. These are their written words; they did not speak at this meeting.`
+        : state === "stated"
+          ? `${shown} — they gave this name themselves at the meeting.`
+          : state === "inferred"
+            ? `${shown} — matched by voice at this meeting. Inferred, and it can be wrong.`
+            : state === "weak"
+              ? `${shown} — the name this voice goes by across the archive, not evidence about this meeting. It is the most likely to be wrong.`
+              : undefined;
 
   const className = `${s.chip} ${s[state]} ${size === "sm" ? s.sm : ""} ${contested ? s.isContested : ""}`;
 

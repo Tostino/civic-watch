@@ -749,6 +749,58 @@ LANGUAGE sql STABLE AS $$
      LIMIT 1;
 $$;
 
+-- The resolver, wearing utterance_speaker's clothes.
+--
+-- Named _next and NOT swapped in: the cutover is `ALTER VIEW ... RENAME`, one
+-- statement, once everything in SPEAKER_PLAN.md section 4a has been shown. Until
+-- then every reader still reads the old view and this exists to be diffed
+-- against it.
+--
+-- IT KEEPS THE CONTRACT. Same columns, same meanings, so the twelve files that
+-- read only the view do not change and neither does bin/index_passages, which
+-- builds passages.speaker and the embedded text from exactly these columns.
+--
+--   name          THE KEY, and it must not change form or the `speaker` facet
+--                 and every stored citation stop matching. A board member is
+--                 keyed by surname; everybody else by the name they gave.
+--   basis         now the METHOD, which is strictly more informative than the
+--                 four values it carried. ui/components/SpeakerChip.tsx maps
+--                 method to how sure the page looks, in one place, as it does
+--                 today.
+--   confidence    NULL, always. Three producers wrote three incomparable
+--                 scales into one column (0.5 self-ID, 0.88 chair, 0.95 LLM)
+--                 and R5.5.6 forbids showing a number anyway. The column
+--                 survives so nothing breaks reading it; it no longer claims
+--                 anything.
+--   contested     two unvetoed methods asserting different names for one span,
+--                 OR a correction pending - which is all it used to mean.
+CREATE OR REPLACE VIEW utterance_speaker_next AS
+SELECT u.video_id,
+       u.idx,
+       u.local_label,
+       u.cluster,
+       -- The key keeps its form: surname for a board member, because that is
+       -- what the roster, the facet and every filter are written against.
+       COALESCE(pe.surname, sr.name_text) AS name,
+       sr.method AS basis,
+       -- COALESCE, because the old view's `human` is never NULL and 63,559
+       -- utterances resolve to no name at all. Without it every unnamed line
+       -- returns NULL where it used to return false, and `WHERE NOT human`
+       -- silently stops matching them.
+       COALESCE(sr.method IN ('override', 'label'), false) AS human,
+       NULL::double precision AS confidence,
+       (COALESCE(sr.contested, false) OR EXISTS (
+            SELECT 1 FROM speaker_override p
+             WHERE p.video_id = u.video_id AND p.status = 'pending'
+               AND u.idx BETWEEN p.start_idx AND p.end_idx)) AS contested,
+       -- Resolved through the person where there is one, so a display name is
+       -- corrected in a single row rather than per utterance.
+       COALESCE(pe.full_name, display_name(sr.name_text)) AS display_name
+  FROM utterances u
+  LEFT JOIN speaker_resolved sr
+         ON sr.video_id = u.video_id AND sr.idx = u.idx
+  LEFT JOIN people pe ON pe.id = sr.person_id;
+
 -- ------------------------------------------------------------- redaction
 --
 -- The home address of a member of the public, spoken at the podium.

@@ -65,6 +65,31 @@
   border-color: var(--accent-line);
 }
 
+/* They gave the name themselves. Better evidence than a voice match and not a
+ * person on this archive having checked it, so: solid like `confirmed`, in the
+ * accent rather than the ok colour, and a size down. */
+.glyph[data-state="stated"] {
+  background: var(--accent-line);
+  border-color: var(--accent-line);
+}
+
+/* Somebody else's words, read into the record. A square, because every other
+ * state on this chip is a circle and this is not a degree of confidence about
+ * a voice - it is a different kind of claim entirely. */
+.glyph[data-state="read"] {
+  border-radius: 1px;
+  background: none;
+  border-style: dashed;
+  border-color: var(--ink-4);
+}
+
+.read {
+  font-size: 0.8em;
+  color: var(--ink-4);
+  white-space: nowrap;
+  cursor: help;
+}
+
 /* Only the archive-wide majority for this voice says so - no evidence about
  * this meeting at all. Dotted, because it is the weakest claim on the page and
  * the one that put two different women under a single name. */

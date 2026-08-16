@@ -517,13 +517,29 @@ SELECT u.video_id, u.idx, w.name_text, w.person_id, w.method, w.contested
        LIMIT 1) w ON TRUE"""
 
 
-def resolve(con):
+def resolve(con, video_id=None):
+    """Materialise the resolution, for one meeting or for all of them.
+
+    ONE MEETING IS THE IMPORTANT CASE, and it is what keeps a correction
+    instant. Today an override reaches the reader the moment it is written,
+    because utterance_speaker is a view; the moment it becomes a table, a
+    correction does nothing until something recomputes it. web/admin.py's
+    `_refresh` re-renders and re-embeds the passages of one video after every
+    correction (gotcha 46), and this is the step that has to run first - it
+    is the same shape and the same scope.
+    """
     cur = con.cursor()
-    cur.execute("DELETE FROM speaker_resolved")
-    cur.execute(RESOLVE)
+    if video_id:
+        cur.execute("DELETE FROM speaker_resolved WHERE video_id = %s", (video_id,))
+        cur.execute(RESOLVE + " WHERE u.video_id = %s", (video_id,))
+    else:
+        cur.execute("DELETE FROM speaker_resolved")
+        cur.execute(RESOLVE)
     con.commit()
+    where = "WHERE video_id = %s" if video_id else ""
     return con.execute("SELECT count(*) n, count(*) FILTER (WHERE contested) c "
-                       "FROM speaker_resolved").fetchone()
+                       f"FROM speaker_resolved {where}",
+                       (video_id,) if video_id else ()).fetchone()
 
 
 # ------------------------------------------------------------------- compare
@@ -589,6 +605,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     for f in ("backfill", "extract", "link", "resolve", "compare", "all"):
         ap.add_argument(f"--{f}", action="store_true")
+    ap.add_argument("--video", help="resolve one recording rather than all")
     args = ap.parse_args()
     con = db.connect()
 
@@ -599,7 +616,7 @@ def main():
     if args.link or args.all:
         print("link:    ", link(con))
     if args.resolve or args.all:
-        r = resolve(con)
+        r = resolve(con, args.video)
         print(f"resolve:  {r['n']:,} utterances, {r['c']:,} contested")
     if args.compare or args.all:
         compare(con)

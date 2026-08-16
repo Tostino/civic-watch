@@ -126,6 +126,23 @@ export interface MeetingDetail {
 }
 
 /**
+ * How a name was arrived at. These were four values and are now the resolver's
+ * METHOD (SPEAKER_PLAN.md §2.2), which says strictly more: `self` is the
+ * speaker naming themselves, `chair` is somebody else naming them in the room,
+ * `read_aloud` means the words belong to a person who was never there.
+ * SpeakerChip maps these to how sure the page looks, in one place.
+ *
+ * The four old values are kept because the archive still serves them until the
+ * resolver is switched on, and because `override` and `human` remain exactly
+ * what they were.
+ */
+export type SpeakerBasis =
+  | "override" | "human" | "label"
+  | "self" | "self_weak" | "rollcall" | "chair" | "llm"
+  | "voice" | "cluster" | "read_aloud"
+  | null;
+
+/**
  * One line of transcript. Speaker identity arrives as FIELDS, never as a
  * rendered string, so exactly one component decides how to show it (R6.2.1)
  * and a future redaction rule has one place to act (D3).
@@ -164,7 +181,7 @@ export interface Line {
    *   cluster   the pipeline, about this voice archive-wide — the weakest,
    *             and the one that put two different women under one name
    */
-  basis: "override" | "human" | "voice" | "cluster" | null;
+  basis: SpeakerBasis;
   /** A correction is pending. Show it as disputed, take no side (R5.8.10). */
   contested: boolean;
   agenda_item_id: number | null;
@@ -387,7 +404,7 @@ export interface DividedInRoom extends DividedBase {
   speaker_display: string;
   /** How the name was established — one utterance, so no reduction. See Line. */
   human: boolean;
-  basis: Line["basis"];
+  basis: SpeakerBasis;
   quote: string;
   video_id: string;
   seconds: number;
@@ -537,7 +554,7 @@ export interface TranscriptHit {
    * row that predates the field. Render through SpeakerChip, never by hand.
    */
   name_human: boolean | null;
-  name_basis: Line["basis"];
+  name_basis: SpeakerBasis;
   text: string;
   phase: string | null;
   agenda_item_id: number | null;
