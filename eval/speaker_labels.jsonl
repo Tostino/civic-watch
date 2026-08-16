@@ -1,0 +1,8 @@
+{"video_id":"840x-PTQXfc","idx":936,"archive":"Developer","stated":"Chris Shear","verdict":"stated","note":"self-ID outranks a role label; he is a sworn resident, not the developer"}
+{"video_id":"7JoTcPDUEp4","idx":244,"archive":"Janine Duffy","stated":"Janine Domrowski","verdict":"same_person_asr","note":"one person, two ASR renderings - a normalisation problem, not precedence"}
+{"video_id":"-KgNtnLj7yg","idx":466,"archive":null,"stated":"Corey Ward","verdict":"read_aloud","note":"staffer reading his letter: attribute THE READ SPAN to Corey Ward, the rest of her speech stays hers"}
+{"video_id":"-KgNtnLj7yg","idx":539,"archive":"Danielle Hardage","stated":"Danielle Hardage","verdict":"unknown","note":"context too thin to judge; give fuller context for isolated cases"}
+{"video_id":"8DiJNIMHsik","idx":530,"archive":"Kathy Shram","verdict":"needs_audio","note":"is SPEAKER_00 at 525-528 the same person? cannot be judged from text"}
+{"video_id":"61kWUVickEs","idx":640,"archive":"David Engel","basis":"cluster","verdict":"correct","note":"cluster basis right, and the room names him - corroboration should PROMOTE a cluster claim"}
+{"video_id":"61kWUVickEs","idx":644,"archive":"What","stated":"Shelley Johnson","verdict":"extend_selfid","note":"<Name>, <address>, sworn is as good as 'my name is' - 581 utterances SELF_ID ignores"}
+{"video_id":"-KgNtnLj7yg","idx":466,"verdict":"read_aloud_render","note":"show the AUTHOR marked as read aloud - two facts: whose words, and that they were not in the room"}

@@ -2440,6 +2440,22 @@ than teaching yourself to read the secret.
       a reason that is measured rather than inferred: it cannot reach the
       class that is actually failing, by design.**
 
+102. **Three things the speaker work left open, and where they went.** Recorded
+    here because `HANDOFF.md` carried them and `HANDOFF.md` is temporary.
+
+    - `_said()`'s continuation marker prints an unconfirmed name a second
+      time without the ⚠ its head line carries. One line in `_said()`; not
+      done mid-baseline, still not done.
+    - `RESEARCH` has no rule telling the researcher that a named companion
+      ordinance, case or code section is a thing to go and look up. That is
+      why the backyard-chickens answer describes rules from a staff summary
+      and reaches [item:21923] in only one run of three.
+    - `calibrate()` gates a whole eval run's judged checks on ONE sample per
+      fixture, from a model that is not deterministic. evalD lost its judge to
+      a single miss; probed straight afterwards the same judge passed that
+      fixture 3 times out of 3. Best-of-three would cost almost nothing.
+
+
 ## Postgres, and what to watch out for
 
 Migrated off SQLite in one cutover. `bin/migrate_to_pg.py` did it, verifying
