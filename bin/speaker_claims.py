@@ -115,12 +115,13 @@ def _norm(s):
     return " ".join((s or "").split()).strip().lower()
 
 
-def claim(cur, video_id, lo, hi, name, method, quote=None, corroborated=False):
+def claim(cur, video_id, lo, hi, name, method, quote=None, corroborated=False,
+          label=None):
     cur.execute("""INSERT INTO speaker_claim
-                     (video_id, start_idx, end_idx, name_text, method, quote,
-                      corroborated)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-                (video_id, lo, hi, name, method, quote, corroborated))
+                     (video_id, start_idx, end_idx, local_label, name_text,
+                      method, quote, corroborated)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                (video_id, lo, hi, label, name, method, quote, corroborated))
 
 
 # ------------------------------------------------------------------ backfill
@@ -149,7 +150,7 @@ def backfill(con):
     voice_runs, cluster_runs = runs_by_voice(con), runs_by_cluster(con)
     for r in con.execute("SELECT video_id, local_label, name FROM speaker_label"):
         for lo, hi in voice_runs.get((r["video_id"], r["local_label"]), []):
-            claim(cur, r["video_id"], lo, hi, r["name"], "label")
+            claim(cur, r["video_id"], lo, hi, r["name"], "label", label=r["local_label"])
             n["label"] += 1
 
     # The pipeline, about this voice in this meeting. `source` says which of
@@ -160,7 +161,7 @@ def backfill(con):
                               FROM speaker_identity WHERE name IS NOT NULL"""):
         m = {"llm": "llm", "chair": "chair"}.get(r["source"], "voice")
         for lo, hi in voice_runs.get((r["video_id"], r["local_label"]), []):
-            claim(cur, r["video_id"], lo, hi, r["name"], m)
+            claim(cur, r["video_id"], lo, hi, r["name"], m, label=r["local_label"])
             n[m] += 1
 
     # The archive-wide cluster majority: the weakest thing here, the largest
@@ -198,7 +199,7 @@ def backfill(con):
                                   AND si2.name = vn.name
                                   AND si2.local_label <> u.local_label)"""):
         for lo, hi in voice_runs.get((r["video_id"], r["local_label"]), []):
-            claim(cur, r["video_id"], lo, hi, r["name"], "cluster")
+            claim(cur, r["video_id"], lo, hi, r["name"], "cluster", label=r["local_label"])
             n["cluster"] += 1
 
     con.commit()
@@ -271,7 +272,8 @@ def extract(con):
         # the meeting.
         span = next((s for s in voice_runs.get((r["video_id"], r["local_label"]), [])
                      if s[0] <= r["idx"] <= s[1]), (r["idx"], r["idx"]))
-        claim(cur, r["video_id"], span[0], span[1], name, method, quote, corrob)
+        claim(cur, r["video_id"], span[0], span[1], name, method, quote, corrob,
+              label=r["local_label"])
         n[method] += 1
         n["corroborated"] += bool(corrob)
 
@@ -279,20 +281,110 @@ def extract(con):
     return n
 
 
+# ---------------------------------------------------------------------- link
+def link(con):
+    """Claims about one voice in one meeting are claims about one person.
+
+    This is what closes the only disagreement the sandbox ever surfaced. A man
+    introduces himself at utterance 382 and again at 384 - same SPEAKER_11,
+    same cluster, two utterances apart - and ASR writes "Jeffrey Montcallian"
+    then "Jeffrey Moncani". They are not two people and it takes no fuzzy
+    matching to know that: they are the same voice in the same room a few
+    seconds apart.
+
+    So the renderings become aliases of one person, and the display name is
+    CHOSEN once rather than fought over per utterance: corroborated first -
+    a name the room said back is better evidence than one only ASR heard -
+    then the most frequent, then the longest, which is the tie-break that
+    survives "Tom" against "Tom Bogolino".
+    """
+    cur = con.cursor()
+    # Re-runnable: let go of the people this step created before removing
+    # them, or the foreign key from the claims refuses. Board members are
+    # never touched - they come from the county's roster, not from here.
+    cur.execute("UPDATE speaker_claim SET person_id = NULL")
+    cur.execute("UPDATE speaker_resolved SET person_id = NULL")
+    cur.execute("DELETE FROM person_alias WHERE person_id IN "
+                "(SELECT id FROM people WHERE kind = 'public')")
+    cur.execute("DELETE FROM people WHERE kind = 'public'")
+    con.commit()
+
+    voices = collections.defaultdict(list)
+    for r in con.execute("""SELECT video_id, local_label, name_text, corroborated
+                              FROM speaker_claim
+                             WHERE method IN ('self', 'self_weak')
+                               AND local_label IS NOT NULL"""):
+        voices[(r["video_id"], r["local_label"])].append(
+            (r["name_text"], r["corroborated"]))
+
+    made = aliased = 0
+    for (vid, label), names in voices.items():
+        seen = collections.Counter(n for n, _ in names)
+        corrob = {n for n, c in names if c}
+        best = sorted(seen, key=lambda n: (n in corrob, seen[n], len(n)),
+                      reverse=True)[0]
+        # NEVER match on a surname alone. This linked "Sean Poole", the
+        # managing director of a camera vendor, onto Christopher B. Poole, a
+        # county commissioner, because both end in Poole - the very defect the
+        # maintainer objected to, reintroduced here by hand and caught by the
+        # shadow diff eight minutes later.
+        #
+        # A full name matches a full name. A bare surname - which is how the
+        # roster stores board members - matches a surname only when the claim
+        # is itself a single token, which a self-introduction almost never is.
+        if len(best.split()) > 1:
+            row = con.execute("SELECT id FROM people WHERE lower(full_name) = lower(%s)",
+                              (best,)).fetchone()
+        else:
+            row = con.execute("SELECT id FROM people WHERE lower(surname) = lower(%s)",
+                              (best,)).fetchone()
+        if row:
+            pid = row["id"]
+        else:
+            # surname is NULL for a member of the public, and that is section
+            # 2.7 in practice rather than in principle: `people` is
+            # UNIQUE (surname), so storing "Poole" for Sean Poole is refused
+            # outright because a commissioner named Christopher B. Poole
+            # already owns it. A surname is the roster's key for board
+            # members and nothing else's; a resident is keyed by id and
+            # displayed by full name. Postgres lets any number of rows share
+            # a NULL, so the constraint keeps protecting the roster and stops
+            # obstructing everybody else.
+            pid = cur.execute("INSERT INTO people (surname, full_name, kind) "
+                              "VALUES (NULL, %s, 'public') RETURNING id",
+                              (best,)).fetchone()["id"]
+            made += 1
+        for n in seen:
+            cur.execute("INSERT INTO person_alias (alias, person_id) VALUES (%s, %s) "
+                        "ON CONFLICT (alias) DO NOTHING", (n, pid))
+            aliased += 1
+        cur.execute("""UPDATE speaker_claim SET person_id = %s
+                        WHERE video_id = %s AND local_label = %s
+                          AND method IN ('self','self_weak')""", (pid, vid, label))
+    con.commit()
+    return {"people_created": made, "aliases": aliased, "voices": len(voices)}
+
+
 # ------------------------------------------------------------------- resolve
 # rank, then corroboration promoting the two unquoted methods, then span
 # specificity (narrower is more specific), then recency. Written once, here.
 RESOLVE = """
-INSERT INTO speaker_resolved (video_id, idx, name_text, method, contested)
-SELECT u.video_id, u.idx, w.name_text, w.method, w.contested
+INSERT INTO speaker_resolved (video_id, idx, name_text, person_id, method, contested)
+SELECT u.video_id, u.idx, w.name_text, w.person_id, w.method, w.contested
   FROM utterances u
   JOIN LATERAL (
-      SELECT c.name_text, c.method,
+      -- The PERSON'S chosen display name wins over the string this particular
+      -- claim happened to carry. That is the whole point of linking: the man
+      -- who says his own name twice, ASR rendering it two ways, resolves to
+      -- one name everywhere instead of to whichever rendering owned that span.
+      SELECT COALESCE(pe.full_name, c.name_text) AS name_text, c.person_id,
+             c.method,
              -- two unvetoed methods asserting different names for one span:
              -- a fact the pipeline already computes and prints away
              (COUNT(DISTINCT lower(c2.name_text)) > 1) AS contested
         FROM speaker_claim c
         JOIN speaker_method m ON m.method = c.method
+        LEFT JOIN people pe ON pe.id = c.person_id
         LEFT JOIN speaker_claim c2
                ON c2.video_id = c.video_id
               AND u.idx BETWEEN c2.start_idx AND c2.end_idx
@@ -301,8 +393,8 @@ SELECT u.video_id, u.idx, w.name_text, w.method, w.contested
          AND u.idx BETWEEN c.start_idx AND c.end_idx
          AND c.name_text IS NOT NULL
          AND name_supported(c.video_id, c.name_text)
-       GROUP BY c.id, c.name_text, c.method, m.rank, c.corroborated,
-                c.start_idx, c.end_idx
+       GROUP BY c.id, c.name_text, pe.full_name, c.person_id, c.method,
+                m.rank, c.corroborated, c.start_idx, c.end_idx
        ORDER BY m.rank - CASE WHEN c.corroborated AND m.rank >= 7
                               THEN 1 ELSE 0 END,
                 c.end_idx - c.start_idx,
@@ -380,7 +472,7 @@ def compare(con):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    for f in ("backfill", "extract", "resolve", "compare", "all"):
+    for f in ("backfill", "extract", "link", "resolve", "compare", "all"):
         ap.add_argument(f"--{f}", action="store_true")
     args = ap.parse_args()
     con = db.connect()
@@ -389,6 +481,8 @@ def main():
         print("backfill:", dict(backfill(con)))
     if args.extract or args.all:
         print("extract: ", dict(extract(con)))
+    if args.link or args.all:
+        print("link:    ", link(con))
     if args.resolve or args.all:
         r = resolve(con)
         print(f"resolve:  {r['n']:,} utterances, {r['c']:,} contested")
