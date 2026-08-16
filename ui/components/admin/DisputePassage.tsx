@@ -27,9 +27,13 @@ import s from "./DisputePassage.module.css";
 export function DisputePassage({ hit }: { hit: TranscriptHit }) {
   const operator = useOperator();
   if (!operator || hit.start_idx == null || hit.end_idx == null) return null;
-  /* `speaker` decides, not `speaker_display`: `(exchange)` is a value only the
-   * key carries. Same test as the label beside it — see `speakerOf`. */
-  const named = hit.speaker && hit.speaker !== "(exchange)";
+  /* `who.name` is null for BOTH things this offer has to distinguish — a
+   * passage crossing several speakers, and one the archive cannot name at all
+   * — so the test is the same either way, and neither the label nor this has
+   * to know that `(exchange)` exists. It used to test the raw key here, which
+   * was the last copy of a rule R6.2.1 wants in one place; web/archive.py's
+   * `who()` is that place now. */
+  const named = hit.who.name !== null;
   return (
     <Link
       className={s.dispute}
