@@ -163,10 +163,41 @@ def backfill(con):
             claim(cur, r["video_id"], lo, hi, r["name"], m)
             n[m] += 1
 
-    # The archive-wide cluster majority, which is the weakest thing here and
-    # the largest by utterance count.
-    for r in con.execute("SELECT video_id, cluster, name FROM voice_name"):
-        for lo, hi in cluster_runs.get((r["video_id"], r["cluster"]), []):
+    # The archive-wide cluster majority: the weakest thing here, the largest
+    # by utterance count, and the one carrying two vetoes that are easy to
+    # lose. They do NOT live in `voice_name` - they are conditions on
+    # utterance_speaker's join to it - so reading the view directly hands back
+    # names the live path refuses. Measured: 144 utterances in ten meetings
+    # gained a cluster name this way before the vetoes were restored, which is
+    # a shadow build being LESS safe than what it replaces.
+    #
+    #   voice_affinity   bin/affinity.py measured whether this voice actually
+    #                    sounds like the person its cluster is named after.
+    #                    486 of 1,836 inheritable voices fail, 476 of them
+    #                    under 0.35 where no same-person pair has ever been
+    #                    observed.
+    #   one seat, one voice
+    #                    the name is already held in this meeting by a voice
+    #                    that earned it per-meeting.
+    #
+    # Keyed per local_label rather than per cluster, because that is what both
+    # vetoes are about.
+    for r in con.execute("""
+            SELECT DISTINCT u.video_id, u.local_label, vn.name
+              FROM utterances u
+              JOIN voice_name vn ON vn.video_id = u.video_id
+                                AND vn.cluster = u.cluster
+             WHERE u.local_label IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM voice_affinity va
+                                WHERE va.video_id = u.video_id
+                                  AND va.local_label = u.local_label
+                                  AND va.name = vn.name
+                                  AND va.similarity < 0.70)
+               AND NOT EXISTS (SELECT 1 FROM speaker_identity si2
+                                WHERE si2.video_id = u.video_id
+                                  AND si2.name = vn.name
+                                  AND si2.local_label <> u.local_label)"""):
+        for lo, hi in voice_runs.get((r["video_id"], r["local_label"]), []):
             claim(cur, r["video_id"], lo, hi, r["name"], "cluster")
             n["cluster"] += 1
 
