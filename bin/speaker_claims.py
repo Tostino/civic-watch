@@ -64,6 +64,23 @@ PODIUM = re.compile(
     r"(?:\d{2,6}\s|\[address removed\])")
 SWORN = re.compile(r"\b(?:i have been sworn|been duly sworn|i was sworn)\b", re.I)
 
+# SOMEBODY ASKING FOR A NAME, which means the answer that follows is not the
+# asker's. The chair says "name and address for the record" and the commenter
+# answers, and when the diarizer merges the two into one utterance the
+# self-introduction sits inside the CHAIR's turn. Measured: Commissioner
+# Yeager asks a fourth-grader "Say your name and what school you're from. My
+# name is Hunter" - one utterance, two people - and the commissioner is named
+# Hunter. 24 of 1,668 self-ID utterances have this shape, and like read-aloud
+# it puts a member of the public's name on a commissioner's voice.
+#
+# No claim is made at all. The utterance really does contain two speakers and
+# nothing here can split it, so the archive keeps what it had. The commenter
+# usually introduces themselves again in their own run anyway.
+PROMPTED = re.compile(
+    r"(?:say|state|give|need|with|proceed with)\s+(?:us\s+)?(?:your|the)\s+name"
+    r"|name\s+and\s+address"
+    r"|your\s+name\s+and", re.I)
+
 # Somebody reading another person's words. The claim then names the AUTHOR and
 # covers only the read span; the reader keeps every claim either side of it.
 # Without this a staffer reading "My name is Corey Ward and I live at..." is
@@ -252,9 +269,14 @@ def extract(con):
         name = m.group(1).strip()
         if len(name.split()) > 3 or len(name) < 4:
             continue
-
-        quote = text[max(0, m.start() - 30):m.end() + 40]
-
+        # READ-ALOUD IS TESTED FIRST, and the order is the decision. A
+        # commissioner reading a resident's letter is precisely the case that
+        # must be attributed to its author - the maintainer's call - and the
+        # board-voice guard below would otherwise swallow it, because the
+        # voice IS a commissioner's and the name IS somebody else's. Putting
+        # that guard first silently reverted the design: read_aloud fell from
+        # 29 claims to 9 and every one of the 20 letters a commissioner read
+        # went back to carrying the commissioner's name.
         # Reading somebody else's words: the name belongs to the author and
         # the claim covers only this utterance, so the reader keeps her own
         # name either side of it.
@@ -288,6 +310,38 @@ def extract(con):
                   quote)
             n["read_aloud"] += 1
             continue
+
+        # The ask and the answer merged into one utterance: see PROMPTED.
+        if PROMPTED.search(text[:m.start()]):
+            n["prompted_skipped"] += 1
+            continue
+
+        # A BOARD MEMBER'S VOICE DOES NOT INTRODUCE ITSELF AS SOMEBODY ELSE.
+        # Where the archive already has a commissioner on this voice and the
+        # self-introduction names a different person, that is diarization
+        # merging a commenter's turn into the chair's - not a correction.
+        # Measured, all of one shape: at BynZ97-d3bI utterance 632 SPEAKER_22
+        # says "My name is Richard Ronan", and two lines later the SAME
+        # SPEAKER_22 says "Richard, we need your name and address, please."
+        # That voice is the chair. Twelve distinct names arrived this way,
+        # every one of them a member of the public landing on a commissioner.
+        #
+        # Deliberately narrow: it fires only when the standing name is a board
+        # member's AND the new name differs. A commissioner who does say their
+        # own name agrees with the archive and never reaches this.
+        held = con.execute("""
+            SELECT si.name FROM speaker_identity si
+             WHERE si.video_id = %s AND si.local_label = %s
+               AND si.name IS NOT NULL
+               AND EXISTS (SELECT 1 FROM people p
+                            WHERE lower(p.surname) = lower(si.name))""",
+            (r["video_id"], r["local_label"])).fetchone()
+        if held and held["name"].lower() not in name.lower():
+            n["board_voice_skipped"] += 1
+            continue
+
+        quote = text[max(0, m.start() - 30):m.end() + 40]
+
 
         # Is this utterance attributable? Not "is the name right" - it is
         # whether the utterance landed on the right voice.
@@ -351,11 +405,38 @@ def link(con):
         voices[(r["video_id"], r["local_label"])].append(
             (r["name_text"], r["corroborated"]))
 
+    # A SELF-ID DECIDES WHO, NOT HOW IT IS SPELLED. The archive's name for a
+    # voice comes from a vote over every time the room said it; a self-ID is
+    # one utterance of ASR. So where the two are near-identical they are one
+    # person - same voice, same meeting - and the better-attested SPELLING
+    # should win rather than the better-ranked METHOD. Without this, `self`
+    # outranking `voice` turned "Skip Geiger" into "Ski Geiger" and "Ali
+    # Atefi" into "Alia Tefi": the right person, spelled worse, 55 of them.
+    #
+    # Near-identical only. A genuinely different name is a different question
+    # and is left to the precedence table.
+    import difflib
+    for r in con.execute("""SELECT video_id, local_label, name FROM speaker_identity
+                             WHERE name IS NOT NULL"""):
+        k = (r["video_id"], r["local_label"])
+        if k not in voices:
+            continue
+        for nm, _ in list(voices[k]):
+            if difflib.SequenceMatcher(None, nm.lower(),
+                                       r["name"].lower()).ratio() > 0.75:
+                voices[k].append((r["name"], True))
+                break
+
     made = aliased = 0
     for (vid, label), names in voices.items():
         seen = collections.Counter(n for n, _ in names)
         corrob = {n for n, c in names if c}
-        best = sorted(seen, key=lambda n: (n in corrob, seen[n], len(n)),
+        # How often the meeting itself uses each rendering. The spelling the
+        # room said most is the one to show.
+        said = {n: con.execute(
+            "SELECT count(*) c FROM utterances WHERE video_id=%s AND text ILIKE %s",
+            (vid, f"%{n}%")).fetchone()["c"] for n in seen}
+        best = sorted(seen, key=lambda n: (said[n], n in corrob, seen[n], len(n)),
                       reverse=True)[0]
         # NEVER match on a surname alone. This linked "Sean Poole", the
         # managing director of a camera vendor, onto Christopher B. Poole, a
