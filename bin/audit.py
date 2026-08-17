@@ -27,6 +27,7 @@ import sys
 
 import db
 import roster
+import speaker_claims
 
 CHECKS = []
 
@@ -1028,17 +1029,59 @@ def _(con):
 @check("redaction.gone_from_index",
        "no redacted address survives in the passages search reads")
 def _(con):
-    # Both columns: `text` is what a result shows a reader and `search_text`
-    # is what the ranking reads. They are built from the same utterances and
-    # they have drifted apart before.
-    q = """FROM redaction r JOIN passages p
-             ON p.video_id = r.video_id
-            AND r.idx BETWEEN p.start_idx AND p.end_idx
-           WHERE r.status = 'applied'
-             AND (position(r.span in p.text) > 0
-                  OR position(r.span in coalesce(p.search_text, '')) > 0)"""
+    """COUNTS occurrences rather than looking for one, and the difference is
+    the whole check.
+
+    Both columns: `text` is what a result shows a reader and `search_text` is
+    what the ranking reads. They are built from the same utterances and they
+    have drifted apart before.
+
+    The naive form - is the span ANYWHERE in the passage - cannot work, and
+    said so on 84 of 3,440. A passage spans many utterances and a redaction
+    removes ONE of them. 'Green Key' cut from "I live at [address]" is still
+    ordinary speech two utterances later in "we have a lot of issues in Green
+    Key", and the span 'A' occurs in 273 other lines of its own meeting. A
+    privacy check that cries wolf 84 times is a privacy check people learn to
+    scroll past.
+
+    So: the passage may not contain MORE copies of the span than the live
+    utterances it is built from. Equal is the legitimate case. Greater means
+    the passage is carrying text the transcript no longer has.
+
+    THAT CATCHES THE ONE THIS CHECK EXISTS FOR, which nothing else can see. An
+    address split across an utterance boundary - idx 158 ending "located at
+    14720", idx 159 opening "Bluestone Lane in Odessa" - matches no
+    per-utterance test, because `position(span in u.text)` is evaluated one
+    row at a time and the span is in neither row. The passage renderer joins
+    those rows with a space and puts the address back together, whole, in the
+    text search reads and the agent quotes. The transcript check passes. This
+    one does not.
+    """
+    # occurrences of `needle` in `hay`, by how much shorter the string gets
+    # when they are removed. Postgres has no count-substring; this is exact.
+    def n_in(hay, needle):
+        return (f"(length({hay}) - length(replace({hay}, {needle}, ''))) "
+                f"/ nullif(length({needle}), 0)")
+    live = f"""(SELECT COALESCE(SUM({n_in('u.text', 'r.span')}), 0)
+                  FROM utterances u
+                 WHERE u.video_id = p.video_id
+                   AND u.idx BETWEEN p.start_idx AND p.end_idx)"""
+    # Three characters cannot be a residence, and the spans that short are
+    # the section-redactor's misfires - 'A', 'L', 'one', 'two' - which
+    # `span_is_plausible` below reports as the over-redaction they are. Left
+    # in here they fail on the agenda title in search_text, which no
+    # utterance-level denominator can account for, and a privacy check that
+    # is permanently red is one nobody reads.
+    q = f"""FROM redaction r JOIN passages p
+              ON p.video_id = r.video_id
+             AND r.idx BETWEEN p.start_idx AND p.end_idx
+            WHERE r.status = 'applied' AND length(r.span) >= 4
+              AND (GREATEST({n_in('p.text', 'r.span')},
+                            {n_in("coalesce(p.search_text, '')", 'r.span')})
+                   > {live})"""
     return count(con, f"SELECT COUNT(*) {q}"), f"""
-        SELECT r.id, p.id AS passage, r.video_id, left(r.span, 40) AS span
+        SELECT r.id, p.id AS passage, r.video_id, left(r.span, 40) AS span,
+               {n_in('p.text', 'r.span')} AS in_passage, {live} AS in_transcript
         {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
@@ -1048,13 +1091,21 @@ def _(con):
 def _(con):
     # The end-to-end statement, made the way a person would make it: take the
     # words out of the span, put them through the same full-text query search
-    # uses, and assert nothing comes back. It catches what the two checks
-    # above cannot - a stale `tsv`, a posting left in the BM25 tables - by
-    # asking the question a reader would ask.
+    # uses, and assert the LINE IT WAS CUT FROM no longer comes back. It
+    # catches what the two checks above cannot - a stale `tsv` - by asking the
+    # question a reader would ask.
+    #
+    # Scoped to that one line, and it was not: it asked whether the phrase
+    # occurred anywhere in the whole recording, and answered yes 84 times out
+    # of 3,440. Redaction spans are ordinary English - 'Wesley Chapel' is a
+    # town of 65,000, 'Westport' and 'Signal Cove' are subdivisions - and a
+    # meeting about a place says its name many times. Cutting an address out
+    # of one sentence has never meant erasing the neighbourhood from the
+    # archive, and asserting it did made this check unreadable.
     q = """FROM redaction r
            WHERE r.status = 'applied' AND EXISTS (
              SELECT 1 FROM utterances u
-             WHERE u.video_id = r.video_id
+             WHERE u.video_id = r.video_id AND u.idx = r.idx
                AND u.tsv @@ phraseto_tsquery('english', r.span))"""
     return count(con, f"SELECT COUNT(*) {q}"), f"""
         SELECT r.id, r.video_id, left(r.span, 40) AS span {q} LIMIT 5""", \
@@ -1088,6 +1139,32 @@ CITED_RANGES = f"""SELECT DISTINCT a.id AS answer_id, a.question,
                           (p ->> 'end_idx')::int   AS hi {_CITED}
                     WHERE jsonb_typeof(p -> 'start_idx') = 'number'
                       AND jsonb_typeof(p -> 'end_idx')   = 'number'"""
+
+
+@check("redaction.span_is_plausible",
+       "an applied redaction that removed an ordinary word, not an address",
+       review=True)
+def _(con):
+    """OVER-redaction, which no other check here looks for.
+
+    Everything else asks whether an address survived. This asks the opposite
+    question: whether the redactor cut something that was never an address.
+    Five applied rows are spans of one to three characters - 'A' and 'L',
+    each the whole of a one-token utterance, and three of the word 'one' or
+    'two' - all authored by redact.py:section and all marked kind
+    'residence'. Removing 'one' from a sentence changes what the sentence
+    says, and the archive publishes the result as the speaker's words.
+
+    review=True: reverting is a judgement about the transcript, and
+    redaction.revert restores the text, so this is work to look at rather
+    than a defect to count.
+    """
+    q = """FROM redaction r
+           WHERE r.status = 'applied' AND length(btrim(r.span)) < 4"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"""
+        SELECT r.id, r.video_id, r.idx, r.span, r.author {q}
+        ORDER BY r.id LIMIT 5""", \
+        "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
 
 @check("redaction.gone_from_answers",
@@ -1207,6 +1284,94 @@ def _(con):
         SELECT u.video_id, u.idx, left(u.text, 50) AS published,
                left(COALESCE(u.text_raw, '(null)'), 50) AS raw {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM utterances"
+
+
+# --------------------------------------------------------------- claims
+# What materialising resolution costs: a view could not be stale, and a table
+# can. These three guard the ways it goes wrong quietly.
+
+@check("claims.resolution_is_current",
+       "the resolved table says what the claims say right now")
+def _(con):
+    """THE check that materialisation made necessary.
+
+    utterance_speaker was a view: it could not disagree with its inputs
+    because it WAS its inputs. speaker_resolved is a table, and every path
+    that writes a claim without recomputing leaves it lying. web/admin.py
+    calls refresh_video before it re-indexes, and each producer refreshes
+    what it touched - but nothing forces that, and a new producer that
+    forgets would be silent. A reader would keep seeing the old name with no
+    error anywhere.
+
+    Recomputed from speaker_claims.RESOLUTION, the SAME string resolve()
+    runs, so this cannot pass while a paraphrase drifts from the original.
+    It does not check that the resolver is RIGHT - only that the table
+    agrees with it. Roughly a minute over the whole archive.
+    """
+    cols = "video_id, idx, name_text, person_id, method, contested"
+    # pg_temp-qualified on purpose: unqualified, this would find a permanent
+    # table of the same name if the temp one did not exist, and drop THAT.
+    con.execute("DROP TABLE IF EXISTS pg_temp._resolution_now")
+    con.execute("CREATE TEMP TABLE _resolution_now AS " + speaker_claims.RESOLUTION)
+    q = f"""FROM ((SELECT {cols} FROM speaker_resolved
+                   EXCEPT SELECT {cols} FROM _resolution_now)
+                  UNION ALL
+                  (SELECT {cols} FROM _resolution_now
+                   EXCEPT SELECT {cols} FROM speaker_resolved)) d"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"SELECT {cols} {q} LIMIT 5", \
+        "SELECT COUNT(*) FROM speaker_resolved"
+
+
+@check("claims.derived_are_not_duplicated",
+       "a producer re-running re-asserts its claims instead of piling them up")
+def _(con):
+    """Guards claim_derived_identity, and it has already been needed once.
+
+    Every producer runs again on every pipeline pass and says what it said
+    last time. Before the unique index, one press of the label button wrote
+    65 rows and the next press wrote 65 more - measured. The index makes that
+    an upsert; this check notices if a deployment ever lacks it, because the
+    symptom is a table quietly growing rather than anything failing.
+
+    Overrides are excluded, exactly as the index excludes them. They are
+    events and repeat legitimately: Alice, then Bob, then Alice again is
+    three real corrections, and the third is an exact copy of the first.
+    """
+    q = """FROM (SELECT video_id, start_idx, end_idx, method, name_text,
+                        COUNT(*) AS copies
+                   FROM speaker_claim WHERE method <> 'override'
+                  GROUP BY 1, 2, 3, 4, 5 HAVING COUNT(*) > 1) d"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"SELECT * {q} ORDER BY copies DESC LIMIT 5", \
+        "SELECT COUNT(*) FROM speaker_claim WHERE method <> 'override'"
+
+
+@check("claims.people_are_real_people",
+       "every person the extractor created has a full name and a claim behind them")
+def _(con):
+    """Both halves of this fired on the first archive-wide run.
+
+    A one-token name is the extractor having matched a greeting: 48 people
+    were created named things like 'Good', off 'Good morning'. A two-token
+    minimum stopped it, and this is what says whether the minimum still
+    holds.
+
+    A person no claim references is the other residue - the scoped link()
+    path made a second Henry and left the first behind. Neither is visible
+    from the reader's side, and both quietly widen the set of names the
+    resolver can reach for.
+    """
+    q = """FROM people p
+           WHERE p.kind = 'public'
+             AND (array_length(regexp_split_to_array(btrim(p.full_name),
+                                                     '[[:space:]]+'), 1) < 2
+                  OR NOT EXISTS (SELECT 1 FROM speaker_claim c
+                                  WHERE c.person_id = p.id))"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"""
+        SELECT p.id, p.full_name,
+               CASE WHEN array_length(regexp_split_to_array(btrim(p.full_name),
+                                      '[[:space:]]+'), 1) < 2
+                    THEN 'one token' ELSE 'no claim' END AS why {q} LIMIT 5""", \
+        "SELECT COUNT(*) FROM people WHERE kind = 'public'"
 
 
 def main():

@@ -277,7 +277,15 @@ OUTSIDE - a statement of fact that no listed evidence could support: something
 from the WORLD rather than from this archive. News coverage, what usually
 happens at councils, background about a company.
 
-Three things are NOT outside claims, and flagging them is a mistake:
+Four things are NOT outside claims, and flagging them is a mistake:
+  - SAYING WHAT A TERM OF ART MEANS. "MPUD, a master planned unit development,
+    which lets a property be developed as one planned mix of uses"; "the
+    Planning Commission, the advisory board that hears rezoning cases before
+    the county commission does". The answer is REQUIRED to do this - it is the
+    same rule as JARGON below, seen from the other side - and it is what the
+    words mean rather than a fact about this county. Flagging it asks for an
+    answer that cannot exist: unexplained the term is jargon, explained it is
+    outside knowledge.
   - that the archive does not contain something. That is a finding.
   - how the archive itself works: that transcription is machine-made, that
     speaker names come from automated voice matching and are unverified, that

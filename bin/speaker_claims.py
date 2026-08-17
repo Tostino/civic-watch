@@ -568,8 +568,11 @@ def link(con, video_id=None):
 # ------------------------------------------------------------------- resolve
 # rank, then corroboration promoting the two unquoted methods, then span
 # specificity (narrower is more specific), then recency. Written once, here.
-RESOLVE = """
-INSERT INTO speaker_resolved (video_id, idx, name_text, person_id, method, contested)
+# The resolution ITSELF, as a bare SELECT, so that the audit can recompute it
+# and diff rather than re-describing it. A check written against a paraphrase
+# of this query would pass while the two drifted, which is the failure it is
+# there to catch.
+RESOLUTION = """
 SELECT u.video_id, u.idx, w.name_text, w.person_id, w.method, w.contested
   FROM utterances u
   JOIN LATERAL (
@@ -600,6 +603,9 @@ SELECT u.video_id, u.idx, w.name_text, w.person_id, w.method, w.contested
                 c.end_idx - c.start_idx,
                 c.id DESC
        LIMIT 1) w ON TRUE"""
+
+RESOLVE = ("INSERT INTO speaker_resolved "
+           "(video_id, idx, name_text, person_id, method, contested)\n" + RESOLUTION)
 
 
 def resolve(con, video_id=None):
