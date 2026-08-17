@@ -150,6 +150,14 @@ def main():
         # Withdrawing a correction has to reach the index for the same reason
         # making one does, or search keeps answering with a name the archive
         # no longer claims.
+        # RESOLUTION FIRST, THEN THE INDEX. speaker_resolved is a table, not
+        # a view: an override written straight to speaker_override changes
+        # nothing a reader sees until it is resolved into that table. Rebuild
+        # the passages without this and they are rebuilt from the OLD names -
+        # the correction is stored, re-indexed, and invisible. web/admin.py
+        # has always done both (gotcha 46); this path did only the second.
+        import speaker_claims
+        speaker_claims.refresh_video(con, r[0])
         import index_passages
         try:
             index_passages.refresh_video(con, r[0], device=args.device)
@@ -201,6 +209,14 @@ def main():
         print("Skipped the index. Search and the agent still say the old name "
               "until bin/index_passages.py runs.")
     else:
+        # RESOLUTION FIRST, THEN THE INDEX. speaker_resolved is a table, not
+        # a view: an override written straight to speaker_override changes
+        # nothing a reader sees until it is resolved into that table. Rebuild
+        # the passages without this and they are rebuilt from the OLD names -
+        # the correction is stored, re-indexed, and invisible. web/admin.py
+        # has always done both (gotcha 46); this path did only the second.
+        import speaker_claims
+        speaker_claims.refresh_video(con, args.video_id)
         import index_passages
         try:
             index_passages.refresh_video(con, args.video_id, device=args.device)

@@ -803,11 +803,19 @@ def _(con):
             "SELECT COUNT(*) FROM utterances"
     vid, idx = row[0], row[1]
     bad = []
+    # THE REAL PATH, not a shortcut to the reader. Resolution is materialised
+    # now, so an override written to speaker_override reaches nobody until
+    # something resolves it - which is what web/admin.py and bin/correct.py
+    # both do. Reading utterance_speaker straight after the INSERT tested a
+    # guarantee the archive stopped making. commit=False so the whole probe
+    # still vanishes on rollback.
+    import speaker_claims
     with con.transaction(force_rollback=True):
         con.execute("""INSERT INTO speaker_override
             (video_id, start_idx, end_idx, action, name, note, author)
             VALUES (%s,%s,%s,'reassign','__audit_probe__','audit roundtrip','audit')""",
             (vid, idx, idx))
+        speaker_claims.refresh_video(con, vid, commit=False)
         r = con.execute("""SELECT name, basis, human FROM utterance_speaker
                            WHERE video_id=%s AND idx=%s""", (vid, idx)).fetchone()
         if not r or r[0] != "__audit_probe__" or r[1] != "override" or not r[2]:
@@ -817,6 +825,7 @@ def _(con):
             (video_id, start_idx, end_idx, action, name, note, author)
             VALUES (%s,%s,%s,'detach',NULL,'audit roundtrip','audit')""",
             (vid, idx, idx))
+        speaker_claims.refresh_video(con, vid, commit=False)
         r = con.execute("""SELECT name, basis FROM utterance_speaker
                            WHERE video_id=%s AND idx=%s""", (vid, idx)).fetchone()
         if not r or r[0] is not None or r[1] != "override":

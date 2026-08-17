@@ -216,7 +216,7 @@ def append(con, video_id, lo, hi, name, method, quote=None,
 
 
 # ------------------------------------------------------------------ backfill
-def backfill(con, video_id=None):
+def backfill(con, video_id=None, commit=True):
     """Everything the archive already decided, restated as evidence.
 
     The point is not to change any of these - they resolve exactly as they do
@@ -295,12 +295,13 @@ def backfill(con, video_id=None):
             claim(cur, r["video_id"], lo, hi, r["name"], "cluster", label=r["local_label"])
             n["cluster"] += 1
 
-    con.commit()
+    if commit:
+        con.commit()
     return n
 
 
 # ------------------------------------------------------------------- extract
-def extract(con, video_id=None):
+def extract(con, video_id=None, commit=True):
     """What the transcript says outright, which nothing has been reading.
 
     Two forms of self-introduction, a guard for people reading somebody else's
@@ -443,12 +444,13 @@ def extract(con, video_id=None):
         n[method] += 1
         n["corroborated"] += bool(corrob)
 
-    con.commit()
+    if commit:
+        con.commit()
     return n
 
 
 # ---------------------------------------------------------------------- link
-def link(con, video_id=None):
+def link(con, video_id=None, commit=True):
     """Claims about one voice in one meeting are claims about one person.
 
     This is what closes the only disagreement the sandbox ever surfaced. A man
@@ -481,7 +483,8 @@ def link(con, video_id=None):
         cur.execute("DELETE FROM person_alias WHERE person_id IN "
                     "(SELECT id FROM people WHERE kind = 'public')")
         cur.execute("DELETE FROM people WHERE kind = 'public'")
-    con.commit()
+    if commit:
+        con.commit()
 
     voices = collections.defaultdict(list)
     only, arg = ("AND video_id = %s", (video_id,)) if video_id else ("", ())
@@ -583,7 +586,8 @@ def link(con, video_id=None):
                           AND method IN ('self','self_weak')""", (pid, vid, label))
     # `people` rows are keyed by full name, so a second run finds the row it
     # made last time rather than making another.
-    con.commit()
+    if commit:
+        con.commit()
     return {"people_created": made, "aliases": aliased, "voices": len(voices)}
 
 
@@ -616,8 +620,26 @@ SELECT u.video_id, u.idx, w.name_text, w.person_id, w.method, w.contested
               AND c2.name_text IS NOT NULL
        WHERE c.video_id = u.video_id
          AND u.idx BETWEEN c.start_idx AND c.end_idx
-         AND c.name_text IS NOT NULL
-         AND name_supported(c.video_id, c.name_text)
+         -- A DETACH IS A CLAIM THAT THERE IS NO NAME, and it has to be able
+         -- to win. `AND c.name_text IS NOT NULL` removed it from the running
+         -- entirely, so detaching a span did not blank it - it handed the
+         -- span to whatever derived guess ranked next, which is worse than
+         -- doing nothing and is what the operator was trying to stop.
+         -- Only `override` may say it: for a derived method a NULL name
+         -- means the producer had nothing to offer, not that it asserts
+         -- nobody.
+         AND (c.name_text IS NOT NULL OR c.method = 'override')
+         -- Tested against the name this will EMIT, not the name the claim
+         -- happens to carry. The two differ exactly when linking succeeds:
+         -- a claim reading "Ron Oakley" passes a surname-keyed roster guard
+         -- because no board member is called that, then links to person 10
+         -- and emits `Oakley` at a meeting the roster does not place him at.
+         -- One utterance in 235,199, and precisely the thing the guard is
+         -- for.
+         AND (c.name_text IS NULL
+              OR name_supported(c.video_id,
+                   CASE WHEN pe.kind = 'board' THEN pe.surname
+                        ELSE c.name_text END))
        GROUP BY c.id, c.name_text, pe.full_name, c.person_id, c.method,
                 m.rank, c.corroborated, c.start_idx, c.end_idx
        ORDER BY m.rank - CASE WHEN c.corroborated AND m.rank >= 7
@@ -630,7 +652,7 @@ RESOLVE = ("INSERT INTO speaker_resolved "
            "(video_id, idx, name_text, person_id, method, contested)\n" + RESOLUTION)
 
 
-def resolve(con, video_id=None):
+def resolve(con, video_id=None, commit=True):
     """Materialise the resolution, for one meeting or for all of them.
 
     ONE MEETING IS THE IMPORTANT CASE, and it is what keeps a correction
@@ -648,14 +670,15 @@ def resolve(con, video_id=None):
     else:
         cur.execute("DELETE FROM speaker_resolved")
         cur.execute(RESOLVE)
-    con.commit()
+    if commit:
+        con.commit()
     where = "WHERE video_id = %s" if video_id else ""
     return con.execute("SELECT count(*) n, count(*) FILTER (WHERE contested) c "
                        f"FROM speaker_resolved {where}",
                        (video_id,) if video_id else ()).fetchone()
 
 
-def refresh_video(con, video_id):
+def refresh_video(con, video_id, commit=True):
     """Bring one recording's resolution up to date, end to end.
 
     THIS IS WHAT KEEPS A CORRECTION INSTANT. Today an override reaches the
@@ -672,10 +695,10 @@ def refresh_video(con, video_id):
     Scoped to one recording throughout, which is what makes it affordable:
     the archive-wide run is 50s + 3s + 48s, and this is well under a second.
     """
-    backfill(con, video_id)
-    extract(con, video_id)
-    link(con, video_id)
-    return resolve(con, video_id)
+    backfill(con, video_id, commit=commit)
+    extract(con, video_id, commit=commit)
+    link(con, video_id, commit=commit)
+    return resolve(con, video_id, commit=commit)
 
 
 # ------------------------------------------------------------------- compare
