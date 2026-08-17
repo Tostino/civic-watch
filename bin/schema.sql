@@ -915,6 +915,14 @@ CREATE TABLE IF NOT EXISTS organizations (
 -- live: "Jack Brummet" beside "Jack Brummett", "Barbara Will Hyde" beside
 -- Barbara Wilhite. Having them here is what stops a spelling argument from
 -- becoming a resolution rule.
+-- A member of the public is identified by their name and nothing else, so two
+-- rows for one name are two records of one person. The archive-wide link pass
+-- clears and rebuilds them; the per-recording one cannot, and minted a second
+-- "Henry" the first time it ran twice. Board members are excluded: the roster
+-- is their identity and it may legitimately seat two people with one full name.
+CREATE UNIQUE INDEX IF NOT EXISTS people_public_name
+    ON people (lower(full_name)) WHERE kind = 'public';
+
 CREATE TABLE IF NOT EXISTS person_alias (
     alias     text PRIMARY KEY,
     person_id integer NOT NULL REFERENCES people(id) ON DELETE CASCADE

@@ -1,6 +1,9 @@
 # One canonical way to resolve a speaker's name
 
-**Status: draft for review. Nothing here is built.**
+**Status: partly built.** Sections 2.1–2.5 and 3–4a are the shadow, running
+against production and read by nothing. Section 2.7 has LANDED — the schema
+change is applied and the code is live. Section 2.6, organisations, is not
+started.
 
 Five producers name speakers today. Each writes its answer into the same
 column, so the archive keeps the verdict and throws away the evidence, and no
@@ -336,70 +339,71 @@ for which application", "every meeting this vendor was awarded something", and
 an entity facet on `/search` all become queries rather than full-text guesses —
 and §5 of `PRIOR_ART.md` is already pointing at entities for the same reason.
 
-### 2.7 `person_id` is the key. A name is an attribute.
+### 2.7 `person_id` is the key. A surname is just a surname.
 
-Decided: everybody named becomes a person, and — the maintainer's objection,
-which is correct — **nothing joins on a surname.**
+Decided, and BUILT — this section is the one that has already landed, so it
+describes the code rather than proposing anything.
 
-Today `people` is `UNIQUE (surname)` and the speaker layer reaches it by
+`people` was `UNIQUE (surname)` and the speaker layer reached it by
 `JOIN people p ON lower(p.surname) = lower(si.name)`. That is a natural key
-made of data that changes: ASR renders it three ways, a correction rewrites
-it, and the schema's own comment concedes that "the day two boards seat the
-same surname that uniqueness is already the defect". A string join also drags
-case-folding and whitespace into what should be a foreign key.
+made of data that changes: ASR renders a name three ways, a correction
+rewrites it, and the schema's own comment conceded that two boards seating one
+surname was a defect waiting to happen. **The constraint is gone.**
 
-The good news is that the rot is contained. `board_terms` and
-`meeting_roster` already key on `person_id`; the roster layer is properly
-normalised. It is only the SPEAKER tables — `speaker_identity`,
-`speaker_label`, `speaker_override`, `voice_name` — that store a name string
-and join back on it, and those are exactly the tables this plan replaces. So
-this is not separate work; it is work this plan should not have skipped.
+A first attempt kept it by storing NULL for members of the public, so that a
+resident called Sean Poole could exist alongside Commissioner Christopher B.
+Poole. That was the wrong trade twice over: it preserved exactly the thing
+that had to go, and it discarded a surname the transcript states plainly and
+the record is entitled to keep. 1,288 surnames were restored. **228 people now
+share one** — 13 Johnsons, 10 Smiths, 6 Millers — which is what an archive
+holding the public was always going to look like.
 
-```sql
-people (
-    id           integer PRIMARY KEY,
-    kind         text NOT NULL,   -- 'board' | 'staff' | 'public'
-    -- What a reader sees. Chosen ONCE, correctable in one place, and no
-    -- longer computed from a surname by a SQL function.
-    display_name text NOT NULL,
-    -- An attribute of board members, because the roster publishes it. NOT a
-    -- key, NOT unique, and nothing joins on it.
-    surname      text
-);
+**What the uniqueness was propping up**, and why both had to move first:
 
--- Every rendering ever heard, pointing at one person. This is where "Jack
--- Brummet" and "Jack Brummett" both live, and "Barbara Will Hyde" beside
--- "Barbara Wilhite".
-person_alias (
-    alias     text PRIMARY KEY,
-    person_id integer NOT NULL REFERENCES people(id) ON DELETE CASCADE
-);
-```
+- `display_name()` is a SCALAR subquery. Two people sharing a surname does not
+  return the wrong name, it RAISES, on every page that renders one.
+- `name_supported()` read "nm is not in `people`, so the roster has no opinion
+  on it". With the public in that table a commenter called Smith would be
+  roster-restricted at every meeting and vetoed archive-wide, silently.
 
-**This dissolves §1a rather than answering it.** The ASR-variant question —
-which of two spellings wins — stops being a fight to be settled per utterance
-and becomes one field on one row. Both renderings are aliases of one person;
-`display_name` is chosen once and corrected once. "Most frequent rendering
-wins" survives only as the rule for SEEDING that field, not as a resolution
-rule, and a human can overrule it with a single update instead of a campaign.
+Both now test `kind = 'board'` rather than inferring board membership from
+presence in a table that used to hold only the board. So does `speaker_id`'s
+`everyone` whitelist — 1,288 members of the public were one deploy away from
+being eligible for any voice in any meeting — along with the admin splits
+queue, six audit joins, and the honorific check, which asserts that roster
+PARSING has not drifted and would otherwise have failed on residents genuinely
+introduced as "Pastor Danny Fields".
 
-**It also retires `display_name(nm text)`.** That function exists purely to
-paper over the surname key — given a string, find the person, return a better
-string. With `person_id` on the claim, the resolver returns a person and the
-display name is a column on it.
+**BOARD MEMBERSHIP IS TEMPORAL, and one column cannot hold it.** `kind`
+answers a single question — is this person on the board at all. Whether they
+were SEATED at a given meeting is the published roster for that meeting, or a
+term spanning its date, and that is what `name_supported()`'s other two
+clauses are for. Every `kind = 'board'` test added here is the first question;
+the second is still asked wherever it matters.
 
-What has to move, and all of it is board-scoped: the roster join in
-`web/admin.py`, `speaker_id.load_rosters()` and its term fallback,
-`chair_anchor`'s cluster-to-surname map, `voice_name`'s roster predicate,
-`audit.py`'s one-body-per-surname assertion, and `tools.canonical_speaker`
-with the `speaker` search facet behind it.
+**And the rule was written twice.** `voice_name` spelled out
+`name_supported()`'s three tests a second time. Scoping the function and
+leaving the copy meant a cluster named "Alvarez" was refused because a
+resident called Alvarez looked like an unseated commissioner: 3 passages
+silently unnamed and the archive contradicting its own search index.
+`voice_name` calls the function now.
 
 **One name string is kept on purpose**, and it is not a key.
-`passages.speaker` and the rendered `text` carry the name INTO the search
-index, because "what did Starkey say about X" needs it in the BM25 postings
-and in the embedding — `index_passages` says so and rebuilds both when a name
-changes. A denormalised copy in an index with a defined refresh path is a
-different animal from a join key, and it stays.
+`passages.speaker` and the rendered text carry the name INTO the search index,
+because "what did Starkey say about X" needs it in the BM25 postings and in
+the embedding — `index_passages` says so and rebuilds both when a name
+changes. A denormalised copy with a defined refresh path is a different animal
+from a join key.
+
+**A person row is an identification, so not every name earns one.** A
+single-token name — "Henry", "Cindy", "Alvarez", and "Good" out of "Good
+Morning" — is what the extractor produces when it catches half a name or none,
+and 48 of them reached `people` before this was fixed. The claim keeps its
+`name_text` and the reader still sees the name; what it does not get is a
+person. `people (lower(full_name)) WHERE kind = 'public'` is unique, because
+the archive-wide link pass clears and rebuilds public rows and the
+per-recording one cannot — which minted a second "Henry" the first time it ran
+twice.
 
 ---
 
@@ -570,7 +574,8 @@ it does not need any of this.
   interest (§2.4a).
 - Subdivisions and associations are organisations with their own kind (§2.6).
 - One `people` table for everyone, keyed on `person_id`. Nothing joins on a
-  surname; a name is an attribute and `display_name()` retires (§2.7).
+  surname, `UNIQUE (surname)` is dropped, and a surname is kept for members of
+  the public because it is part of the record (§2.7). BUILT.
 
 **Open.**
 

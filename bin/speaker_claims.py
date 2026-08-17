@@ -503,6 +503,13 @@ def link(con, video_id=None):
             (vid, f"%{n}%")).fetchone()["c"] for n in seen}
         best = sorted(seen, key=lambda n: (said[n], n in corrob, seen[n], len(n)),
                       reverse=True)[0]
+        # ONE WORD IS NOT AN IDENTIFICATION. "Henry", "Cindy", "Alvarez" - and
+        # "Good", out of "Good Morning" - are what the extractor produces when
+        # it catches half a name or none at all, and a `people` row asserts
+        # that a person has been identified. The claim keeps its name_text and
+        # the resolver still renders it; what it does not get is a person.
+        if len(best.split()) < 2:
+            continue
         # NEVER match on a surname alone. This linked "Sean Poole", the
         # managing director of a camera vendor, onto Christopher B. Poole, a
         # county commissioner, because both end in Poole - the very defect the
@@ -530,9 +537,20 @@ def link(con, video_id=None):
             # displayed by full name. Postgres lets any number of rows share
             # a NULL, so the constraint keeps protecting the roster and stops
             # obstructing everybody else.
-            pid = cur.execute("INSERT INTO people (surname, full_name, kind) "
-                              "VALUES (NULL, %s, 'public') RETURNING id",
-                              (best,)).fetchone()["id"]
+            # A surname is kept for everybody - it is in the transcript and
+            # it is part of the record. It is an attribute here, not a key:
+            # 228 people already share one.
+            #
+            # ON CONFLICT because the SCOPED path (refresh_video) does not
+            # clear public people the way an archive-wide run does, so without
+            # it a second pass over one recording mints a second Henry. It did.
+            pid = cur.execute(
+                "INSERT INTO people (surname, full_name, kind) "
+                "VALUES (%s, %s, 'public') "
+                "ON CONFLICT (lower(full_name)) WHERE kind = 'public' "
+                "  DO UPDATE SET surname = EXCLUDED.surname "
+                "RETURNING id",
+                (best.split()[-1], best)).fetchone()["id"]
             made += 1
         for n in seen:
             cur.execute("INSERT INTO person_alias (alias, person_id) VALUES (%s, %s) "
