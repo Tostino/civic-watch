@@ -484,6 +484,19 @@ export interface IssueYear {
   items: number;
   /** Meetings that took at least one of them up. */
   meetings: number;
+  /** Of `items`, how many the approved minutes record any outcome for. The
+   *  denominator `pushed` is read against: 0 pushed out of 0 decided is the
+   *  minutes being silent, not the board being unanimous (R6.3). */
+  decided: number;
+  /**
+   * Of `decided`, how many the board did not simply pass — continued, denied,
+   * no action, or a disposition naming a nay vote.
+   *
+   * From the approved minutes, so it covers all twelve years whether or not a
+   * camera ran. That is what makes it worth drawing beside two lanes that are
+   * both shaped by coverage.
+   */
+  pushed: number;
   /** Lines of speech that mention it. A line is a ~40-second block. */
   lines: number;
   /** Recorded meetings those lines came from. */

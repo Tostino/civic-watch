@@ -67,10 +67,20 @@ export function Issues({ d }: { d: IssuesData }) {
             lines said in the recordings
           </span>
           <span className={s.key}>
-            <span aria-hidden className={s.swNone} />
-            no recording of that year
+            <span aria-hidden className={`${s.ramp} ${s.rampPushed}`} />
+            the share of them the board did not simply pass
           </span>
-          <span className={s.scaleNote}>pale → deep is fewer → more, within each row</span>
+          <span className={s.key}>
+            <span aria-hidden className={s.swNone} />
+            no recording, or no outcome recorded
+          </span>
+          {/* Two sentences because there are now two grammars, and conflating
+              them is the whole risk of a third lane: the tints may only be
+              read along a row, the bar may be read down the column. */}
+          <span className={s.scaleNote}>
+            pale &rarr; deep is fewer &rarr; more, within each row. The third lane is a
+            proportion, so it alone compares across rows.
+          </span>
         </p>
       </header>
 
@@ -113,6 +123,19 @@ function Row({ i, heardFrom }: { i: Issue; heardFrom: string }) {
    * this busy", and the totals column answers "how big is it". */
   const peakItems = Math.max(1, ...i.years.map((y) => y.items));
   const peakLines = Math.max(1, ...i.years.map((y) => y.lines));
+  /* NOT a third tint ramp, and the reason is measurable: --live sits at hue
+   * 22 and --no at hue 3, so two adjacent 10px bars carrying the same grammar
+   * nineteen degrees apart are one bar with a gradient in it. Every other
+   * palette entry is worse - green reads as approval for a lane that means
+   * the opposite, amber is closer to --live still.
+   *
+   * So the third lane changes CHANNEL instead of hue: a proportional bar, its
+   * width the share of that year's decided items the board did not simply
+   * pass. That is honest rather than merely legible. Tint here is magnitude
+   * scaled to a row, which is why a shade may never be read across rows; a
+   * width is a rate, which may. Drawing a rate as a tint beside two
+   * magnitudes would have been the dual-axis mistake this file already
+   * refuses once, in the same 33px box. */
 
   const href = (y?: IssueYear) =>
     `/search?q=${encodeURIComponent(i.q)}` +
@@ -144,6 +167,12 @@ function Row({ i, heardFrom }: { i: Issue; heardFrom: string }) {
         // No recording of that year exists at all - a different claim from a
         // year nobody mentioned it, and the only one the said lane hatches.
         const unheard = y.year < heardFrom;
+        /* Three states, and the third is the one that matters. `pushed` is 0
+         * both when the board passed everything and when the minutes record
+         * no outcome at all, and those are opposite facts (R6.3). So the lane
+         * hatches when nothing that year was decided, exactly as the said
+         * lane hatches for a year with no recording. */
+        const undecided = on && !y.decided;
         const body = (
           <>
             <span
@@ -156,6 +185,18 @@ function Row({ i, heardFrom }: { i: Issue; heardFrom: string }) {
               className={`${s.lane} ${s.laneSaid} ${unheard ? s.none : said ? "" : s.empty}`}
               style={{ "--fill": fill(y.lines, peakLines) } as React.CSSProperties}
             />
+            <span
+              aria-hidden
+              className={`${s.lane} ${s.lanePushed} `
+                + `${undecided ? s.none : y.decided ? "" : s.empty}`}
+            >
+              {y.pushed ? (
+                <span
+                  className={s.pushedFill}
+                  style={{ "--share": (y.pushed / y.decided).toFixed(3) } as React.CSSProperties}
+                />
+              ) : null}
+            </span>
           </>
         );
         // Nothing in either source. Not a link: there is nothing to open, and
@@ -195,9 +236,34 @@ function Row({ i, heardFrom }: { i: Issue; heardFrom: string }) {
           <span aria-hidden className={`${s.dot} ${s.dotSaid}`} />
           {i.lines ? i.lines.toLocaleString() : "—"}
         </span>
+        {/* A RATE, and the only figure in this section that may honestly be
+            read down the column: every tint here is scaled to its own row, so
+            comparing two rows' shading says nothing, while "12% pushed back"
+            against "0%" says exactly what it looks like. */}
+        <span className={s.tRow} title={pushedSays(i)}>
+          <span aria-hidden className={`${s.dot} ${s.dotPushed}`} />
+          {decided(i) ? `${Math.round((pushed(i) / decided(i)) * 100)}%` : "—"}
+        </span>
       </span>
     </div>
   );
+}
+
+const pushed = (i: Issue) => i.continued + i.refused + i.divided;
+const decided = (i: Issue) => i.years.reduce((n, y) => n + y.decided, 0);
+
+/** The percentage, said in full, because the figure alone hides its size:
+ *  100% of one item and 12% of 147 are not the same claim. */
+function pushedSays(i: Issue): string {
+  const d = decided(i);
+  if (!d) return "The minutes record no outcome for any of these items";
+  const p = pushed(i);
+  if (!p) return `All ${d.toLocaleString()} decided items passed — none continued, denied or split`;
+  const bits = [];
+  if (i.continued) bits.push(`${i.continued} continued`);
+  if (i.refused) bits.push(`${i.refused} denied or no action`);
+  if (i.divided) bits.push(`${i.divided} on a divided vote`);
+  return `${p} of ${d.toLocaleString()} decided items — ${bits.join(", ")}`;
 }
 
 /* LOW keeps a year with one item clearly tinted: the quietest year an issue
@@ -315,6 +381,18 @@ function cell(i: Issue, y: IssueYear, heardFrom: string): string {
     parts.push(`, ${y.lines} ${y.lines === 1 ? "line" : "lines"} said in ${y.heard} recorded ${y.heard === 1 ? "meeting" : "meetings"}`);
   } else if (y.year < heardFrom) {
     parts.push(", and no recording of that year exists");
+  }
+  /* The rate the lane deliberately does not draw. Said against `decided`
+   * rather than against `items`, because an item the minutes never disposed of
+   * is not an item that passed. */
+  if (y.items && !y.decided) {
+    parts.push(", and the minutes record no outcome for any of them");
+  } else if (y.pushed) {
+    parts.push(
+      `; the board continued, denied or split over ${y.pushed} of the ${y.decided} it decided`,
+    );
+  } else if (y.decided) {
+    parts.push(`; all ${y.decided} it decided passed`);
   }
   return parts.join("");
 }

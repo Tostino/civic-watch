@@ -68,6 +68,26 @@
   );
 }
 
+/* The legend for the third lane shows a PART-FILLED TRACK rather than a ramp,
+ * because that is what the lane is. A gradient swatch here would teach the
+ * reader that deeper means more, which is true of the two lanes above it and
+ * false of this one. */
+.rampPushed {
+  background: color-mix(in srgb, var(--ink-4) 12%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-4) 22%, transparent);
+  overflow: hidden;
+  position: relative;
+}
+
+.rampPushed::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 38%;
+  background: var(--no);
+}
+
 .swNone {
   width: 0.7rem;
   height: 0.55rem;
@@ -102,11 +122,17 @@
   grid-template-columns:
     minmax(12.5rem, 1.7fr)
     repeat(var(--years), minmax(1.15rem, 1fr))
-    4.4rem;
+    4.9rem;
   gap: 2px;
   align-items: center;
   min-width: 34rem;
-  min-height: 2.9rem;
+  /* Three lanes and three totals rows, not two. 0.6rem x3 + two 2px gaps is
+   * 33px of cell, and the totals column is now the taller of the pair at
+   * ~45px - so the row grows by the one line the third measure costs and the
+   * lanes keep the height they were legible at. Squeezing three into the old
+   * 21px box would have made each 6px, which is where a hairline stops being
+   * a value and starts being a smudge. */
+  min-height: 3.4rem;
 }
 
 /* Not sticky. `.grid` sets overflow-x, which makes it a scroll container on
@@ -206,6 +232,27 @@
   background: color-mix(in srgb, var(--live) calc(var(--fill, 0) * 88%), var(--surface));
 }
 
+/* A TRACK, not a tint. The bar inside it is the share of that year's decided
+ * items the board did not simply pass, so this lane reads left-to-right as a
+ * proportion while the two above it read as depth. Different question,
+ * different channel. */
+.lanePushed {
+  background: color-mix(in srgb, var(--ink-4) 12%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink-4) 22%, transparent);
+  overflow: hidden;
+}
+
+.pushedFill {
+  display: block;
+  height: 100%;
+  /* A single continued item out of ninety is 1.1% and would round to nothing;
+   * a floor keeps it a visible mark, which is the same argument LOW makes for
+   * the tints above. */
+  width: max(2px, calc(var(--share, 0) * 100%));
+  background: var(--no);
+  border-radius: 1px;
+}
+
 /* The two kinds of nothing, and they are different claims: the source covered
  * this year and had nothing to say, versus no recording of this year exists
  * at all. Both are drawn from --ink-4 at low alpha rather than from --rule,
@@ -280,6 +327,10 @@
   background: color-mix(in srgb, var(--live) 78%, var(--surface));
 }
 
+.dotPushed {
+  background: color-mix(in srgb, var(--no) 78%, var(--surface));
+}
+
 .note {
   font-size: var(--text-2xs);
   line-height: var(--leading-normal);
@@ -293,11 +344,36 @@
     grid-template-columns:
       minmax(9.5rem, 1.4fr)
       repeat(var(--years), minmax(0.9rem, 1fr))
-      3.6rem;
+      4.1rem;
     min-width: 28rem;
   }
 
   .lane {
     height: 0.5rem;
+  }
+
+  /* The grid is 448px wide in a 375px viewport, so it scrolls sideways - and
+   * the subject name used to scroll away with it, leaving a reader dragging
+   * to reach 2026 and arriving at a row of anonymous coloured squares. Pinned
+   * to the scroll container's left edge instead, which is the one column that
+   * has to survive the pan.
+   *
+   * The background is opaque on purpose: the cells pass UNDER this, and at
+   * --surface with any transparency the 2015 column shows through the label
+   * as it goes by. */
+  .label {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 2;
+    background: var(--surface);
+    padding-inline-start: 0.15rem;
+    box-shadow: 1px 0 0 var(--rule);
+  }
+
+  .headRow > :first-child {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 2;
+    background: var(--surface);
   }
 }

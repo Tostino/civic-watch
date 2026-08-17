@@ -657,6 +657,11 @@ def issues(con):
         SELECT t.slug, left(m.date, 4) AS year,
                COUNT(*)                                          AS items,
                COUNT(DISTINCT m.id)                              AS meetings,
+               -- The denominator the `pushed` lane needs. Without it a year
+               -- with no approved minutes and a year the board passed
+               -- everything both read as zero pushed back, and R6.3 refuses
+               -- exactly that: "no disposition recorded" is not "no outcome".
+               COUNT(*) FILTER (WHERE ai.outcome IS NOT NULL)    AS decided,
                COUNT(*) FILTER (WHERE ai.outcome = 'continued')  AS continued,
                COUNT(*) FILTER (WHERE ai.outcome
                                       IN ('denied','no_action')) AS refused,
@@ -718,9 +723,21 @@ def issues(con):
             "lines": sum(r["lines"] for r in rm.values()),
             "heard": sum(r["meetings"] for r in rm.values()),
             "first": min(dates), "last": max(dates),
+            # `pushed` is continued + denied/no_action + a disposition naming a
+            # nay vote: the item did not simply pass. Already counted per year
+            # by the query above and previously summed away, so the strip could
+            # say when a subject was BUSY and never when it was HARD.
+            #
+            # It comes from the approved minutes, which is why it is worth a
+            # lane of its own: the minutes cover all twelve years whether or
+            # not a camera ran, so unlike anything measured against the room
+            # this is not shaped by what we can hear.
             "years": [{"year": y,
                        "items": rec[y]["items"] if y in rec else 0,
                        "meetings": rec[y]["meetings"] if y in rec else 0,
+                       "decided": rec[y]["decided"] if y in rec else 0,
+                       "pushed": (rec[y]["continued"] + rec[y]["refused"]
+                                  + rec[y]["divided"]) if y in rec else 0,
                        "lines": rm[y]["lines"] if y in rm else 0,
                        "heard": rm[y]["meetings"] if y in rm else 0}
                       for y in span],
