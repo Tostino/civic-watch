@@ -2455,6 +2455,50 @@ than teaching yourself to read the secret.
       a single miss; probed straight afterwards the same judge passed that
       fixture 3 times out of 3. Best-of-three would cost almost nothing.
 
+103. **An address split across two utterances is invisible to every redaction
+    detector, and the passage renderer puts it back together.** `redaction` is
+    keyed `(video_id, idx, span)`: a span belongs to ONE line, and there is no
+    way to write down one that crosses a boundary. Every detector and every
+    check evaluates `position(span in u.text)` a row at a time, so a span in
+    neither row is in nothing.
+
+    Found in production on 2026-08-15. A man gives his address twice in
+    `OiEdE83k8HA`. The first, at idx 157, was redacted in August and is gone.
+    The second falls across the 158/159 boundary — idx 158 ends `located at
+    14720`, idx 159 opens `Bluestone Lane in Odessa, Florida` — and
+    `redaction.gone_from_transcript` passes, because it is true of both lines
+    separately. `index_passages` joins the utterances of a passage with a
+    space, which reconstitutes `14720 Bluestone Lane` exactly, in `p.text` and
+    `p.search_text`: the columns search ranks on and `/ask` quotes from.
+
+    **Only `redaction.gone_from_index` can see it**, and only since it started
+    counting occurrences instead of looking for one — the passage held one copy
+    where the transcript it is built from held none. That check is now the
+    standing detector for this whole class, after the fact.
+
+    Proposed as two half-spans (redactions 3442/3443, `author='audit.py'`),
+    which is the only shape the schema allows; the note on both says apply
+    both or neither. **The proposer itself is unfixed.** `redact.py`'s
+    candidates come from per-utterance text, so it cannot propose what it
+    cannot see, and nothing knows how many more of these there are. The fix is
+    to scan the joined passage text; deferred at the maintainer's direction on
+    2026-08-15 to get the speaker work deployed first.
+
+    **Two other things fell out of the same review**, both of them the reason
+    nobody had read these checks in months. `gone_from_index` asked whether the
+    span appeared anywhere in a passage and `unfindable` asked whether it
+    appeared anywhere in the recording — 6 and 84 violations, essentially all
+    noise, because redaction spans are ordinary English. `Wesley Chapel` is a
+    town of 65,000; the span `A` occurs in 273 other lines of its own meeting.
+    Scoped properly they read 1 and 2, and one of the survivors was a line
+    that read out four residents' addresses where the detector removed three
+    (redaction 2549; the fourth proposed as 3444). A privacy check nobody
+    reads is worth less than no check, because it is believed to be working.
+
+    `redaction.span_is_plausible` is new and asks the opposite question: five
+    applied `residence` redactions cut the words `one`, `two`, `A` and `L` out
+    of the published record. Over-redaction had no check at all.
+
 
 ## Postgres, and what to watch out for
 
