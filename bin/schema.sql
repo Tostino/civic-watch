@@ -663,128 +663,17 @@ WHERE name_supported(o.video_id, cp.name);
 -- time, and a precedence rule stated twice is a precedence rule that will
 -- disagree with itself - which is the exact defect the level-3-before-level-4
 -- paragraph above is about.
-CREATE OR REPLACE VIEW utterance_speaker AS
-SELECT s.*, display_name(s.name) AS display_name FROM (
-SELECT
-    u.video_id,
-    u.idx,
-    u.local_label,
-    u.cluster,
-    CASE WHEN ov.id IS NOT NULL
-         -- NULL here is the point: 'detach' says "not this, and I do not know
-         -- who". It must SUPPRESS the levels below, not fall through to them.
-         THEN ov.name
-         ELSE COALESCE(sl.name, vp.name, vn.name)
-    END AS name,
-    CASE WHEN ov.id IS NOT NULL THEN 'override'
-         WHEN sl.name IS NOT NULL THEN 'human'
-         WHEN vp.name IS NOT NULL THEN 'voice'
-         WHEN vn.name IS NOT NULL THEN 'cluster'
-    END AS basis,
-    (ov.id IS NOT NULL OR sl.name IS NOT NULL) AS human,
-    CASE WHEN ov.id IS NOT NULL OR sl.name IS NOT NULL THEN NULL
-         ELSE COALESCE(vp.confidence, vn.confidence) END AS confidence,
-    EXISTS (SELECT 1 FROM speaker_override p
-             WHERE p.video_id = u.video_id AND p.status = 'pending'
-               AND u.idx BETWEEN p.start_idx AND p.end_idx) AS contested
-FROM utterances u
-LEFT JOIN LATERAL (
-    SELECT o.id, o.name FROM speaker_override o
-     WHERE o.video_id = u.video_id AND o.status = 'applied'
-       AND u.idx BETWEEN o.start_idx AND o.end_idx
-     -- The latest applicable statement wins, so a correction can be corrected.
-     ORDER BY o.created_at DESC, o.id DESC LIMIT 1
-) ov ON TRUE
-LEFT JOIN speaker_label sl
-       ON sl.video_id = u.video_id AND sl.local_label = u.local_label
-LEFT JOIN LATERAL (
-    SELECT si.name, si.confidence FROM speaker_identity si
-     WHERE si.video_id = u.video_id AND si.local_label = u.local_label
-       AND si.name IS NOT NULL AND name_supported(u.video_id, si.name)
-) vp ON TRUE
-LEFT JOIN voice_name vn
-       ON vn.video_id = u.video_id AND vn.cluster = u.cluster
-      -- A cluster name is an ASSUMPTION - that cluster membership means same
-      -- person - and bin/affinity.py measures it. Where the measurement says
-      -- this voice is not that person, the cluster does not get to name it.
-      -- (This condition existed in the live view and NOT in this file, so
-      -- rebuilding the view from schema.sql silently reverted it and 8,795
-      -- utterances went back to carrying a disproved name. schema.sql is the
-      -- definition of record; anything applied only to the database is lost
-      -- the first time somebody replays the file.)
-      AND NOT EXISTS (SELECT 1 FROM voice_affinity va
-                       WHERE va.video_id = u.video_id
-                         AND va.local_label = u.local_label
-                         AND va.name = vn.name
-                         AND va.similarity < 0.70)
-      -- ONE SEAT, ONE VOICE, enforced at the last layer too.
-      --
-      -- `speaker_id` drops a name from the weaker of two voices when a board
-      -- member ends up on both in one meeting - and this fallback promptly
-      -- re-named the dropped voice from its cluster's archive-wide majority,
-      -- which is the very signal that was wrong. Measured on 1OmEmpL-7qY: the
-      -- guard correctly took "Starkey" off one voice and the cluster
-      -- immediately called it "Mariano" instead. A name already held in this
-      -- meeting by a voice that earned it per-voice is not available here.
-      AND NOT EXISTS (SELECT 1 FROM speaker_identity si2
-                       WHERE si2.video_id = u.video_id
-                         AND si2.name = vn.name
-                         AND si2.local_label <> u.local_label)
-) s;
 
--- How well a PASSAGE's speaker name is known, in the two fields every surface
--- already draws it from: `human` and `basis`.
+-- WHO SAID THIS, resolved from speaker_claim by way of speaker_resolved.
 --
--- A passage is many utterances and the view above answers for one, so
--- something has to reduce them - and every reader of this, the page and the
--- agent alike, wants the same reduction: the WORST case. One shaky line is
--- enough to make an attribution shaky, and a passage that is 'human' for four
--- utterances and 'cluster' for the fifth is a passage whose name may be wrong.
+-- Cut over on 2026-08-17. It was built alongside the old read-time resolver
+-- and named _next for as long as that one served, so the two could be diffed
+-- against each other over the whole archive: 1,215 names gained, 9 lost, 389
+-- changed, and a 50-case hand check of those (SPEAKER_PLAN 4a) that found
+-- three extraction bugs and no regressions. The old view is gone; git has it.
 --
--- It is a function and not two aggregates in each caller's query because both
--- ways of writing those aggregates were wrong, and wrong quietly:
---
---   BOOL_OR(human) with MIN(basis) reads the two fields off DIFFERENT
---   utterances, so one passage came back saying a person confirmed it AND that
---   it was an archive-wide cluster guess. Whichever the caller checked first
---   decided the answer.
---
---   MIN(basis) is alphabetical, and alphabetical is not strength: it puts
---   'cluster' first, which is right by luck, and then 'human' ahead of
---   'voice', which is backwards. A passage mixing a confirmed name with a
---   voice match reported the confirmed one.
---
--- ORDER BY ... LIMIT 1 over a real strength ranking returns ONE row, so the
--- fields cannot disagree, and returns the weakest, which is what the question
--- means. The ranking is the precedence in the view above, read from the bottom
--- up; it is stated here and nowhere else for the reason the view's own header
--- gives.
-CREATE OR REPLACE FUNCTION passage_speaker(vid text, lo integer, hi integer)
-RETURNS TABLE (name_human boolean, name_basis text)
-LANGUAGE sql STABLE AS $$
-    SELECT us.human, us.basis
-      FROM utterance_speaker us
-     WHERE us.video_id = vid AND us.idx BETWEEN lo AND hi
-       -- Unnamed utterances say nothing about how sure a NAME is. A passage
-       -- of nothing but unnamed voices returns no row at all, which the
-       -- callers read as "no name to be unsure about".
-       AND us.name IS NOT NULL
-     ORDER BY CASE us.basis WHEN 'cluster'  THEN 0
-                            WHEN 'voice'    THEN 1
-                            WHEN 'human'    THEN 2
-                            WHEN 'override' THEN 3
-                            ELSE 0 END
-     LIMIT 1;
-$$;
-
--- The resolver, wearing utterance_speaker's clothes.
---
--- Named _next and NOT swapped in: the cutover is `ALTER VIEW ... RENAME`, one
--- statement, once everything in SPEAKER_PLAN.md section 4a has been shown. Until
--- then every reader still reads the old view and this exists to be diffed
--- against it.
---
--- IT KEEPS THE CONTRACT. Same columns, same meanings, so the twelve files that
+-- IT KEPT THE CONTRACT, which is why the swap was a rename and not a
+-- migration. Same columns, same meanings, so the twelve files that
 -- read only the view do not change and neither does bin/index_passages, which
 -- builds passages.speaker and the embedded text from exactly these columns.
 --
@@ -802,7 +691,7 @@ $$;
 --                 anything.
 --   contested     two unvetoed methods asserting different names for one span,
 --                 OR a correction pending - which is all it used to mean.
-CREATE OR REPLACE VIEW utterance_speaker_next AS
+CREATE OR REPLACE VIEW utterance_speaker AS
 SELECT u.video_id,
        u.idx,
        u.local_label,
@@ -842,6 +731,54 @@ SELECT u.video_id,
   LEFT JOIN speaker_resolved sr
          ON sr.video_id = u.video_id AND sr.idx = u.idx
   LEFT JOIN people pe ON pe.id = sr.person_id;
+
+-- How well a PASSAGE's speaker name is known, in the two fields every surface
+-- already draws it from: `human` and `basis`.
+--
+-- A passage is many utterances and the view above answers for one, so
+-- something has to reduce them - and every reader of this, the page and the
+-- agent alike, wants the same reduction: the WORST case. One shaky line is
+-- enough to make an attribution shaky, and a passage that is 'human' for four
+-- utterances and 'cluster' for the fifth is a passage whose name may be wrong.
+--
+-- It is a function and not two aggregates in each caller's query because both
+-- ways of writing those aggregates were wrong, and wrong quietly:
+--
+--   BOOL_OR(human) with MIN(basis) reads the two fields off DIFFERENT
+--   utterances, so one passage came back saying a person confirmed it AND that
+--   it was an archive-wide cluster guess. Whichever the caller checked first
+--   decided the answer.
+--
+--   MIN(basis) is alphabetical, and alphabetical is not strength: it puts
+--   'cluster' first, which is right by luck, and then 'human' ahead of
+--   'voice', which is backwards. A passage mixing a confirmed name with a
+--   voice match reported the confirmed one.
+--
+-- ORDER BY ... LIMIT 1 over a real strength ranking returns ONE row, so the
+-- fields cannot disagree, and returns the weakest, which is what the question
+-- means. The ranking is the precedence in the view above, read from the bottom
+-- up; it is stated here and nowhere else for the reason the view's own header
+-- gives.
+CREATE OR REPLACE FUNCTION passage_speaker(vid text, lo integer, hi integer)
+RETURNS TABLE (name_human boolean, name_basis text)
+LANGUAGE sql STABLE AS $$
+    SELECT us.human, us.basis
+      FROM utterance_speaker us
+      LEFT JOIN speaker_method m ON m.method = us.basis
+     WHERE us.video_id = vid AND us.idx BETWEEN lo AND hi
+       -- Unnamed utterances say nothing about how sure a NAME is. A passage
+       -- of nothing but unnamed voices returns no row at all, which the
+       -- callers read as "no name to be unsure about".
+       AND us.name IS NOT NULL
+     -- WEAKEST FIRST, off the one table that ranks methods. This was a CASE
+     -- over the four values `basis` used to carry, and `basis` is the METHOD
+     -- now: self, chair, llm, label, read_aloud and self_weak all fell to
+     -- ELSE 0 and became indistinguishable from `cluster`, the weakest thing
+     -- there is. A passage whose name the speaker gave themselves would have
+     -- been reduced exactly like one named by an archive-wide majority.
+     ORDER BY COALESCE(m.rank, 99) DESC
+     LIMIT 1;
+$$;
 
 -- ------------------------------------------------------------- redaction
 --
