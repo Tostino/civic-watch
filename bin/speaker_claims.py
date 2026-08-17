@@ -361,6 +361,17 @@ def extract(con, video_id=None):
             (r["video_id"], *next(
                 (sp for sp in voice_runs.get((r["video_id"], r["local_label"]), [])
                  if sp[0] <= r["idx"] <= sp[1]), (r["idx"], r["idx"])))).fetchone()["x"]
+        # The words that carry the name, with enough either side to read as a
+        # sentence. Assigned HERE, above every branch that records a claim,
+        # because it used to be assigned below them: the read_aloud branch
+        # then wrote whichever quote the PREVIOUS iteration had left in the
+        # variable, and did so for all 29 of its claims. Lynn Morrissey's
+        # letter was filed with the evidence "My name is Linda Shalk", which
+        # names a different member of the public - the name was right and the
+        # sentence offered to justify it was somebody else's. Found by
+        # audit.py claims.quotes_are_verbatim; nothing else looks.
+        quote = text[max(0, m.start() - 30):m.end() + 40]
+
         if READING.search(text) or reading_run:
             claim(cur, r["video_id"], r["idx"], r["idx"], name, "read_aloud",
                   quote)
@@ -395,9 +406,6 @@ def extract(con, video_id=None):
         if held and held["name"].lower() not in name.lower():
             n["board_voice_skipped"] += 1
             continue
-
-        quote = text[max(0, m.start() - 30):m.end() + 40]
-
 
         # Is this utterance attributable? Not "is the name right" - it is
         # whether the utterance landed on the right voice.

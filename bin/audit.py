@@ -1374,6 +1374,122 @@ def _(con):
         "SELECT COUNT(*) FROM people WHERE kind = 'public'"
 
 
+@check("claims.quotes_are_verbatim",
+       "a claim's quote is still the words in the range it covers")
+def _(con):
+    """SPEAKER_PLAN section 5, and the reason it is not enough that
+    name_speakers.py checks this at write time.
+
+    A quote is the evidence a claim rests on. `self` claims quote the speaker
+    naming themselves; `llm` claims quote the span the model was told to copy
+    verbatim, and name_speakers.py refuses a proposal whose quote it cannot
+    find. Nothing re-checks it afterwards, and A REDACTION CHANGES THE TEXT
+    UNDERNEATH: the archive removed '14720 Bluestone Lane' from a line in
+    August, and any claim quoting that line no longer quotes anything.
+
+    Whitespace is normalised on both sides. The quote was captured from one
+    utterance and is compared against a range joined with spaces, so a line
+    break inside the quote would fail on formatting rather than on substance.
+
+    Restricted to claims that HAVE a quote - 1,661 of 258,317. Coverage is a
+    separate question and `evidence_coverage` below reports it, because
+    `chair` cannot always answer it: its evidence is cluster-wide and its
+    claims are per-run, so a run that contains no chair-script line has no
+    in-range quote to record and never will.
+    """
+    q = """FROM speaker_claim c
+           WHERE c.quote IS NOT NULL AND btrim(c.quote) <> ''
+             AND position(regexp_replace(btrim(c.quote), '[[:space:]]+', ' ', 'g')
+                       in (SELECT COALESCE(regexp_replace(
+                                     string_agg(u.text, ' ' ORDER BY u.idx),
+                                     '[[:space:]]+', ' ', 'g'), '')
+                             FROM utterances u
+                            WHERE u.video_id = c.video_id
+                              AND u.idx BETWEEN c.start_idx AND c.end_idx)) = 0"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"""
+        SELECT c.id, c.video_id, c.start_idx, c.end_idx, c.method,
+               left(c.quote, 50) AS quote {q} ORDER BY c.id LIMIT 5""", \
+        "SELECT COUNT(*) FROM speaker_claim WHERE quote IS NOT NULL"
+
+
+@check("claims.spans_are_real",
+       "a claim covers utterances that exist, in one recording")
+def _(con):
+    """SPEAKER_PLAN section 5. The span is what makes a claim resolvable -
+    specificity breaks ties, so a claim covering a range that is not there
+    outranks better evidence over nothing at all.
+
+    `video_id` is one column, so a claim CANNOT span two recordings by
+    construction; what it can do is point outside the one it names, which is
+    the same defect arriving by a different door. Backwards ranges too: `lo`
+    and `hi` come from MIN/MAX over a gaps-and-islands window in four
+    different producers, and an empty window yields NULLs rather than an
+    error.
+    """
+    q = """FROM speaker_claim c
+           WHERE c.start_idx IS NULL OR c.end_idx IS NULL
+              OR c.end_idx < c.start_idx
+              OR NOT EXISTS (SELECT 1 FROM utterances u
+                              WHERE u.video_id = c.video_id AND u.idx = c.start_idx)
+              OR NOT EXISTS (SELECT 1 FROM utterances u
+                              WHERE u.video_id = c.video_id AND u.idx = c.end_idx)"""
+    return count(con, f"SELECT COUNT(*) {q}"), f"""
+        SELECT c.id, c.video_id, c.start_idx, c.end_idx, c.method {q}
+        ORDER BY c.id LIMIT 5""", \
+        "SELECT COUNT(*) FROM speaker_claim"
+
+
+@check("claims.evidence_coverage",
+       "resolved utterances whose winning claim rests on no quotable evidence",
+       review=True)
+def _(con):
+    """REPORTED, NOT ASSERTED - SPEAKER_PLAN section 5 says so about the
+    contested count, and the same argument covers this. Neither is a defect:
+    they are the size of a job.
+
+    `cluster`, `voice` and `chair` have no quote and mostly cannot have one.
+    The number worth watching is not how many claims lack evidence but how
+    much of what a READER SEES rests on a claim that does - if that share
+    falls, the archive is asserting more than it can show, and nothing else
+    here would say so.
+
+    The 16,122 `llm` claims carrying no quote are backfilled from
+    `speaker_identity`, which had nowhere to keep one. name_speakers.py
+    records the quote it already verifies, so this shrinks as meetings are
+    re-named rather than needing a migration.
+    """
+    q = """FROM speaker_resolved r
+           WHERE r.method IN ('cluster', 'voice', 'chair', 'llm', 'label')"""
+    return count(con, f"SELECT COUNT(*) {q}"), """
+        SELECT method, COUNT(*) AS utterances,
+               ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct
+          FROM speaker_resolved GROUP BY method ORDER BY utterances DESC""", \
+        "SELECT COUNT(*) FROM speaker_resolved"
+
+
+@check("claims.contested", "spans where two unvetoed methods name different people",
+       review=True)
+def _(con):
+    """A WORKLOAD MEASURE, not a failure - SPEAKER_PLAN section 5 is explicit.
+
+    Two methods asserting different names for one span is a fact the old
+    pipeline computed and printed away. It is now recorded per utterance and
+    shown to the reader as `Disputed`, which is the honest rendering: the
+    archive holds two answers and does not know which is right.
+
+    It became reportable at all when the resolver stopped modelling a voice's
+    span as MIN..MAX of its utterances. Under that model a voice interleaved
+    with another - which is most of them - covered the whole meeting, so
+    almost every span overlapped almost every other and 89 percent came out
+    contested. Contiguous runs took it to the number below.
+    """
+    q = "FROM speaker_resolved WHERE contested"
+    return count(con, f"SELECT COUNT(*) {q}"), """
+        SELECT video_id, COUNT(*) AS utterances FROM speaker_resolved
+         WHERE contested GROUP BY video_id ORDER BY 2 DESC LIMIT 5""", \
+        "SELECT COUNT(*) FROM speaker_resolved"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="")
