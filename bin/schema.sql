@@ -1193,3 +1193,21 @@ CREATE TABLE IF NOT EXISTS subject_term (
 
 CREATE INDEX IF NOT EXISTS subject_term_live
     ON subject_term (slug) WHERE status = 'kept';
+
+-- A subject may narrow into sub-subjects. Three of the twenty-seven derived
+-- subjects are far larger than the rest - zoning and land use at 2,909 items,
+-- development review at 2,408, community development districts at 2,109,
+-- against 798 for the fourth - and a row that size stops answering the
+-- question the strip asks. "Zoning and land use amendments" covers a rezoning
+-- next door and a code text amendment in the same cell, and a resident does
+-- not care about those equally.
+--
+-- Self-referencing rather than a second table: a sub-subject IS a subject -
+-- same vocabulary, same grounding, same curation - and giving it its own
+-- table would fork every one of those. Depth is one by construction, enforced
+-- by the check below: a child of a child would render as a tree, and this is
+-- a strip of years.
+ALTER TABLE subject ADD COLUMN IF NOT EXISTS parent text
+    REFERENCES subject(slug) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS subject_children ON subject (parent)
+    WHERE parent IS NOT NULL;

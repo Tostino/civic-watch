@@ -509,6 +509,15 @@ export interface Issue {
   label: string;
   /** What to ask `/search` for this issue. */
   q: string;
+  /**
+   * The `slug` of the subject this one narrows, or null for a top-level one.
+   *
+   * A parent still counts everything its own vocabulary matches, its children
+   * included — the strip shows the whole subject and then what it is made of,
+   * which only reads if the top row really is the whole. So a parent and its
+   * children are NOT a set of disjoint rows, and nothing sums them.
+   */
+  parent: string | null;
   items: number;
   meetings: number;
   continued: number;

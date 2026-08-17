@@ -39,9 +39,42 @@ import s from "./Issues.module.css";
  * — the counts here are found by wording, and the search page is where a
  * reader goes to see the items they were found in.
  */
-export function Issues({ d }: { d: IssuesData }) {
+export function Issues({
+  d,
+  open = [],
+  href,
+}: {
+  d: IssuesData;
+  /** Slugs whose sub-subjects are showing, from the URL. */
+  open?: string[];
+  href?: (next: { open?: string }) => string;
+}) {
   if (!d.issues.length) return null;
   const yrs = d.span;
+
+  /* Top-level rows in the order the API ranked them, each followed by its own
+   * sub-subjects when open. Regrouped here rather than ordered in SQL because
+   * the ranking is by how much county business a subject is, and a child
+   * sorted on that measure lands nowhere near its parent.
+   *
+   * A subject narrows only when it grew too broad to answer anything - three
+   * of twenty-seven did, at 2,109 items and up against 798 for the fourth -
+   * so most rows have no children and nothing about them changes. */
+  const kids = new Map<string, typeof d.issues>();
+  for (const i of d.issues) {
+    if (!i.parent) continue;
+    const b = kids.get(i.parent);
+    if (b) b.push(i);
+    else kids.set(i.parent, [i]);
+  }
+  const shown: { i: (typeof d.issues)[number]; child: boolean }[] = [];
+  for (const i of d.issues) {
+    if (i.parent) continue;
+    shown.push({ i, child: false });
+    if (open.includes(i.slug)) {
+      for (const k of kids.get(i.slug) ?? []) shown.push({ i: k, child: true });
+    }
+  }
 
   return (
     <section className={s.wrap} aria-labelledby="issues-head">
@@ -98,8 +131,16 @@ export function Issues({ d }: { d: IssuesData }) {
           <span className={s.colHead}>totals</span>
         </div>
 
-        {d.issues.map((i) => (
-          <Row key={i.slug} i={i} heardFrom={d.heard_from} />
+        {shown.map(({ i, child }) => (
+          <Row
+            key={i.slug}
+            i={i}
+            heardFrom={d.heard_from}
+            child={child}
+            kids={kids.get(i.slug)?.length ?? 0}
+            open={open.includes(i.slug)}
+            href={href}
+          />
         ))}
       </div>
 
@@ -135,7 +176,23 @@ export function Issues({ d }: { d: IssuesData }) {
   );
 }
 
-function Row({ i, heardFrom }: { i: Issue; heardFrom: string }) {
+function Row({
+  i,
+  heardFrom,
+  child = false,
+  kids = 0,
+  open = false,
+  href,
+}: {
+  i: Issue;
+  heardFrom: string;
+  /** This row narrows the one above it. */
+  child?: boolean;
+  /** How many sub-subjects this row has, 0 for most. */
+  kids?: number;
+  open?: boolean;
+  href?: (next: { open?: string }) => string;
+}) {
   /* Scaled to the row, not to the grid. The time axis shares one scale across
    * its whole grid because the 2015 → 2025 ramp IS its finding. Here the rows
    * are different subjects: rezoning peaks at 213 items in a year and the
@@ -158,20 +215,35 @@ function Row({ i, heardFrom }: { i: Issue; heardFrom: string }) {
    * magnitudes would have been the dual-axis mistake this file already
    * refuses once, in the same 33px box. */
 
-  const href = (y?: IssueYear) =>
+  /* Renamed off `href`, which is now the prop that opens a narrowing. Two
+   * different link builders under one name in one component is how the wrong
+   * one gets called. */
+  const hrefQ = (y?: IssueYear) =>
     `/search?q=${encodeURIComponent(i.q)}` +
     (y ? `&since=${y.year}-01-01&until=${y.year}-12-31` : "");
 
   return (
-    <div className={s.row}>
+    <div className={`${s.row} ${child ? s.childRow : ""}`}>
       <span className={s.label}>
         {/* The counts in this row are of titles that name the issue; the link
             runs a search, which ranks the whole archive and will report its
             own total. Saying which words it searches for keeps the two from
             reading as the same claim. */}
-        <Link href={href()} className={s.name} title={`Search the archive for “${i.q}”`}>
+        <Link href={hrefQ()} className={s.name} title={`Search the archive for “${i.q}”`}>
           {i.label}
         </Link>
+        {/* Only on a row that HAS sub-subjects, which is three of them. The
+            control says how many rather than drawing a bare chevron, because
+            the number is the reason to press it. */}
+        {kids && href ? (
+          <Link
+            href={href({ open: open ? "" : i.slug })}
+            className={s.narrow}
+            aria-expanded={open}
+          >
+            {open ? "hide" : `${kids} kinds`}
+          </Link>
+        ) : null}
         {/* One line, and it does not wrap. Five facts wrapping to three lines
             gave every row a different height, which is most of what stopped
             the grid reading as a grid. The rest is on the hover and on the
@@ -236,7 +308,7 @@ function Row({ i, heardFrom }: { i: Issue; heardFrom: string }) {
         return (
           <Link
             key={y.year}
-            href={href(y)}
+            href={hrefQ(y)}
             className={`${s.cell} ${edge}`}
             aria-label={cell(i, y, heardFrom)}
             title={cell(i, y, heardFrom)}

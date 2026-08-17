@@ -26,7 +26,9 @@ import s from "./browse.module.css";
  * somebody can send. */
 
 type Props = {
-  searchParams: Promise<{ body?: string; year?: string; month?: string; axis?: string }>;
+  searchParams: Promise<{
+    body?: string; year?: string; month?: string; axis?: string; open?: string;
+  }>;
 };
 
 const YEAR = /^\d{4}$/;
@@ -44,6 +46,15 @@ export default async function BrowsePage({ searchParams }: Props) {
   // off - which a disclosure widget would not, and which matters more than
   // usual on the page a stranger arrives at first.
   const axis = q.axis === "all" ? "all" : undefined;
+  // Which broad subjects are showing what they narrow into. Same reasoning as
+  // `axis`: in the URL, so it is a link somebody can send and it survives
+  // script being off. Comma-separated because more than one may be open, and
+  // capped so a hand-made URL cannot make the section unbounded.
+  const open = (q.open || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => /^[a-z0-9-]{1,60}$/.test(v))
+    .slice(0, 6);
   const filtered = Boolean(year || month);
 
   const [bodies, overview, issues, highlights, page, soon] = await Promise.all([
@@ -85,15 +96,29 @@ export default async function BrowsePage({ searchParams }: Props) {
   const listed = bodies.filter((b) => b.recorded > 0 || b.with_agenda > 0);
 
   /** Builds a URL that changes one facet and keeps the rest (R4.2). */
-  const href = (next: { body?: string; year?: string; month?: string; axis?: string }) => {
+  const href = (next: {
+    body?: string; year?: string; month?: string; axis?: string; open?: string;
+  }) => {
     const p = new URLSearchParams();
-    const merged = { body, year, month, axis, ...next };
+    // `open` arrives as ONE slug to toggle, not as the whole list: a caller
+    // that had to send the full set would need to know what else is open,
+    // and every row would have to be handed the others.
+    const opened =
+      next.open === undefined
+        ? open
+        : next.open === ""
+          ? []
+          : open.includes(next.open)
+            ? open.filter((v) => v !== next.open)
+            : [...open, next.open];
+    const merged = { body, year, month, axis, ...next, open: opened.join(",") };
     if (merged.body) p.set("body", merged.body);
     if (merged.year) p.set("year", merged.year);
     if (merged.month) p.set("month", merged.month);
     // Carried like the rest: a reader who opened the axis and then picked a
     // body should not have it fold up underneath them.
     if (merged.axis) p.set("axis", merged.axis);
+    if (merged.open) p.set("open", merged.open);
     const qs = p.toString();
     return qs ? `/?${qs}` : "/";
   };
@@ -161,7 +186,7 @@ export default async function BrowsePage({ searchParams }: Props) {
       {/* After the axis, because it is read against it: the axis says how much
           the county met, this says what about. Before the entryways, because
           those are the exceptions and this is the standing business. */}
-      {issues ? <Issues d={issues} /> : null}
+      {issues ? <Issues d={issues} open={open} href={href} /> : null}
 
       {highlights ? <Entryways h={highlights} /> : null}
 

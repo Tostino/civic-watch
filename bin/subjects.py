@@ -37,6 +37,7 @@ pattern, and nobody would have found it buried in 21,274 individual labels.
 
     bin/subjects.py --propose        sample titles, ask for subjects
     bin/subjects.py --terms          ask for phrases, ground every one
+    bin/subjects.py --split          narrow a subject too broad to answer anything
     bin/subjects.py --triage         keep what grounds cleanly, queue the rest
     bin/subjects.py --review         the queue, with counts and samples
     bin/subjects.py --keep SLUG…     accept a subject, or a term by id
@@ -246,7 +247,7 @@ def patterns(con, slug=None):
     shipped.
     """
     rows = con.execute("""
-        SELECT s.slug, s.label, s.q, s.sort, t.phrase, t.negative
+        SELECT s.slug, s.label, s.q, s.sort, s.parent, t.phrase, t.negative
           FROM subject s JOIN subject_term t ON t.slug = s.slug
          WHERE s.status = 'kept' AND t.status = 'kept'
            AND (%s::text IS NULL OR s.slug = %s)
@@ -254,7 +255,8 @@ def patterns(con, slug=None):
     out = {}
     for r in rows:
         d = out.setdefault(r["slug"], {"label": r["label"], "q": r["q"],
-                                       "sort": r["sort"], "pos": [], "neg": []})
+                                       "sort": r["sort"], "parent": r["parent"],
+                                       "pos": [], "neg": []})
         d["neg" if r["negative"] else "pos"].append(r["phrase"])
     for slug, d in list(out.items()):
         if not d["pos"]:
@@ -265,6 +267,93 @@ def patterns(con, slug=None):
         d["room"] = " | ".join(f"({tsq(p)})" for p in d["pos"] if tsq(p))
         d["room_not"] = " | ".join(f"({tsq(p)})" for p in d["neg"] if tsq(p)) or None
     return out
+
+
+SPLIT_SYS = """\
+These are agenda item titles that ALL matched one broad subject in a Florida
+county's record. The subject is too broad to be useful: it puts things a
+resident cares about differently into one row.
+
+Narrow it into SUB-SUBJECTS - the distinct kinds of business inside it.
+
+Return JSON: {"subjects": [{"slug": "...", "label": "...", "q": "...",
+"blurb": "..."}]}, using the same rules as before: sentence-case label, two or
+three words for q, one sentence of blurb.
+
+Rules:
+- TWO to FOUR sub-subjects. Each must be a thing a resident would recognise
+  as different from the others, not a filing distinction.
+- Together they should cover most of what you see. A residual tail is fine and
+  does not need a sub-subject of its own.
+- Return an EMPTY list if this subject does not genuinely decompose - if the
+  titles are all the same kind of business and only the parties differ. That
+  is a real and useful answer; do not invent a split to satisfy the request.
+"""
+
+SPLIT_MIN = 1000
+
+
+# ----------------------------------------------------------------- narrowing
+
+def split(con, slug=None):
+    """Narrow a subject that has grown too broad to answer anything.
+
+    The model reads titles THIS SUBJECT ACTUALLY MATCHED rather than the
+    archive at large, so the sub-subjects it proposes are a decomposition of
+    what is there and not a guess at what might be.
+
+    It is allowed to decline, and the prompt says so in as many words. Not
+    every large subject decomposes: community development district oversight
+    is 2,109 items and two phrases that mean the same thing, because it really
+    is one kind of business with 2,109 parties. Forcing a split there would
+    manufacture a distinction the record does not have, which is the same
+    failure as inventing a subject.
+    """
+    live = patterns(con)
+    targets = []
+    for s, d in live.items():
+        if slug and s != slug:
+            continue
+        n = con.execute("SELECT COUNT(*) FROM agenda_items "
+                        "WHERE source='agenda' AND title ~* %s",
+                        (d["record"],)).fetchone()[0]
+        if slug or n >= SPLIT_MIN:
+            targets.append((s, d, n))
+    if not targets:
+        sys.exit(f"  nothing at or above {SPLIT_MIN:,} items to narrow.")
+
+    cur = con.cursor()
+    for s, d, n in targets:
+        rows = [r[0] for r in con.execute("""
+            SELECT title FROM agenda_items
+             WHERE source='agenda' AND title ~* %s
+             ORDER BY md5(title) LIMIT 220""", (d["record"],))]
+        listed = "\n".join(f"- {t[:200]}" for t in rows)
+        raw = _llm().chat(
+            [{"role": "system", "content": SPLIT_SYS},
+             {"role": "user", "content": f"Subject: {d['label']} ({n:,} items)\n\n{listed}"}],
+            as_json=True, temperature=0.3)
+        kids = (json.loads(raw) or {}).get("subjects") or []
+        if not kids:
+            print(f"  {d['label']}: does not decompose — left whole")
+            continue
+        for i, k in enumerate(kids):
+            if not k.get("slug") or not k.get("label"):
+                continue
+            lab = sentence_case(k["label"])
+            cur.execute("""
+                INSERT INTO subject (slug, label, q, blurb, proposer, sort,
+                                     parent, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'proposed')
+                ON CONFLICT (slug) DO UPDATE
+                   SET parent = EXCLUDED.parent, label = EXCLUDED.label
+                 WHERE subject.status = 'proposed'""",
+                (k["slug"], lab, short_query(k.get("q"), lab), k.get("blurb"),
+                 PROPOSER, i, s))
+        con.commit()
+        print(f"  {d['label']}: {len(kids)} sub-subjects — "
+              + ", ".join(sentence_case(k['label']) for k in kids if k.get('label')))
+    print("\n  bin/subjects.py --terms  to give each one a vocabulary")
 
 
 # --------------------------------------------------------------- proposing
@@ -358,10 +447,13 @@ def ground(con, phrase):
 
 
 def terms(con, only=None):
+    # Only what has NOT been curated yet, unless a slug is named. Asking again
+    # for a subject whose vocabulary a person already kept spends a call to
+    # produce phrases the ON CONFLICT clause then declines to write.
     subs = [dict(r) for r in con.execute("""
         SELECT slug, label, blurb FROM subject
-         WHERE status IN ('proposed', 'kept')
-           AND (%s::text IS NULL OR slug = %s)
+         WHERE (%s::text IS NULL AND status = 'proposed'
+                OR slug = %s)
          ORDER BY sort NULLS LAST, slug""", (only, only))]
     if not subs:
         sys.exit("  no subjects to ask about. Run --propose first.")
@@ -583,6 +675,7 @@ def main():
     g.add_argument("--terms", nargs="?", const=True, metavar="SLUG")
     g.add_argument("--review", action="store_true")
     g.add_argument("--triage", action="store_true")
+    g.add_argument("--split", nargs="?", const=True, metavar="SLUG")
     g.add_argument("--keep", nargs="+", metavar="SLUG|ID")
     g.add_argument("--drop", nargs="+", metavar="SLUG|ID")
     g.add_argument("--status", action="store_true")
@@ -598,6 +691,8 @@ def main():
         return review(con)
     if a.triage:
         return triage(con)
+    if a.split:
+        return split(con, None if a.split is True else a.split)
     if a.keep:
         return setstatus(con, a.keep, "kept")
     if a.drop:

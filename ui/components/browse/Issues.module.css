@@ -377,3 +377,50 @@
     background: var(--surface);
   }
 }
+
+/* -------------------------------------------------- narrowed sub-subjects
+ *
+ * A subject narrows only when it grew too broad to answer anything. Three of
+ * twenty-seven did - zoning and land use at 2,909 items, development review
+ * at 2,408, community development districts at 2,109, against 798 for the
+ * fourth - and "zoning and land use amendments" was putting a rezoning next
+ * door and a code text amendment in the same cell.
+ *
+ * Children are drawn as a continuation of the parent rather than as rows of
+ * their own: a rule down the gutter, the name stepped in, and the same lanes.
+ * They are not a partition of it - the parent counts everything its own
+ * vocabulary matches, children included - so nothing here invites the eye to
+ * add them up. */
+.childRow .label {
+  padding-inline-start: var(--sp-4);
+  border-inline-start: 2px solid var(--rule);
+  margin-inline-start: 0.35rem;
+}
+
+.childRow .name {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+/* The control, on the parent. It says HOW MANY rather than drawing a bare
+ * chevron, because the count is the reason to press it - "4 kinds" earns a
+ * click and a triangle does not. */
+.narrow {
+  align-self: start;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.narrow:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 46rem) {
+  .childRow .label {
+    padding-inline-start: var(--sp-2);
+    margin-inline-start: 0.2rem;
+  }
+}

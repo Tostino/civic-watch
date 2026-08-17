@@ -653,11 +653,30 @@ def _issue_specs(con):
     except Exception:
         live = {}
     if live:
-        return [{"slug": slug, "label": d["label"], "q": d["q"],
-                 "record": d["record"], "record_not": d["record_not"],
-                 "room": d["room"], "room_not": d["room_not"]}
-                for slug, d in live.items()]
+        out = []
+        for slug, d in live.items():
+            # A sub-subject whose parent was dropped would render as a
+            # top-level row of a narrowing nobody asked for, so it is orphaned
+            # back to the top rather than hidden - hiding it would lose items
+            # from the page with nothing saying so.
+            up = live.get(d["parent"]) if d["parent"] else None
+            out.append({
+                "slug": slug, "label": d["label"], "q": d["q"],
+                "parent": d["parent"] if up else None,
+                # A CHILD IS COUNTED INSIDE ITS PARENT. Its own vocabulary is
+                # not a smaller list, it is a different one, so without this a
+                # sub-subject can and does reach items the subject it narrows
+                # never matched - and a row presented as "what this is made
+                # of" that contains things the whole does not is simply false.
+                # Also what keeps a parent the sum-or-more of its parts, which
+                # is the only reading of an indented row that is safe.
+                "record_in": up["record"] if up else None,
+                "room_in": up["room"] if up else None,
+                "record": d["record"], "record_not": d["record_not"],
+                "room": d["room"], "room_not": d["room_not"]})
+        return out
     return [{"slug": i["slug"], "label": i["label"], "q": i["q"],
+             "parent": None, "record_in": None, "room_in": None,
              "record": i["record"], "record_not": None,
              "room": i["room"], "room_not": None} for i in ISSUES]
 
@@ -693,13 +712,13 @@ def issues(con):
     specs = _issue_specs(con)
     if not specs:
         return {"span": [], "heard_from": None, "issues": []}
-    vals = ", ".join(["(%s, %s, %s)"] * len(specs))
+    vals = ", ".join(["(%s, %s, %s, %s)"] * len(specs))
 
     # Two counts of meetings, one per source, and both are summed per year
     # later. That is exact rather than approximate: a meeting has one date, so
     # it falls in exactly one year and cannot be counted in two.
     record = [dict(r) for r in con.execute(f"""
-        WITH t(slug, rx, rx_not) AS (VALUES {vals})
+        WITH t(slug, rx, rx_not, rx_in) AS (VALUES {vals})
         SELECT t.slug, left(m.date, 4) AS year,
                COUNT(*)                                          AS items,
                COUNT(DISTINCT m.id)                              AS meetings,
@@ -721,13 +740,16 @@ def issues(con):
            -- "license plate" takes in the county's spay/neuter specialty-plate
            -- grant, which is not a camera.
            AND (t.rx_not IS NULL OR ai.title !~* t.rx_not)
+           -- A sub-subject is counted INSIDE the subject it narrows.
+           AND (t.rx_in IS NULL OR ai.title ~* t.rx_in)
           JOIN meetings m ON m.id = ai.meeting_id
          WHERE m.date <= to_char(now(), 'YYYY-MM-DD')
          GROUP BY 1, 2""",
-        [v for s in specs for v in (s["slug"], s["record"], s["record_not"])])]
+        [v for s in specs
+         for v in (s["slug"], s["record"], s["record_not"], s["record_in"])])]
 
     room = [dict(r) for r in con.execute(f"""
-        WITH t(slug, tsq, tsq_not) AS (VALUES {vals})
+        WITH t(slug, tsq, tsq_not, tsq_in) AS (VALUES {vals})
         SELECT t.slug, left(m.date, 4) AS year,
                COUNT(*)             AS lines,
                COUNT(DISTINCT m.id) AS meetings,
@@ -737,10 +759,12 @@ def issues(con):
             ON u.tsv @@ to_tsquery('english', t.tsq)
            AND (t.tsq_not IS NULL
                 OR NOT (u.tsv @@ to_tsquery('english', t.tsq_not)))
+           AND (t.tsq_in IS NULL OR u.tsv @@ to_tsquery('english', t.tsq_in))
           JOIN videos v ON v.id = u.video_id
           JOIN meetings m ON m.id = v.meeting_id
          GROUP BY 1, 2""",
-        [v for s in specs for v in (s["slug"], s["room"], s["room_not"])])]
+        [v for s in specs
+         for v in (s["slug"], s["room"], s["room_not"], s["room_in"])])]
 
     # The axis is the archive's own span, so a thirteenth year needs no edit
     # here - the same reason TimeAxis derives its heading rather than printing
@@ -769,6 +793,11 @@ def issues(con):
                  + [r["first"] for r in rm.values()] + [r["last"] for r in rm.values()])
         out.append({
             "slug": spec["slug"], "label": spec["label"], "q": spec["q"],
+            # The row this one narrows, or null. A parent still counts
+            # everything its own vocabulary matches, children included: the
+            # page shows the whole subject and then what it is made of, which
+            # only reads if the top row is the whole.
+            "parent": spec.get("parent"),
             "items": sum(r["items"] for r in rec.values()),
             "meetings": sum(r["meetings"] for r in rec.values()),
             "continued": sum(r["continued"] for r in rec.values()),
