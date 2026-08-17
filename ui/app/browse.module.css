@@ -31,6 +31,12 @@
   text-wrap: pretty;
 }
 
+/* A little air above it so it reads as the next move rather than as part of
+ * the lede's paragraph block. */
+.find {
+  margin-block-start: var(--sp-2);
+}
+
 .bodies {
   display: flex;
   flex-wrap: wrap;

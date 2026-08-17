@@ -4,6 +4,7 @@ import { Collection } from "@/components/browse/Collection";
 import { Entryways } from "@/components/browse/Entryways";
 import { Issues } from "@/components/browse/Issues";
 import { TimeAxis } from "@/components/browse/TimeAxis";
+import { SearchBox } from "@/components/search/SearchBox";
 import { ApiError, getBodies, getHighlights, getIssues, getMeetings, getOverview } from "@/lib/api";
 import { duration, isoWeekday, meetingDate } from "@/lib/format";
 import s from "./browse.module.css";
@@ -65,7 +66,12 @@ export default async function BrowsePage({ searchParams }: Props) {
     // rows in the raw table are events that have not happened - no agenda, no
     // minutes, no recording - and sorting by date puts every one of them above
     // the actual record. CivicClerk splits Past / Coming Up and is right to.
-    getMeetings({ body, year, month, when: "past", limit: filtered ? 400 : 60 }),
+    //
+    // Twelve unfiltered, not sixty. Sixty rows measured 4,444px - 54% of the
+    // whole page - to say what the header of this file already calls the least
+    // informative view of a collection this size. Under a date filter the list
+    // IS what the reader asked for and stays long.
+    getMeetings({ body, year, month, when: "past", limit: filtered ? 400 : 12 }),
     filtered ? null : getMeetings({ body, when: "upcoming", limit: 4 }),
   ]);
 
@@ -92,6 +98,11 @@ export default async function BrowsePage({ searchParams }: Props) {
     else years.set(y, [m]);
   }
 
+  /** The year the unfiltered sample came from, for the link out of it. */
+  const latest = !filtered && page.total > page.meetings.length
+    ? page.meetings[0]?.date.slice(0, 4)
+    : undefined;
+
   return (
     <div className={s.page}>
       <header className={s.hero}>
@@ -101,6 +112,15 @@ export default async function BrowsePage({ searchParams }: Props) {
           recordings, so a decision can be read, heard, and cited. The county&rsquo;s portal is a
           filing cabinet of PDFs. This is the record.
         </p>
+        {/* The front page had no input on it at all: the one verb a reader
+            arrives holding was a nav link, and the first door into an actual
+            document sat 3,031px down. §5.1 is still right that a bare search
+            box answers nothing about what is here - so this sits UNDER the
+            lede and above the collection, and the panels below keep making
+            the argument they made before. */}
+        <div className={s.find}>
+          <SearchBox q="" compact />
+        </div>
       </header>
 
       <nav className={s.bodies} aria-label="Filter by board or commission">
@@ -170,6 +190,14 @@ export default async function BrowsePage({ searchParams }: Props) {
         {filtered ? (
           <Link href={href({ year: undefined, month: undefined })} className={s.clear}>
             Clear the date filter
+          </Link>
+        ) : latest ? (
+          // Twelve rows is a sample, so it has to say where the rest are. The
+          // axis above reaches any month; this reaches the year the sample
+          // came from, which is the step a reader scrolled to the bottom to
+          // take.
+          <Link href={href({ year: latest })} className={s.clear}>
+            All of {latest} &rarr;
           </Link>
         ) : null}
       </div>

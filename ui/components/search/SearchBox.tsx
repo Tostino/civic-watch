@@ -14,14 +14,22 @@ import s from "./SearchBox.module.css";
 export function SearchBox({
   q,
   hidden = {},
+  compact = false,
 }: {
   q: string;
   /** Facets to carry through the submit, so searching again keeps them. */
   hidden?: Record<string, string | undefined>;
+  /**
+   * Browse arrives already explaining itself — a title, a lede and a coverage
+   * panel all saying what is here — so the hint would be the fourth thing on
+   * screen saying it again. Dropped there and kept on `/search`, where the box
+   * IS the page and the duality it teaches has nothing else to lean on.
+   */
+  compact?: boolean;
 }) {
   return (
     <form className={s.form} action="/search" method="get" role="search">
-      <label className={s.label} htmlFor="q">
+      <label className={compact ? "sr-only" : s.label} htmlFor="q">
         Search the record and the recordings
       </label>
       <div className={s.row}>
@@ -33,16 +41,18 @@ export function SearchBox({
           defaultValue={q}
           autoComplete="off"
           placeholder="impact fees, Orange Belt Trail, PDE-25-7738, R-58…"
-          aria-describedby="q-hint"
+          {...(compact ? {} : { "aria-describedby": "q-hint" })}
         />
         <button type="submit" className={s.go}>
           Search
         </button>
       </div>
-      <p id="q-hint" className={s.hint}>
-        Subject words search 23,122 published agenda items and 1,036 hours of
-        recordings. An item code or case number is matched as an identifier.
-      </p>
+      {compact ? null : (
+        <p id="q-hint" className={s.hint}>
+          Subject words search 23,122 published agenda items and 1,036 hours of
+          recordings. An item code or case number is matched as an identifier.
+        </p>
+      )}
       {Object.entries(hidden).map(([k, v]) =>
         v ? <input key={k} type="hidden" name={k} value={v} /> : null,
       )}

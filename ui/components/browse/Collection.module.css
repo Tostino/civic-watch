@@ -4,14 +4,22 @@
   gap: var(--sp-5);
   padding: var(--sp-4);
   background: var(--surface);
+  /* --radius, like Issues, Entryways and the not-yet-held aside. This was the
+   * only panel on the page at --radius-lg, which read as a different KIND of
+   * container rather than as the same one holding different content. */
   border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius);
 }
 
+/* Five facts never fit one row here: beside the coverage panel this track is
+ * ~526px at the 68rem page width, and five legible cells need ~570px. So the
+ * choice is which uneven split, and 3+2 beats the 4+1 that 7.5rem produced -
+ * an orphan on its own row reads as a mistake, and the wider cell lets the
+ * sub-labels wrap to two lines instead of three. */
 .facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
-  gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--sp-4) var(--sp-3);
   align-content: start;
 }
 
@@ -40,6 +48,10 @@
   line-height: 1.15;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+
+.num {
+  white-space: nowrap;
 }
 
 .sub {

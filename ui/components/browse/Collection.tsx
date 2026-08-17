@@ -30,7 +30,13 @@ export function Collection({ o, body }: { o: Overview; body?: string }) {
         <div className={s.fact}>
           <dt className={s.label}>Span</dt>
           <dd className={s.value}>
-            {o.first.slice(0, 4)}&ndash;{o.last.slice(0, 4)}
+            {/* Every figure here is one token and must break like one. As a
+                bare text node in a flex column "2015–2026" is an anonymous
+                item that wraps at the track width, and at the width this grid
+                actually gets it broke after the en dash. */}
+            <span className={s.num}>
+              {o.first.slice(0, 4)}&ndash;{o.last.slice(0, 4)}
+            </span>
             <span className={s.sub}>
               {meetingDate(o.first, "short")} to {meetingDate(o.last, "short")}
             </span>
@@ -39,14 +45,14 @@ export function Collection({ o, body }: { o: Overview; body?: string }) {
         <div className={s.fact}>
           <dt className={s.label}>Meetings held</dt>
           <dd className={s.value}>
-            {o.meetings.toLocaleString()}
+            <span className={s.num}>{o.meetings.toLocaleString()}</span>
             {body ? <span className={s.sub}>{body}</span> : null}
           </dd>
         </div>
         <div className={s.fact}>
           <dt className={s.label}>Recorded</dt>
           <dd className={s.value}>
-            {duration(o.seconds)}
+            <span className={s.num}>{duration(o.seconds)}</span>
             <span className={s.sub}>{o.recorded} meetings on video</span>
           </dd>
         </div>
@@ -54,7 +60,7 @@ export function Collection({ o, body }: { o: Overview; body?: string }) {
           <div className={s.fact}>
             <dt className={s.label}>Agenda items</dt>
             <dd className={s.value}>
-              {o.items.toLocaleString()}
+              <span className={s.num}>{o.items.toLocaleString()}</span>
               <span className={s.sub}>
                 {(o.decided ?? 0).toLocaleString()} with an outcome in the minutes
               </span>
@@ -65,7 +71,7 @@ export function Collection({ o, body }: { o: Overview; body?: string }) {
           <div className={s.fact}>
             <dt className={s.label}>Cases</dt>
             <dd className={s.value}>
-              {o.cases.toLocaleString()}
+              <span className={s.num}>{o.cases.toLocaleString()}</span>
               {/* "followed across meetings" was said of all 20,275, and 18,898
                   of them were heard once. The claim belongs to the 1,377 that
                   recur, which is the number that makes a case a thread.
