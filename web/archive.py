@@ -659,10 +659,9 @@ def _issue_specs(con):
             # top-level row of a narrowing nobody asked for, so it is orphaned
             # back to the top rather than hidden - hiding it would lose items
             # from the page with nothing saying so.
-            up = live.get(d["parent"]) if d["parent"] else None
             out.append({
                 "slug": slug, "label": d["label"], "q": d["q"],
-                "parent": d["parent"] if up else None,
+                "parent": d["parent"],
                 # A CHILD IS COUNTED INSIDE ITS PARENT. Its own vocabulary is
                 # not a smaller list, it is a different one, so without this a
                 # sub-subject can and does reach items the subject it narrows
@@ -670,8 +669,8 @@ def _issue_specs(con):
                 # of" that contains things the whole does not is simply false.
                 # Also what keeps a parent the sum-or-more of its parts, which
                 # is the only reading of an indented row that is safe.
-                "record_in": up["record"] if up else None,
-                "room_in": up["room"] if up else None,
+                "record_in": d["record_in"],
+                "room_in": d["room_in"],
                 "record": d["record"], "record_not": d["record_not"],
                 "room": d["room"], "room_not": d["room_not"]})
         return out

@@ -38,6 +38,7 @@ pattern, and nobody would have found it buried in 21,274 individual labels.
     bin/subjects.py --propose        sample titles, ask for subjects
     bin/subjects.py --terms          ask for phrases, ground every one
     bin/subjects.py --split          narrow a subject too broad to answer anything
+    bin/subjects.py --theme [N]      group the top level under N themes
     bin/subjects.py --triage         keep what grounds cleanly, queue the rest
     bin/subjects.py --rollup         rebuild what the front page reads
     bin/subjects.py --review         the queue, with counts and samples
@@ -239,34 +240,171 @@ def tsq(phrase):
     return " <-> ".join(words) if words else ""
 
 
-def patterns(con, slug=None):
-    """The kept vocabulary, as one record regex and one room tsquery each.
+THEME_SYS = """\
+You are grouping the recurring subjects of a Florida county's business into a
+small number of TOP-LEVEL THEMES, so a reader meets eight rows instead of
+twenty-seven.
 
-    Returns {slug: {"record": rx, "room": tsq, "label":…, "q":…}} for every
-    subject that is kept and has at least one kept positive term. A subject
-    with only negative terms would match everything and is skipped rather than
-    shipped.
+Return JSON: {"themes": [{"slug": "...", "label": "...", "q": "...",
+"blurb": "...", "members": ["subject-slug", ...]}]}
+
+Rules:
+- EXACTLY the number of themes asked for, no more.
+- EVERY subject given to you must appear in exactly one theme's `members`.
+  A subject left out disappears from the page.
+- Use only the slugs given. Do not invent, rename or split them.
+- A theme is how a resident would divide up what a county does - land use,
+  roads, water, public safety, money, and so on. Not a department chart.
+- `label` sentence case, `q` two or three words, `blurb` one sentence.
+"""
+
+THEME_COUNT = 8
+
+
+def theme(con, n=THEME_COUNT):
+    """Group the top-level subjects under a handful of themes.
+
+    A THEME HAS NO VOCABULARY OF ITS OWN, and that is the point rather than a
+    shortcut. A subject is a thing the county words - it has phrases, they are
+    grounded, a person kept them. A theme is not: nobody files an item about
+    "public safety". So its pattern is the union of what it contains, which
+    means its count needs no curation, cannot disagree with its children, and
+    contains them by construction instead of by a constraint somebody has to
+    remember to apply.
+    """
+    subs = [dict(r) for r in con.execute("""
+        SELECT s.slug, s.label, s.blurb, COALESCE(SUM(y.items), 0) AS items
+          FROM subject s LEFT JOIN subject_year y ON y.slug = s.slug
+         WHERE s.status = 'kept' AND s.parent IS NULL
+         GROUP BY s.slug, s.label, s.blurb ORDER BY items DESC""")]
+    if not subs:
+        sys.exit("  no top-level subjects to group.")
+    listed = "\n".join(
+        f"- {s['slug']}: {s['label']} ({s['items']:,} items) — {(s['blurb'] or '')[:110]}"
+        for s in subs)
+    raw = _llm().chat(
+        [{"role": "system", "content": THEME_SYS},
+         {"role": "user", "content": f"Group these {len(subs)} subjects into "
+                                     f"{n} themes.\n\n{listed}"}],
+        as_json=True, temperature=0.2)
+    themes = (json.loads(raw) or {}).get("themes") or []
+    known = {s["slug"] for s in subs}
+    placed, cur = set(), con.cursor()
+    for i, t in enumerate(themes):
+        members = [m for m in (t.get("members") or []) if m in known]
+        if not t.get("slug") or not members:
+            continue
+        lab = sentence_case(t["label"])
+        cur.execute("""
+            INSERT INTO subject (slug, label, q, blurb, proposer, sort, status)
+            VALUES (%s, %s, %s, %s, %s, %s, 'kept')
+            ON CONFLICT (slug) DO UPDATE
+               SET label = EXCLUDED.label, q = EXCLUDED.q,
+                   blurb = EXCLUDED.blurb, sort = EXCLUDED.sort""",
+            (t["slug"], lab, short_query(t.get("q"), lab), t.get("blurb"),
+             PROPOSER, i))
+        for m in members:
+            cur.execute("UPDATE subject SET parent = %s WHERE slug = %s",
+                        (t["slug"], m))
+            placed.add(m)
+        print(f"  {lab}: {len(members)} subjects")
+    # A subject the model forgot would vanish from the page, which is the one
+    # outcome worse than a clumsy grouping. Left at the top level, visibly.
+    missed = known - placed
+    if missed:
+        print(f"  {len(missed)} subject(s) left ungrouped and still top-level: "
+              + ", ".join(sorted(missed)))
+    con.commit()
+    rollup(con)
+
+
+def patterns(con, slug=None):
+    """The kept vocabulary as SQL, for every subject in the tree.
+
+    Two kinds of row come out of here and the difference matters:
+
+      a SUBJECT has phrases. A person kept them after seeing what each one
+      matched, and its pattern is those phrases.
+
+      a THEME has none, because nobody files an item about "public safety".
+      Its pattern is the UNION of everything beneath it, so its count needs no
+      curation, cannot disagree with its children, and contains them by
+      construction rather than by a constraint somebody has to remember.
+
+    Depth is not limited. Eight themes over twenty-seven subjects over twelve
+    sub-subjects is three levels, and the union walks as far down as the tree
+    goes. What IS enforced is that a leaf must have phrases: an empty branch
+    would render as a row of nothing.
     """
     rows = con.execute("""
         SELECT s.slug, s.label, s.q, s.sort, s.parent, t.phrase, t.negative
-          FROM subject s JOIN subject_term t ON t.slug = s.slug
-         WHERE s.status = 'kept' AND t.status = 'kept'
-           AND (%s::text IS NULL OR s.slug = %s)
-         ORDER BY s.sort NULLS LAST, s.slug, t.phrase""", (slug, slug))
+          FROM subject s LEFT JOIN subject_term t
+            ON t.slug = s.slug AND t.status = 'kept'
+         WHERE s.status = 'kept'
+         ORDER BY s.sort NULLS LAST, s.slug, t.phrase""")
     out = {}
     for r in rows:
         d = out.setdefault(r["slug"], {"label": r["label"], "q": r["q"],
                                        "sort": r["sort"], "parent": r["parent"],
                                        "pos": [], "neg": []})
-        d["neg" if r["negative"] else "pos"].append(r["phrase"])
-    for slug, d in list(out.items()):
-        if not d["pos"]:
-            del out[slug]
+        if r["phrase"]:
+            d["neg" if r["negative"] else "pos"].append(r["phrase"])
+
+    kids = {}
+    for s, d in out.items():
+        if d["parent"] in out:
+            kids.setdefault(d["parent"], []).append(s)
+
+    def own(s):
+        d = out[s]
+        return "|".join(rx(p) for p in d["pos"]) if d["pos"] else None
+
+    def effective(s, seen=()):
+        """This subject's pattern, or the union of everything under it.
+
+        `seen` guards a cycle. The schema cannot express one today, but a
+        parent edited by hand could, and the failure would be a hung front
+        page rather than a wrong number.
+        """
+        if s in seen:
+            return None
+        parts = [p for p in [own(s)]
+                 + [effective(k, seen + (s,)) for k in kids.get(s, [])] if p]
+        return "|".join(parts) if parts else None
+
+    def eff_room(s, seen=()):
+        if s in seen:
+            return None
+        mine = (" | ".join(f"({tsq(p)})" for p in out[s]["pos"] if tsq(p))
+                or None)
+        parts = [p for p in [mine]
+                 + [eff_room(k, seen + (s,)) for k in kids.get(s, [])] if p]
+        return " | ".join(parts) if parts else None
+
+    for s, d in list(out.items()):
+        d["record"] = effective(s)
+        d["room"] = eff_room(s)
+        # A branch with no phrases anywhere beneath it is a row of nothing.
+        if not d["record"]:
+            del out[s]
             continue
-        d["record"] = "|".join(rx(p) for p in d["pos"])
+        # Exclusions stay the subject's OWN. Inheriting a child's negative up
+        # would let one sub-subject's disambiguation quietly shrink its
+        # siblings.
         d["record_not"] = "|".join(rx(p) for p in d["neg"]) or None
-        d["room"] = " | ".join(f"({tsq(p)})" for p in d["pos"] if tsq(p))
         d["room_not"] = " | ".join(f"({tsq(p)})" for p in d["neg"] if tsq(p)) or None
+        # What a child must ALSO match, which is its parent's own phrases and
+        # not the parent's union - the union already contains the child, so
+        # constraining by it would be a no-op. A theme has no own phrases, so
+        # a subject under one is unconstrained, which is correct: the theme is
+        # defined AS its members.
+        up = d["parent"] if d["parent"] in out else None
+        d["parent"] = up
+        d["record_in"] = own(up) if up else None
+        d["room_in"] = ((" | ".join(f"({tsq(p)})" for p in out[up]["pos"] if tsq(p))
+                         or None) if up else None)
+    if slug:
+        return {k: v for k, v in out.items() if k == slug}
     return out
 
 
@@ -571,28 +709,153 @@ def rollup(con):
     """
     sys.path.insert(0, os.path.join(ROOT, "web"))
     import archive
-    # `live=True` forces the join rather than reading the table this is about
-    # to replace. `archive` owns the SQL that defines what a row means; a
-    # second copy of it here is the drift the subject tables exist to end.
-    d = archive.issues(con, live=True)
+    # The one definition of "the minutes named a nay vote", borrowed rather
+    # than restated: two copies of that regex is two answers to the same
+    # question.
+    NAY_SQL = archive.NAY_SQL
+
+    live = patterns(con)
+    if not live:
+        print("  nothing kept - subject_year left as it is")
+        return
+
+    # MEMBERSHIP FIRST, COUNTS SECOND, and that ordering is the whole fix.
+    #
+    # Matching each subject with one big regex meant a theme - whose pattern is
+    # the union of its entire subtree - ran an alternation of every phrase
+    # beneath it against all 23,123 titles, and a sub-subject ran its own
+    # alternation AND its parent's. Measured at 163s before themes existed and
+    # unbounded after.
+    #
+    # So the regexes run ONCE EACH, only for the subjects that actually have
+    # phrases, into a set of (subject, item). Containment becomes a set
+    # intersection and a theme becomes a union - both of which are what those
+    # words meant all along, and both of which Postgres does on an indexed
+    # integer column instead of by re-reading titles.
+    leaves = {s: d for s, d in live.items() if d["pos"]}
     cur = con.cursor()
-    cur.execute("DELETE FROM subject_year")
-    n = 0
-    for i in d["issues"]:
-        for y in i["years"]:
-            if not (y["items"] or y["lines"]):
-                continue
+    cur.execute("DROP TABLE IF EXISTS pg_temp.m_item")
+    cur.execute("CREATE TEMP TABLE m_item (slug text, item_id integer)")
+    cur.execute("DROP TABLE IF EXISTS pg_temp.m_utt")
+    cur.execute("CREATE TEMP TABLE m_utt (slug text, video_id text, idx integer)")
+    # ITS OWN PHRASES, not `record`. `patterns()` hands back the EFFECTIVE
+    # pattern - own phrases unioned with everything beneath - because that is
+    # what a row displays. Seeding membership with it makes a parent's set
+    # already contain its children's, so the containment step below intersects
+    # a child with a set it is inside by construction and does nothing.
+    # Measured when it happened: "Ordinances and boundaries" went from 21
+    # items to 1,219, which is its parent's whole subtree wearing a child's
+    # name. Own here, union afterwards, in that order.
+    for s, d in leaves.items():
+        own_rx = "|".join(rx(p) for p in d["pos"])
+        own_ts = " | ".join(f"({tsq(p)})" for p in d["pos"] if tsq(p))
+        cur.execute("""
+            INSERT INTO pg_temp.m_item (slug, item_id)
+            SELECT %s, ai.id FROM agenda_items ai
+             WHERE ai.source = 'agenda' AND ai.title ~* %s
+               AND (%s::text IS NULL OR ai.title !~* %s)""",
+            (s, own_rx, d["record_not"], d["record_not"]))
+        if own_ts:
             cur.execute("""
-                INSERT INTO subject_year (slug, year, items, meetings, decided,
-                                          continued, refused, divided, lines,
-                                          heard, first, last)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                (i["slug"], y["year"], y["items"], y["meetings"], y["decided"],
-                 y.get("continued", 0), y.get("refused", 0), y.get("divided", 0),
-                 y["lines"], y["heard"], i["first"], i["last"]))
-            n += 1
+                INSERT INTO pg_temp.m_utt (slug, video_id, idx)
+                SELECT %s, u.video_id, u.idx FROM utterances u
+                 WHERE u.tsv @@ to_tsquery('english', %s)
+                   AND (%s::text IS NULL
+                        OR NOT (u.tsv @@ to_tsquery('english', %s)))""",
+                (s, own_ts, d["room_not"], d["room_not"]))
+    cur.execute("CREATE INDEX ON pg_temp.m_item (slug)")
+    cur.execute("CREATE INDEX ON pg_temp.m_utt (slug)")
+
+    # A child is counted INSIDE its parent, so anything it matched that its
+    # parent did not is not part of the subject it claims to narrow.
+    for s, d in leaves.items():
+        up = d["parent"]
+        if not up or up not in leaves:
+            continue
+        cur.execute("""DELETE FROM pg_temp.m_item c
+                        WHERE c.slug = %s AND NOT EXISTS (
+                              SELECT 1 FROM pg_temp.m_item p
+                               WHERE p.slug = %s AND p.item_id = c.item_id)""",
+                    (s, up))
+        cur.execute("""DELETE FROM pg_temp.m_utt c
+                        WHERE c.slug = %s AND NOT EXISTS (
+                              SELECT 1 FROM pg_temp.m_utt p
+                               WHERE p.slug = %s AND p.video_id = c.video_id
+                                 AND p.idx = c.idx)""",
+                    (s, up))
+
+    # Themes: DISTINCT across the subtree, never a sum. Two members can name
+    # the same item and adding them would count it twice.
+    kids = {}
+    for s, d in live.items():
+        if d["parent"]:
+            kids.setdefault(d["parent"], []).append(s)
+
+    # Now roll the unions UP, deepest first, so a theme gathers subjects that
+    # have already gathered their own sub-subjects. Every subject with
+    # children takes this, not only the ones with no phrases: a subject that
+    # has both - "community development district oversight" has five phrases
+    # AND four sub-subjects - displays its own work plus theirs.
+    def depth(s):
+        n, up = 0, live[s]["parent"]
+        while up:
+            n, up = n + 1, live[up]["parent"]
+        return n
+
+    for s in sorted(live, key=depth, reverse=True):
+        under = [k for k in kids.get(s, []) if k in live]
+        if not under:
+            continue
+        cur.execute("""INSERT INTO pg_temp.m_item (slug, item_id)
+                       SELECT DISTINCT %s, m.item_id FROM pg_temp.m_item m
+                        WHERE m.slug = ANY(%s)
+                          AND NOT EXISTS (SELECT 1 FROM pg_temp.m_item x
+                                           WHERE x.slug = %s
+                                             AND x.item_id = m.item_id)""",
+                    (s, under, s))
+        cur.execute("""INSERT INTO pg_temp.m_utt (slug, video_id, idx)
+                       SELECT DISTINCT %s, m.video_id, m.idx FROM pg_temp.m_utt m
+                        WHERE m.slug = ANY(%s)
+                          AND NOT EXISTS (SELECT 1 FROM pg_temp.m_utt x
+                                           WHERE x.slug = %s
+                                             AND x.video_id = m.video_id
+                                             AND x.idx = m.idx)""",
+                    (s, under, s))
+
+    cur.execute("DELETE FROM subject_year")
+    cur.execute("""
+        INSERT INTO subject_year (slug, year, items, meetings, decided,
+                                  continued, refused, divided, first, last)
+        SELECT m.slug, left(mt.date, 4),
+               COUNT(*), COUNT(DISTINCT mt.id),
+               COUNT(*) FILTER (WHERE ai.outcome IS NOT NULL),
+               COUNT(*) FILTER (WHERE ai.outcome = 'continued'),
+               COUNT(*) FILTER (WHERE ai.outcome IN ('denied','no_action')),
+               COUNT(*) FILTER (WHERE ai.disposition ~* %s),
+               MIN(mt.date), MAX(mt.date)
+          FROM pg_temp.m_item m
+          JOIN agenda_items ai ON ai.id = m.item_id
+          JOIN meetings mt ON mt.id = ai.meeting_id
+         WHERE mt.date <= to_char(now(), 'YYYY-MM-DD')
+         GROUP BY 1, 2""", (NAY_SQL,))
+    # The room lane merges in, and creates the row where a subject was spoken
+    # about in a year the record never named it.
+    cur.execute("""
+        INSERT INTO subject_year (slug, year, lines, heard, first, last)
+        SELECT m.slug, left(mt.date, 4), COUNT(*), COUNT(DISTINCT mt.id),
+               MIN(mt.date), MAX(mt.date)
+          FROM pg_temp.m_utt m
+          JOIN videos v ON v.id = m.video_id
+          JOIN meetings mt ON mt.id = v.meeting_id
+         GROUP BY 1, 2
+        ON CONFLICT (slug, year) DO UPDATE
+           SET lines = EXCLUDED.lines, heard = EXCLUDED.heard,
+               first = LEAST(subject_year.first, EXCLUDED.first),
+               last  = GREATEST(subject_year.last, EXCLUDED.last)""")
     con.commit()
-    print(f"  rebuilt subject_year: {n} rows across {len(d['issues'])} subjects")
+    n = con.execute("SELECT COUNT(*) FROM subject_year").fetchone()[0]
+    subs = con.execute("SELECT COUNT(DISTINCT slug) FROM subject_year").fetchone()[0]
+    print(f"  rebuilt subject_year: {n} rows across {subs} subjects")
 
 
 def setstatus(con, targets, status):
@@ -720,6 +983,7 @@ def main():
     g.add_argument("--triage", action="store_true")
     g.add_argument("--rollup", action="store_true")
     g.add_argument("--split", nargs="?", const=True, metavar="SLUG")
+    g.add_argument("--theme", nargs="?", const=8, type=int, metavar="N")
     g.add_argument("--keep", nargs="+", metavar="SLUG|ID")
     g.add_argument("--drop", nargs="+", metavar="SLUG|ID")
     g.add_argument("--status", action="store_true")
@@ -739,6 +1003,8 @@ def main():
         return rollup(con)
     if a.split:
         return split(con, None if a.split is True else a.split)
+    if a.theme:
+        return theme(con, a.theme)
     if a.keep:
         return setstatus(con, a.keep, "kept")
     if a.drop:

@@ -392,9 +392,12 @@
  * vocabulary matches, children included - so nothing here invites the eye to
  * add them up. */
 .childRow .label {
-  padding-inline-start: var(--sp-4);
+  /* Indent by DEPTH, not by "is a child". Three levels now, and a
+   * sub-subject sitting at the same step as the subject it narrows reads as
+   * its sibling. */
+  padding-inline-start: calc(var(--level, 1) * var(--sp-4));
   border-inline-start: 2px solid var(--rule);
-  margin-inline-start: 0.35rem;
+  margin-inline-start: calc(var(--level, 1) * 0.35rem);
 }
 
 .childRow .name {
@@ -402,9 +405,11 @@
   color: var(--ink-2);
 }
 
-/* The control, on the parent. It says HOW MANY rather than drawing a bare
- * chevron, because the count is the reason to press it - "4 kinds" earns a
- * click and a triangle does not. */
+/* The control, on the parent. It carries a COUNT rather than a bare chevron,
+ * because the number is the reason to press it - "show 5" earns a click and a
+ * triangle does not. Deliberately unnamed: the five under a theme are
+ * subjects and the four under a subject are narrower subjects, and any word
+ * that fits one reads wrong on the other. */
 .narrow {
   align-self: start;
   font-size: var(--text-2xs);
@@ -420,8 +425,8 @@
 
 @media (max-width: 46rem) {
   .childRow .label {
-    padding-inline-start: var(--sp-2);
-    margin-inline-start: 0.2rem;
+    padding-inline-start: calc(var(--level, 1) * var(--sp-2));
+    margin-inline-start: calc(var(--level, 1) * 0.2rem);
   }
 
   /* An 11px text link is an 18px target. Padded rather than enlarged: the

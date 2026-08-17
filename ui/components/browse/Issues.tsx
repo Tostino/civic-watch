@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useCallback, useState } from "react";
 
 import type { Issue, IssueYear, Issues as IssuesData } from "@/lib/types";
 import s from "./Issues.module.css";
@@ -41,14 +44,40 @@ import s from "./Issues.module.css";
  */
 export function Issues({
   d,
-  open = [],
-  href,
+  initialOpen = [],
 }: {
   d: IssuesData;
-  /** Slugs whose sub-subjects are showing, from the URL. */
-  open?: string[];
-  href?: (next: { open?: string }) => string;
+  /** Slugs open on arrival, from `?open=` so a link still carries the view. */
+  initialOpen?: string[];
 }) {
+  /* A CLIENT COMPONENT, for one reason: opening a theme must not reload the
+   * page. It was links into `?open=`, which is shareable and works with no
+   * script, and which also threw the whole document away and rebuilt it to
+   * reveal four rows.
+   *
+   * So both. The control is still an `<a href>` with a real URL - without
+   * script it navigates, exactly as before - and with script the click is
+   * intercepted, the state moves locally, and `replaceState` writes the same
+   * URL without a navigation. The link stays copyable and the view stays
+   * instant.
+   *
+   * `replaceState` rather than `pushState`: expanding a row is not somewhere
+   * you were, and making Back undo an indent one step at a time would bury
+   * the page a reader actually came from. */
+  const [open, setOpen] = useState<string[]>(initialOpen);
+  const toggle = useCallback((slug: string) => {
+    setOpen((was) => {
+      const now = was.includes(slug) ? was.filter((v) => v !== slug) : [...was, slug];
+      if (typeof window !== "undefined") {
+        const u = new URL(window.location.href);
+        if (now.length) u.searchParams.set("open", now.join(","));
+        else u.searchParams.delete("open");
+        window.history.replaceState(null, "", u);
+      }
+      return now;
+    });
+  }, []);
+
   if (!d.issues.length) return null;
   const yrs = d.span;
 
@@ -67,14 +96,20 @@ export function Issues({
     if (b) b.push(i);
     else kids.set(i.parent, [i]);
   }
-  const shown: { i: (typeof d.issues)[number]; child: boolean }[] = [];
-  for (const i of d.issues) {
-    if (i.parent) continue;
-    shown.push({ i, child: false });
-    if (open.includes(i.slug)) {
-      for (const k of kids.get(i.slug) ?? []) shown.push({ i: k, child: true });
+  /* Three levels now — eight themes over twenty-seven subjects over twelve
+   * sub-subjects — so this walks rather than looking one deep. Opening a row
+   * reveals its WHOLE subtree at once: a reader who asks what land use is
+   * made of wants to see it, not to open four more things, and the deepest
+   * level is the one they were looking for. */
+  const shown: { i: (typeof d.issues)[number]; level: number }[] = [];
+  const walk = (row: (typeof d.issues)[number], level: number) => {
+    shown.push({ i: row, level });
+    if (!open.includes(row.slug)) return;
+    for (const k of [...(kids.get(row.slug) ?? [])].sort((a, b) => b.items - a.items)) {
+      walk(k, level + 1);
     }
-  }
+  };
+  for (const i of d.issues) if (!i.parent) walk(i, 0);
 
   return (
     <section className={s.wrap} aria-labelledby="issues-head">
@@ -131,15 +166,15 @@ export function Issues({
           <span className={s.colHead}>totals</span>
         </div>
 
-        {shown.map(({ i, child }) => (
+        {shown.map(({ i, level }) => (
           <Row
             key={i.slug}
             i={i}
             heardFrom={d.heard_from}
-            child={child}
+            level={level}
             kids={kids.get(i.slug)?.length ?? 0}
             open={open.includes(i.slug)}
-            href={href}
+            onToggle={toggle}
           />
         ))}
       </div>
@@ -179,19 +214,19 @@ export function Issues({
 function Row({
   i,
   heardFrom,
-  child = false,
+  level = 0,
   kids = 0,
   open = false,
-  href,
+  onToggle,
 }: {
   i: Issue;
   heardFrom: string;
-  /** This row narrows the one above it. */
-  child?: boolean;
-  /** How many sub-subjects this row has, 0 for most. */
+  /** 0 for a theme, 1 for a subject under it, 2 for a sub-subject. */
+  level?: number;
+  /** How many rows narrow this one, 0 for a leaf. */
   kids?: number;
   open?: boolean;
-  href?: (next: { open?: string }) => string;
+  onToggle?: (slug: string) => void;
 }) {
   /* Scaled to the row, not to the grid. The time axis shares one scale across
    * its whole grid because the 2015 → 2025 ramp IS its finding. Here the rows
@@ -223,7 +258,10 @@ function Row({
     (y ? `&since=${y.year}-01-01&until=${y.year}-12-31` : "");
 
   return (
-    <div className={`${s.row} ${child ? s.childRow : ""}`}>
+    <div
+      className={`${s.row} ${level ? s.childRow : ""}`}
+      style={{ "--level": level } as React.CSSProperties}
+    >
       <span className={s.label}>
         {/* The counts in this row are of titles that name the issue; the link
             runs a search, which ranks the whole archive and will report its
@@ -235,14 +273,24 @@ function Row({
         {/* Only on a row that HAS sub-subjects, which is three of them. The
             control says how many rather than drawing a bare chevron, because
             the number is the reason to press it. */}
-        {kids && href ? (
-          <Link
-            href={href({ open: open ? "" : i.slug })}
+        {/* A REAL LINK that a click intercepts. Without script it navigates
+            to the same view; with script `onToggle` moves the state and
+            rewrites the URL in place, so the row opens without the page
+            being thrown away and rebuilt. Modified clicks are left alone —
+            open-in-new-tab has to keep working on something with an href. */}
+        {kids && onToggle ? (
+          <a
+            href={`?open=${encodeURIComponent(i.slug)}`}
             className={s.narrow}
             aria-expanded={open}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+              e.preventDefault();
+              onToggle(i.slug);
+            }}
           >
-            {open ? "hide" : `${kids} kinds`}
-          </Link>
+            {open ? "hide" : `show ${kids}`}
+          </a>
         ) : null}
         {/* One line, and it does not wrap. Five facts wrapping to three lines
             gave every row a different height, which is most of what stopped

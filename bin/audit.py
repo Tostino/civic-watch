@@ -566,20 +566,33 @@ def _(con):
 
 
 @check("subjects.have_a_vocabulary",
-       "every kept subject has at least one kept positive phrase")
+       "every kept subject has kept phrases, or descendants that do")
 def _(con):
-    """A subject with only negative terms, or none, is drawn as an empty row.
+    """A branch with no phrases anywhere beneath it is drawn as an empty row.
 
-    Not a review item: `_issue_specs` silently skips such a subject, so the
-    front page loses a row and nothing anywhere says why. That is a defect in
-    the curation, and it is one `--keep`-ing a subject whose phrases were all
-    dropped produces easily.
+    Not a review item: `patterns()` silently drops such a subject, so the
+    front page loses a row and nothing says why. That is a curation defect,
+    and `--keep`-ing a subject whose phrases were all dropped produces it
+    easily.
+
+    A THEME legitimately has none of its own. Nobody files an item about
+    "public safety" - a theme's pattern is the union of what it contains, and
+    requiring phrases of it was this check failing all eight of them the
+    moment they existed. So the rule is phrases OR descendants with phrases,
+    walked to any depth, which is exactly what `patterns()` enforces.
     """
     q = """FROM subject s
            WHERE s.status = 'kept'
-             AND NOT EXISTS (SELECT 1 FROM subject_term t
-                              WHERE t.slug = s.slug AND t.status = 'kept'
-                                AND NOT t.negative)"""
+             AND NOT EXISTS (
+                   WITH RECURSIVE under(slug) AS (
+                       SELECT s.slug
+                       UNION ALL
+                       SELECT c.slug FROM subject c
+                         JOIN under u ON c.parent = u.slug
+                        WHERE c.status = 'kept')
+                   SELECT 1 FROM under
+                     JOIN subject_term t ON t.slug = under.slug
+                    WHERE t.status = 'kept' AND NOT t.negative)"""
     return count(con, f"SELECT COUNT(*) {q}"), \
         f"SELECT s.slug, s.label {q} ORDER BY s.slug LIMIT 12", \
         "SELECT COUNT(*) FROM subject WHERE status = 'kept'"

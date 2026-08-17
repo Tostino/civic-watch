@@ -186,7 +186,7 @@ export default async function BrowsePage({ searchParams }: Props) {
       {/* After the axis, because it is read against it: the axis says how much
           the county met, this says what about. Before the entryways, because
           those are the exceptions and this is the standing business. */}
-      {issues ? <Issues d={issues} open={open} href={href} /> : null}
+      {issues ? <Issues d={issues} initialOpen={open} /> : null}
 
       {highlights ? <Entryways h={highlights} /> : null}
 
