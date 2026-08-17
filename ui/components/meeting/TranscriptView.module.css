@@ -306,8 +306,16 @@
   /* Still a fixed-height scroller: the virtualizer measures this element, and
    * letting it grow to the full 2,252-line height would render every row.
    * This one IS about the window - it is the page that becomes the scroller
-   * on a phone. */
+   * on a phone.
+   *
+   * `flex: none` is what makes the height below mean anything. The base rule
+   * sets `flex: 1`, which is `flex: 1 1 0%`, and on a column flex container
+   * flex-basis beats `height` for the main axis - so this pane resolved to
+   * its 20rem floor and served a 26,000px transcript through a 320px window,
+   * about ten lines. Measured at 375px before the fix: height 320, content
+   * 25,964. */
   .scroll {
+    flex: none;
     height: 70vh;
     min-height: 20rem;
   }
