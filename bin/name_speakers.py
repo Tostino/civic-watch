@@ -155,6 +155,44 @@ def verify(p):
     return True, "ok"
 
 
+def _claim(con, p):
+    """Record the proposal as evidence, WITH the quote that justified it.
+
+    The verbatim check above is the whole reason to trust this pass - it is
+    what separates reading the evidence from recalling who the county
+    administrator is - and until there was a `speaker_claim` table there was
+    nowhere to put the quote it verified. `speaker_identity` has a name, a
+    confidence and a source, and the sentence that earned them was dropped on
+    the floor.
+
+    Per CONTIGUOUS RUN of each voice in the cluster, not per cluster: a claim
+    covers a span, and a voice's utterances are interleaved with everybody
+    else's, so one span from its first line to its last would swallow the
+    meeting.
+    """
+    try:
+        import speaker_claims
+    except ImportError:
+        return 0
+    n = 0
+    for r in con.execute("""
+            WITH marked AS (
+                SELECT u.video_id, u.local_label, u.idx,
+                       u.idx - ROW_NUMBER() OVER (PARTITION BY u.video_id,
+                                                               u.local_label
+                                                  ORDER BY u.idx) AS island
+                  FROM utterances u
+                 WHERE u.cluster = %s AND u.local_label IS NOT NULL)
+            SELECT video_id, local_label, MIN(idx) lo, MAX(idx) hi
+              FROM marked GROUP BY video_id, local_label, island""",
+            (p["cluster"],)):
+        speaker_claims.append(con, r["video_id"], r["lo"], r["hi"], p["name"],
+                              "llm", quote=p.get("evidence_quote"),
+                              label=r["local_label"])
+        n += 1
+    return n
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=25)
@@ -204,16 +242,17 @@ def main():
         print(f"   rejected cluster {cl}: {why}" + (f" (proposed {nm!r})" if nm else ""))
 
     if args.write and accepted:
-        n = 0
+        n = claimed = 0
         for p, _ in accepted:
             cur = con.execute(
                 "UPDATE speaker_identity SET name=%s, confidence=%s, "
                 "source='llm' WHERE cluster=%s AND name IS NULL",
                 (p["name"], float(p["confidence"]), p["cluster"]))
             n += cur.rowcount
+            claimed += _claim(con, p)
         con.commit()
         print(f"\nwrote {n} voice assignments (source='llm'; human labels and "
-              f"existing names untouched)")
+              f"existing names untouched), {claimed} claims")
     return 0
 
 

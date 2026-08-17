@@ -58,7 +58,14 @@ def load_rosters(con):
             JOIN meetings m ON m.id = mr.meeting_id
             JOIN videos v   ON v.meeting_id = m.id"""):
         rosters[r["vid"]].add(r["sn"])
-    everyone = {r[0] for r in con.execute("SELECT lower(surname) FROM people")}
+    # `people` is not only board members any more (SPEAKER_PLAN.md §2.7): a
+    # member of the public is keyed by id and carries NO surname, because the
+    # roster's key is not theirs to have. This set is about who could be
+    # SEATED, so it wants the ones who have one - and without the guard the
+    # NULLs arrive here and `.title()` below dies, which is how a schema
+    # change to `people` took the naming pipeline down.
+    everyone = {r[0] for r in con.execute(
+        "SELECT lower(surname) FROM people WHERE surname IS NOT NULL")}
 
     # A meeting with no published agenda still has a knowable board: whoever's
     # term spans that date. Falling back to *everyone* let commissioners who
@@ -749,6 +756,46 @@ def main():
                 "     ELSE speaker_identity.confidence END, "
                 f"source=CASE WHEN {mine} THEN NULL "
                 "     ELSE speaker_identity.source END", rows)
+
+            # AND THE SAME NAMES AS EVIDENCE, WITH THE REASON ATTACHED.
+            #
+            # This stage distinguishes four signals and then writes all of
+            # them into one column with source NULL, so the reason is known
+            # here and nowhere afterwards. A backfill reading speaker_identity
+            # can only guess `voice`, and bin/speaker_claims.extract() ends up
+            # re-deriving self-introductions from the raw transcript - work
+            # this function has already done.
+            #
+            # `selfid` is the speaker naming themselves; `announced` is the
+            # clerk reading the queue, which is somebody else naming them in
+            # the room. Everything else is the voice signal. Failure here is
+            # never allowed to fail the assignment above: the claims are a
+            # shadow and this stage's own table is what the archive still
+            # reads.
+            try:
+                import speaker_claims
+                spans = speaker_claims.runs_by_voice(con)
+                made = 0
+                for vid, lab, _c, nm, _conf in rows:
+                    if not nm:
+                        continue
+                    key = (vid, lab)
+                    if nm in selfid.get(key, {}):
+                        how = "self"
+                    elif nm in announced.get(key, {}):
+                        how = "chair"
+                    else:
+                        how = "voice"
+                    for lo, hi in spans.get(key, []):
+                        speaker_claims.append(con, vid, lo, hi, nm, how,
+                                              label=lab)
+                        made += 1
+                con.commit()
+                print(f"  {made} claims recorded, with the method that named "
+                      f"each voice rather than a null")
+            except Exception as e:                        # noqa: BLE001
+                print(f"  claims not recorded ({type(e).__name__}: {e}); "
+                      f"the assignments above are unaffected")
 
             # RETRACT. Until now this stage only ever added and updated.
             #

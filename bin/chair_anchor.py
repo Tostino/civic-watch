@@ -151,6 +151,32 @@ def decide(con, ev):
     return sorted(calls, key=lambda c: -c["lines"])
 
 
+def _claim_chair(con, cluster, name):
+    """The same anchor, as evidence, per contiguous run of each voice.
+
+    Cluster-wide is how this stage WRITES - one name across every voice in a
+    cluster - and it is exactly the operation utterance_speaker's header warns
+    merges two people. A claim covers a span, so the same decision is recorded
+    per voice and per run, which is what it always meant.
+    """
+    try:
+        import speaker_claims
+    except ImportError:
+        return
+    for r in con.execute("""
+            WITH marked AS (
+                SELECT u.video_id, u.local_label, u.idx,
+                       u.idx - ROW_NUMBER() OVER (PARTITION BY u.video_id,
+                                                               u.local_label
+                                                  ORDER BY u.idx) AS island
+                  FROM utterances u
+                 WHERE u.cluster = %s AND u.local_label IS NOT NULL)
+            SELECT video_id, local_label, MIN(idx) lo, MAX(idx) hi
+              FROM marked GROUP BY video_id, local_label, island""", (cluster,)):
+        speaker_claims.append(con, r["video_id"], r["lo"], r["hi"], name,
+                              "chair", label=r["local_label"])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -197,6 +223,7 @@ def main():
             # The derived layer only. A human label on any of these voices
             # still wins, because utterance_speaker consults speaker_label
             # first (R5.8.7).
+            _claim_chair(con, cluster, name)
             cur.execute("""UPDATE speaker_identity SET name = %s, confidence = %s,
                                   source = 'chair'
                             WHERE cluster = %s

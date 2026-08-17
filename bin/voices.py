@@ -145,6 +145,33 @@ def describe(con, g):
     return g
 
 
+def _claim_label(con, members, name):
+    """A human label, recorded once as evidence rather than twice as data.
+
+    This wrote `speaker_label` AND mirrored the name into `speaker_identity`
+    at confidence 1.0, so one human statement existed as both a human fact and
+    a derived one, and utterance_speaker read it from both. A `label` claim is
+    the single place that statement belongs - and it is append-only on
+    purpose, because an operator changing their mind is an event and the
+    resolver breaks ties on recency.
+    """
+    try:
+        import speaker_claims
+    except ImportError:
+        return
+    runs = speaker_claims.runs_by_voice(con)
+    cur = con.cursor()
+    for vid, lab in members:
+        # The label for a voice is REPLACED, never added to - the same as
+        # speaker_label itself - so the previous answer goes first. Without
+        # this, relabelling a voice leaves the old name as a live claim of
+        # equal rank and the resolver picks between them on recency.
+        cur.execute("DELETE FROM speaker_claim WHERE method = 'label' "
+                    "AND video_id = %s AND local_label = %s", (vid, lab))
+        for lo, hi in runs.get((vid, lab), []):
+            speaker_claims.append(con, vid, lo, hi, name, "label", label=lab)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -215,6 +242,7 @@ def main():
                 "UPDATE speaker_identity SET name=%s, confidence=1.0 "
                 "WHERE video_id=%s AND local_label=%s",
                 [(args.new, v, l) for v, l in members])
+            _claim_label(con, members, args.new)
         else:
             cur.executemany("DELETE FROM speaker_label WHERE video_id=%s AND local_label=%s",
                             members)

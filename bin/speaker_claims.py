@@ -141,13 +141,64 @@ def _norm(s):
     return " ".join((s or "").split()).strip().lower()
 
 
+# A claim mirrors how its producer behaves. `speaker_override` keeps history,
+# so an override is an event and accumulates; every other table - including
+# `speaker_label`, which is deleted and re-inserted - holds one current answer,
+# so its claims are written once. See the partial unique index in schema.sql.
+EVENTS = ("override",)
+
+
 def claim(cur, video_id, lo, hi, name, method, quote=None, corroborated=False,
           label=None):
+    """Append one claim. Idempotent for derived methods, append-only for human.
+
+    THE PRODUCERS CALL THIS. A pipeline pass re-asserts everything it asserted
+    last time, so without ON CONFLICT the table would grow by a quarter of a
+    million duplicate rows a run. The conflict target is the claim's identity -
+    same span, same method, same name - and what it refreshes is the SUPPORTING
+    DETAIL, because a later run may have a better quote or may have found the
+    name corroborated where the first did not.
+
+    `created_at` is deliberately not touched: it is when this claim was first
+    observed, which is a different and more useful fact than when it was last
+    re-confirmed.
+    """
+    if method in EVENTS:
+        cur.execute("""INSERT INTO speaker_claim
+                         (video_id, start_idx, end_idx, local_label, name_text,
+                          method, quote, corroborated)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (video_id, lo, hi, label, name, method, quote, corroborated))
+        return
     cur.execute("""INSERT INTO speaker_claim
                      (video_id, start_idx, end_idx, local_label, name_text,
                       method, quote, corroborated)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                   -- The WHERE repeats the index predicate, which is how
+                   -- Postgres infers a PARTIAL unique index. Without it the
+                   -- statement cannot see the constraint at all.
+                   ON CONFLICT (video_id, start_idx, end_idx, method, name_text)
+                     WHERE method <> 'override'
+                     DO UPDATE SET local_label  = EXCLUDED.local_label,
+                                   quote        = COALESCE(EXCLUDED.quote,
+                                                           speaker_claim.quote),
+                                   corroborated = EXCLUDED.corroborated""",
                 (video_id, lo, hi, label, name, method, quote, corroborated))
+
+
+def append(con, video_id, lo, hi, name, method, quote=None,
+           corroborated=False, label=None):
+    """`claim` for a caller that has a connection rather than a cursor.
+
+    This is the entry point the pipeline's producers use - speaker_id,
+    chair_anchor, name_speakers, voices and web/admin - so that each records
+    WHICH METHOD named a voice at the moment it knows, rather than writing a
+    name into speaker_identity and leaving the reason to be guessed at by a
+    backfill that cannot recover it.
+    """
+    cur = con.cursor()
+    claim(cur, video_id, lo, hi, name, method, quote, corroborated, label)
+    return cur
 
 
 # ------------------------------------------------------------------ backfill

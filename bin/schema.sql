@@ -960,6 +960,36 @@ CREATE TABLE IF NOT EXISTS speaker_claim (
     created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS claim_span ON speaker_claim (video_id, start_idx, end_idx);
+
+-- WHAT MAKES TWO CLAIMS THE SAME CLAIM, and why only the derived ones have an
+-- answer.
+--
+-- A producer re-runs on every pipeline pass and re-asserts what it asserted
+-- last time. Without an identity that is a table growing by 250,000 rows a
+-- run, all of them duplicates. So a DERIVED claim is identified by what it
+-- says and where: same span, same method, same name is the same claim, and a
+-- second run refreshes its supporting detail rather than adding a row.
+-- NULLS NOT DISTINCT so that a `detach` - name NULL - collapses too.
+--
+-- A CLAIM MIRRORS HOW ITS PRODUCER BEHAVES, which is what decides who is
+-- excluded - and it is `override` alone, not "the human ones".
+--
+-- `speaker_override` keeps history: rows carry status and created_at, an
+-- operator may reassign a span to Alice, then Bob, then back to Alice, and the
+-- resolver breaks ties on recency. Under a unique key that third act would
+-- update Alice's ORIGINAL row, keep its old id, and hand the span to Bob for
+-- ever. So overrides accumulate, as events should.
+--
+-- `speaker_label` does NOT keep history. voices.py and web/admin.py delete and
+-- re-insert; there is one row per voice and it is simply the current answer.
+-- Written as an accumulating event it grew 65 rows per press of the button and
+-- 65 more every time the same label was applied again - measured. It is
+-- idempotent, and its producer clears the voice''s prior label claims when the
+-- answer changes, exactly as it clears speaker_label.
+CREATE UNIQUE INDEX IF NOT EXISTS claim_derived_identity
+    ON speaker_claim (video_id, start_idx, end_idx, method, name_text)
+    NULLS NOT DISTINCT
+    WHERE method <> 'override';
 CREATE INDEX IF NOT EXISTS claim_method ON speaker_claim (method);
 
 -- The resolved name per utterance, MATERIALISED. utterance_speaker resolves
