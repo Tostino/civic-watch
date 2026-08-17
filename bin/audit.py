@@ -23,6 +23,7 @@ A check with no rows under it proves nothing and now says so.
     bin/audit.py --only x   run checks whose name contains x
 """
 import argparse
+import os
 import sys
 
 import db
@@ -390,6 +391,65 @@ def _(con):
         SELECT u.video_id, u.idx, left(u.text, 90) AS text {q}
         ORDER BY u.video_id, u.idx LIMIT 8""", \
         """SELECT COUNT(*) FROM utterances WHERE text ~* '\\yfollowed by\\y'"""
+
+
+@check("speaker.rail_is_people",
+       "every name the public speaker rail offers is a person, or is known to "
+       "not be one",
+       review=True)
+def _(con):
+    """What the site PUBLISHES as a list of people.
+
+    `/search`'s rail is the one place the archive states, in its own voice,
+    "these are the people you may filter by". Four values on it were places -
+    `Connected City` is a development off SR-52, `Sun Coast` is the parkway -
+    and one, `What`, was 601 lines of an ASR fragment. All five arrived by the
+    same `voice`/`cluster` route as the real names beside them, which is why
+    no structural test separates them and `archive.NOT_A_PERSON` has to be a
+    written list.
+
+    A written list goes stale silently, so this is the thing that notices. It
+    counts rail values that are neither on the board nor in `people` and are
+    not already named in that list. A non-zero count is WORK, not a defect:
+    most of what it catches will be a real member of the public the roster has
+    never heard of, and the judgement of which is which is a person's.
+
+    The lines themselves are untouched - suppressing a name here does not
+    detach it from the ~7,000 utterances still carrying it. That is
+    SPEAKER_PLAN section 2.6, organisations, and it is unstarted.
+    """
+    # Inlined rather than passed as a parameter: the runner calls
+    # `con.execute(sample)` with no arguments, so the example query and the
+    # count query have to be self-contained to be the same query.
+    q = f"""FROM (SELECT name, COUNT(*) AS lines FROM utterance_speaker
+                   WHERE name IS NOT NULL
+                   GROUP BY name HAVING COUNT(*) >= 500
+                   ORDER BY lines DESC LIMIT 40) r
+            WHERE NOT (r.name = ANY({_rail_exempt()}))
+              AND NOT EXISTS (SELECT 1 FROM people p
+                               WHERE lower(p.surname) = lower(r.name)
+                                  OR lower(p.full_name) = lower(r.name))"""
+    return count(con, f"SELECT COUNT(*) {q}"), \
+        f"SELECT r.name, r.lines {q} ORDER BY r.lines DESC LIMIT 12", \
+        """SELECT COUNT(*) FROM (SELECT 1 FROM utterance_speaker
+            WHERE name IS NOT NULL GROUP BY name
+            HAVING COUNT(*) >= 500 LIMIT 40) x"""
+
+
+def _rail_exempt():
+    """`archive.NOT_A_PERSON` as a SQL array literal.
+
+    Read from the module the site actually serves, never copied. A second copy
+    here would give the audit its own opinion of what the rail suppresses, and
+    the two would drift - which is the failure this check exists to catch,
+    reproduced inside the check.
+    """
+    sys.path.insert(0, os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web"))
+    import archive
+    names = ",".join("'" + n.replace("'", "''") + "'"
+                     for n in sorted(archive.NOT_A_PERSON))
+    return f"ARRAY[{names}]::text[]"
 
 
 @check("people.surname_unambiguous",

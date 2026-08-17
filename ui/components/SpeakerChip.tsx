@@ -85,7 +85,19 @@ export function SpeakerChip({
   size = "md",
   onDispute,
 }: SpeakerChipProps) {
-  const { name, display_name: displayName, human, basis, contested, several } = who;
+  /* A claim that did not arrive is *unidentified*, which is a state this
+   * component already draws and which R3.3 calls the normal case rather than
+   * an error. It is emphatically not a reason to throw.
+   *
+   * This destructured `who` directly and every route that rendered a line
+   * without one returned a 500: `archive.item()` and `archive.case()` shipped
+   * the speaker fields raw instead of assembling `who`, and /item and /case
+   * were down in production. The producer is fixed - `archive.line()` is now
+   * the one place LINES becomes a claim - and this is the belt, because the
+   * failure mode was a whole page lost to one absent field on one line. */
+  const { name, display_name: displayName, human, basis, contested, several } =
+    who ?? { name: null, display_name: null, basis: null, human: false,
+             contested: false, several: false };
   const role = office ? officeLabel(office.office) : null;
   /* Rule 3 in practice. `name` decides WHETHER there is a name and is what
    * everything downstream is addressed by; `shown` is the only thing that ever

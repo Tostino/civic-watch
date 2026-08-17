@@ -239,6 +239,28 @@ NAY_NAMES = re.compile(
 EXCHANGE = "(exchange)"
 
 
+def line(r):
+    """One row of LINES, with the speaker claim assembled into `who`.
+
+    LINES selects the claim IN PIECES - name, display_name, basis, human,
+    contested - and every surface that draws a speaker reads it as the single
+    `who` object below instead (R6.2). Assembling it here rather than at each
+    call site is the whole point of this function existing: `item()` and
+    `case()` each ran LINES and shipped the pieces raw, so `Turn` destructured
+    an undefined `who` and took BOTH routes down with a 500. That is two of the
+    six public entity routes, and they are the ones every search hit and every
+    front-page dissent row links to.
+
+    Anything that reads LINES goes through here. A caller that only wants the
+    text still pays one dict build per line, which is cheaper than the next
+    surface forgetting.
+    """
+    d = dict(r)
+    d["who"] = who(d["name"], d["display_name"], d["basis"], d["human"],
+                   d["contested"])
+    return d
+
+
 def who(name=None, display=None, basis=None, human=False, contested=False):
     """Who said this, in the only shape the UI accepts. R6.2."""
     several = name == EXCHANGE
@@ -711,6 +733,32 @@ def issues(con):
     return {"span": span, "heard_from": heard_from, "issues": out}
 
 
+# Names the naming stage produced that are not people, and that the rail must
+# therefore not publish as people. This IS written down, against the rule the
+# docstring below states, and the exception is deliberate: there is no
+# structural test that separates `Connected City` from `Chris Williams`.
+# Neither is on the board, neither is in `people`, both arrived by the same
+# `voice`/`cluster` route, and one is a development off SR-52.
+#
+# Scoped to the rail on purpose. A transcript line attributed to one of these
+# is a claim the resolver made and SpeakerChip already draws as inferred
+# (R6.2); a rail is the site saying "these are the people you may filter by",
+# which is an editorial list and ours to be right about. The ~7,000 lines
+# still carrying these names are SPEAKER_PLAN section 2.6 - organisations -
+# and are not a presentation fix.
+#
+# `audit.py` check `speaker.rail_is_people` fails when a NEW value reaches the
+# rail that is neither on the board nor in `people`, so this list cannot
+# silently go stale as the archive grows.
+NOT_A_PERSON = frozenset({
+    "Connected City",   # a development off SR-52
+    "Dade City",        # a city
+    "Pasco County",     # the county itself
+    "Sun Coast",        # the Suncoast Parkway
+    "What",             # an ASR fragment; 601 lines of it
+})
+
+
 def facets(con):
     """The values a search rail may offer (R5.6.2).
 
@@ -721,6 +769,7 @@ def facets(con):
 
     Speakers are the ones with enough speech to be worth filtering by, which
     is a judgement, so the count comes with them and the page can show it.
+    The one exception to "derived, not written down" is NOT_A_PERSON above.
     """
     return {
         "bodies": [dict(r) for r in con.execute("""
@@ -743,9 +792,10 @@ def facets(con):
         "speakers": [dict(r) for r in con.execute("""
             SELECT name AS speaker, display_name AS speaker_display,
                    COUNT(*) AS lines
-              FROM utterance_speaker WHERE name IS NOT NULL
+              FROM utterance_speaker
+             WHERE name IS NOT NULL AND NOT (name = ANY(%s))
              GROUP BY name, display_name HAVING COUNT(*) >= 500
-             ORDER BY lines DESC LIMIT 40""")],
+             ORDER BY lines DESC LIMIT 40""", (list(NOT_A_PERSON),))],
         "years": [dict(r) for r in con.execute("""
             SELECT left(m.date, 4) AS year, COUNT(*) AS meetings
               FROM meetings m
@@ -927,12 +977,7 @@ def transcript(con, video_id):
         "FROM videos WHERE id = %s", (video_id,)).fetchone()
     if not v:
         return None
-    lines = []
-    for r in con.execute(LINES, (video_id, 0, 2 ** 31 - 1)):
-        d = dict(r)
-        d["who"] = who(d["name"], d["display_name"], d["basis"], d["human"],
-                       d["contested"])
-        lines.append(d)
+    lines = [line(r) for r in con.execute(LINES, (video_id, 0, 2 ** 31 - 1))]
     return {"video": dict(v), "lines": lines,
             "offices": _offices(con, v["meeting_id"])}
 
@@ -1081,7 +1126,7 @@ def item(con, item_id):
     row["runs"] = _runs(spans)
     budget = MAX_ITEM_LINES
     for r in row["runs"]:
-        got = [dict(x) for x in con.execute(
+        got = [line(x) for x in con.execute(
             LINES, (r["video_id"], r["start_idx"], r["end_idx"]))][:max(budget, 0)]
         budget -= len(got)
         r["lines"] = got
@@ -1199,7 +1244,7 @@ def case(con, case_id):
             ORDER BY v.session_seq NULLS FIRST, sp.part, sp.start""",
             (st["id"],))]
         for r in _runs(spans):
-            got = [dict(x) for x in con.execute(
+            got = [line(x) for x in con.execute(
                 LINES, (r["video_id"], r["start_idx"], r["end_idx"])
             )][:max(budget, 0)]
             budget -= len(got)
