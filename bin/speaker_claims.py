@@ -52,14 +52,28 @@ import db
 # those were CORROBORATED claims outranking a correct archive name. The
 # existing extractor has known this since it was written; this one had to be
 # told twice.
-NAME = r"[A-Z][a-z']+(?:[A-Z][a-z']+)*(?:\s+[A-Z][a-z']+(?:[A-Z][a-z']+)*){0,2}"
-SAYS_NAME = re.compile(r"(?i:\bmy name is)\s+(" + NAME + r")")
+_WORD = r"[A-Z][a-z']+(?:[A-Z][a-z']+)*"
+# A name particle that CARRIES A FULL STOP and is not the end of the sentence.
+# Without these the name ended at the period: "my name is Margaret St. James"
+# stored `Margaret St`, which is a street, and "Martin Luther King Jr." lost
+# the Jr. Deliberately a closed list - a general "word followed by a period"
+# would swallow the sentence boundary and turn "My name is John. I live at"
+# into a two-word name.
+_PARTICLE = r"(?:St|Jr|Sr|Dr|Mt)\."
+NAME = (_WORD + r"(?:\s+(?:" + _PARTICLE + r"|" + _WORD + r")){0,2}")
+# Filler is stripped wherever a name is expected, because it is capitalised
+# where a name is capitalised and the pattern cannot tell them apart. Both
+# halves of this were live: "Uh Shelley Johnson, [address removed], and I have
+# been sworn" stored `Uh Shelley Johnson` at the start of a turn, and "My name
+# is Um Mike Peters" stored `Um Mike Peters` in the middle of one.
+_FILLER = r"(?:(?i:uh|um|er|okay|well|so|hi|hello|yeah|yes|and|thank you)[,.]?\s+)*"
+SAYS_NAME = re.compile(r"(?i:\bmy name is)\s+" + _FILLER + r"(" + NAME + r")")
 # Anchored at the START of what the person says, because that is where the
 # convention puts it, and required to be followed by a comma and an address.
 # Unanchored it matched street names out of the address itself - "Margaret St"
 # from "1234 Margaret Street" - and invented a speaker for every one.
 PODIUM = re.compile(
-    r"^(?:good (?:morning|afternoon|evening),?\s+)?"
+    r"^" + _FILLER + r"(?:(?i:good (?:morning|afternoon|evening)),?\s+)?" + _FILLER +
     r"(" + NAME + r"),\s+"
     r"(?:\d{2,6}\s|\[address removed\])")
 SWORN = re.compile(r"\b(?:i have been sworn|been duly sworn|i was sworn)\b", re.I)
