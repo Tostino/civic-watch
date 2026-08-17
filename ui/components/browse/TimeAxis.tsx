@@ -31,18 +31,32 @@ const MONTH_NAMES = [
  * Cells are links, not buttons: a month is a filtered view of the archive with
  * its own URL (R4.2), so it is navigable, shareable and works without script.
  */
+/**
+ * How many years of month rows stand open before the rest fold away: the most
+ * recent year that actually held a meeting, and the four before it.
+ *
+ * Counted from the DATA, never from `new Date()`. This renders on the server
+ * and the result is cached; a window measured against the wall clock would
+ * quietly disagree with the grid it is drawn over the moment a cached page
+ * outlived the new year, and the failure would be invisible.
+ */
+const OPEN_YEARS = 5;
+
 export function TimeAxis({
   months,
   year,
   month,
+  expanded = false,
   href,
 }: {
   months: MonthCell[];
   /** Currently selected, from the URL. */
   year?: string;
   month?: string;
+  /** Every year row is drawn, rather than the recent window. From the URL. */
+  expanded?: boolean;
   /** Builds the URL for a cell, preserving whatever else is filtered. */
-  href: (next: { year?: string; month?: string }) => string;
+  href: (next: { year?: string; month?: string; axis?: string }) => string;
 }) {
   if (!months.length) return null;
 
@@ -53,6 +67,41 @@ export function TimeAxis({
     if (years[years.length - 1] !== y) years.push(y);
   }
   years.sort();
+
+  const totals = (ys: string[]) =>
+    ys.reduce(
+      (a, y) => {
+        for (let i = 1; i <= 12; i++) {
+          const c = byMonth.get(`${y}-${String(i).padStart(2, "0")}`);
+          a.meetings += c?.meetings ?? 0;
+          a.recorded += c?.recorded ?? 0;
+          a.scheduled += c?.scheduled ?? 0;
+        }
+        return a;
+      },
+      { meetings: 0, recorded: 0, scheduled: 0 },
+    );
+
+  /* The window is anchored to the last year that HELD something, not to the
+   * last row: the calendar runs ahead of the record - 2027 exists with four
+   * scheduled meetings and nothing in it - and anchoring on that would spend
+   * one of five open rows on a year with no archive behind it. */
+  const heldYears = years.filter((y) => totals([y]).meetings > 0);
+  const latest = heldYears[heldYears.length - 1] ?? years[years.length - 1];
+  const from = String(Number(latest) - (OPEN_YEARS - 1));
+
+  /* Earlier years fold; later ones never do. A year AHEAD of the record is one
+   * row carrying the only forward-looking thing on this page, and burying it
+   * under a control labelled with older years would be the wrong shape as well
+   * as the wrong claim. */
+  const folded = expanded ? [] : years.filter((y) => y < from);
+  const shown = years.filter((y) => !folded.includes(y));
+  const fold = totals(folded);
+  /* Stated rather than implied. The gradient used to carry "there is no video
+   * before 2018" on its own, and folding those rows takes that with them - so
+   * the summary says it in words, and finds the year rather than being told
+   * it. */
+  const firstRecorded = years.find((y) => totals([y]).recorded > 0);
 
   // One scale for the whole grid, so a busy month in 2016 and a busy month in
   // 2025 are the same weight. Per-year scaling would flatten the ramp, which
@@ -117,7 +166,41 @@ export function TimeAxis({
           </span>
         </div>
 
-        {years.map((y) => {
+        {folded.length ? (
+          <Link
+            href={href({ axis: "all" })}
+            className={`${s.row} ${s.fold}`}
+            role="row"
+            aria-label={
+              `Show ${folded.length} earlier years: ` +
+              `${folded[0]} to ${folded[folded.length - 1]}, ` +
+              `${fold.meetings} meetings, ${fold.recorded} on video`
+            }
+          >
+            <span className={s.foldYears} role="rowheader">
+              {folded[0]}&ndash;{folded[folded.length - 1]}
+            </span>
+            <span className={s.foldSays} role="gridcell" aria-colspan={12}>
+              {fold.meetings.toLocaleString()} meetings
+              {fold.recorded ? `, ${fold.recorded} on video` : ""}
+              {/* Explicit: JSX strips the newline between two expressions, so
+                  without it this reads "on video— nothing recorded". */}
+              {firstRecorded && firstRecorded > folded[0] ? (
+                <>
+                  {" "}
+                  <span className={s.foldNone}>
+                    &mdash; nothing recorded before {firstRecorded}
+                  </span>
+                </>
+              ) : null}
+            </span>
+            <span className={s.foldGo} aria-hidden>
+              show
+            </span>
+          </Link>
+        ) : null}
+
+        {shown.map((y) => {
           const cells = MONTHS.map((_, i) =>
             byMonth.get(`${y}-${String(i + 1).padStart(2, "0")}`),
           );
@@ -208,6 +291,16 @@ export function TimeAxis({
           );
         })}
       </div>
+
+      {/* Only when there is something to fold BACK - `folded` is empty while
+          expanded, so the test has to be the window, not the fold. */}
+      {expanded && years.some((y) => y < from) ? (
+        <p className={s.foldBack}>
+          <Link href={href({ axis: undefined })}>
+            Show the last {OPEN_YEARS} years only
+          </Link>
+        </p>
+      ) : null}
     </section>
   );
 }

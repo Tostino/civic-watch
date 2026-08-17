@@ -231,3 +231,72 @@
     height: 1.375rem;
   }
 }
+
+/* ------------------------------------------------------- the folded years
+ *
+ * One row standing in for the years outside the open window. It keeps the
+ * grid's own columns so it reads as part of the axis rather than as a control
+ * bolted under it - year gutter, a cell spanning the twelve months, and the
+ * totals column where the affordance sits.
+ *
+ * It carries words where the rows above carry cells, and that is the point:
+ * the gradient used to be what said "there is no video before 2018", and
+ * folding those rows away takes that with them unless the summary says it. */
+.fold {
+  padding-block: 0.15rem;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: inherit;
+}
+
+.fold:hover {
+  background: var(--surface-2);
+}
+
+.foldYears {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.foldSays {
+  grid-column: span 12;
+  min-width: 0;
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+  padding-inline-start: 0.15rem;
+}
+
+.foldNone {
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+/* Sits in the totals column, where every other row keeps its count, so the
+ * one thing that varies down that edge is the number and this is not a button
+ * floating in the margin. */
+.foldGo {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--accent);
+  text-align: end;
+}
+
+.fold:hover .foldGo {
+  text-decoration: underline;
+}
+
+.foldBack {
+  font-size: var(--text-2xs);
+}
+
+@media (max-width: 34rem) {
+  /* The summary is prose and the grid columns are 1.15rem wide, so on a phone
+   * it wraps to its own line under the year rather than being squeezed into a
+   * column meant for a square. */
+  .foldSays {
+    grid-column: 2 / -1;
+  }
+}

@@ -26,7 +26,7 @@ import s from "./browse.module.css";
  * somebody can send. */
 
 type Props = {
-  searchParams: Promise<{ body?: string; year?: string; month?: string }>;
+  searchParams: Promise<{ body?: string; year?: string; month?: string; axis?: string }>;
 };
 
 const YEAR = /^\d{4}$/;
@@ -39,6 +39,11 @@ export default async function BrowsePage({ searchParams }: Props) {
   // value should narrow to nothing visibly rather than widen silently.
   const year = q.year && YEAR.test(q.year) ? q.year : undefined;
   const month = q.month && MONTH.test(q.month) ? q.month : undefined;
+  // How much of the axis is open. In the URL like everything else here, so an
+  // expanded axis is a link somebody can send and it survives script being
+  // off - which a disclosure widget would not, and which matters more than
+  // usual on the page a stranger arrives at first.
+  const axis = q.axis === "all" ? "all" : undefined;
   const filtered = Boolean(year || month);
 
   const [bodies, overview, issues, highlights, page, soon] = await Promise.all([
@@ -80,12 +85,15 @@ export default async function BrowsePage({ searchParams }: Props) {
   const listed = bodies.filter((b) => b.recorded > 0 || b.with_agenda > 0);
 
   /** Builds a URL that changes one facet and keeps the rest (R4.2). */
-  const href = (next: { body?: string; year?: string; month?: string }) => {
+  const href = (next: { body?: string; year?: string; month?: string; axis?: string }) => {
     const p = new URLSearchParams();
-    const merged = { body, year, month, ...next };
+    const merged = { body, year, month, axis, ...next };
     if (merged.body) p.set("body", merged.body);
     if (merged.year) p.set("year", merged.year);
     if (merged.month) p.set("month", merged.month);
+    // Carried like the rest: a reader who opened the axis and then picked a
+    // body should not have it fold up underneath them.
+    if (merged.axis) p.set("axis", merged.axis);
     const qs = p.toString();
     return qs ? `/?${qs}` : "/";
   };
@@ -142,7 +150,13 @@ export default async function BrowsePage({ searchParams }: Props) {
 
       <Collection o={overview} body={body} />
 
-      <TimeAxis months={overview.months} year={year} month={month} href={href} />
+      <TimeAxis
+        months={overview.months}
+        year={year}
+        month={month}
+        expanded={axis === "all"}
+        href={href}
+      />
 
       {/* After the axis, because it is read against it: the axis says how much
           the county met, this says what about. Before the entryways, because
