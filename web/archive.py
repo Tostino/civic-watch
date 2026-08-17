@@ -681,7 +681,68 @@ def _issue_specs(con):
              "room": i["room"], "room_not": None} for i in ISSUES]
 
 
-def issues(con):
+def _issues_rolled(con, specs):
+    """The strip, read back out of `subject_year`.
+
+    Returns None when the table is empty, so a database that has never had a
+    rollup run against it computes the thing live rather than serving a blank
+    section. The shape is byte-for-byte what the live path returns - the page
+    cannot tell which one answered, and a check that compares them would be
+    comparing the same code to itself.
+    """
+    rows = [dict(r) for r in con.execute("""
+        SELECT slug, year, items, meetings, decided, continued, refused,
+               divided, lines, heard, first, last
+          FROM subject_year ORDER BY slug, year""")]
+    if not rows:
+        return None
+    span = [r[0] for r in con.execute("""
+        SELECT left(m.date, 4) FROM meetings m
+         WHERE m.date <= to_char(now(), 'YYYY-MM-DD')
+         GROUP BY 1 ORDER BY 1""")]
+    heard_from = con.execute("""
+        SELECT MIN(left(m.date, 4)) FROM meetings m
+         WHERE EXISTS (SELECT 1 FROM videos v
+                        WHERE v.meeting_id = m.id AND v.transcribed)""").fetchone()[0]
+    by = {}
+    for r in rows:
+        by.setdefault(r["slug"], {})[r["year"]] = r
+    out = []
+    for spec in specs:
+        got = by.get(spec["slug"])
+        if not got:
+            continue
+        first = min(r["first"] for r in got.values() if r["first"])
+        last = max(r["last"] for r in got.values() if r["last"])
+        out.append({
+            "slug": spec["slug"], "label": spec["label"], "q": spec["q"],
+            "parent": spec.get("parent"),
+            "items": sum(r["items"] for r in got.values()),
+            "meetings": sum(r["meetings"] for r in got.values()),
+            "continued": sum(r["continued"] for r in got.values()),
+            "refused": sum(r["refused"] for r in got.values()),
+            "divided": sum(r["divided"] for r in got.values()),
+            "lines": sum(r["lines"] for r in got.values()),
+            "heard": sum(r["heard"] for r in got.values()),
+            "first": first, "last": last,
+            "years": [{"year": y,
+                       "items": got[y]["items"] if y in got else 0,
+                       "meetings": got[y]["meetings"] if y in got else 0,
+                       "decided": got[y]["decided"] if y in got else 0,
+                       "pushed": (got[y]["continued"] + got[y]["refused"]
+                                  + got[y]["divided"]) if y in got else 0,
+                       "continued": got[y]["continued"] if y in got else 0,
+                       "refused": got[y]["refused"] if y in got else 0,
+                       "divided": got[y]["divided"] if y in got else 0,
+                       "lines": got[y]["lines"] if y in got else 0,
+                       "heard": got[y]["heard"] if y in got else 0}
+                      for y in span],
+        })
+    out.sort(key=lambda i: (-i["meetings"], -i["heard"], i["label"]))
+    return {"span": span, "heard_from": heard_from, "issues": out}
+
+
+def issues(con, live=False):
     """Each issue's twelve years, in both sources and never merged.
 
     Per YEAR rather than as one total, because the totals are the least
@@ -712,6 +773,15 @@ def issues(con):
     specs = _issue_specs(con)
     if not specs:
         return {"span": [], "heard_from": None, "issues": []}
+    # The front page reads the precomputed table. The join below costs 163s
+    # once sub-subjects exist, because a child evaluates its own alternation
+    # and its parent's against every published title and `~*` takes no index -
+    # so it runs at curation time (`bin/subjects.py` rollup) and never on a
+    # request. `live=True` is that rebuild asking for the real thing.
+    if not live:
+        got = _issues_rolled(con, specs)
+        if got:
+            return got
     vals = ", ".join(["(%s, %s, %s, %s)"] * len(specs))
 
     # Two counts of meetings, one per source, and both are summed per year
@@ -821,6 +891,9 @@ def issues(con):
                        "decided": rec[y]["decided"] if y in rec else 0,
                        "pushed": (rec[y]["continued"] + rec[y]["refused"]
                                   + rec[y]["divided"]) if y in rec else 0,
+                       "continued": rec[y]["continued"] if y in rec else 0,
+                       "refused": rec[y]["refused"] if y in rec else 0,
+                       "divided": rec[y]["divided"] if y in rec else 0,
                        "lines": rm[y]["lines"] if y in rm else 0,
                        "heard": rm[y]["meetings"] if y in rm else 0}
                       for y in span],

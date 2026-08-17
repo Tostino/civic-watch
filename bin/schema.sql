@@ -1211,3 +1211,37 @@ ALTER TABLE subject ADD COLUMN IF NOT EXISTS parent text
     REFERENCES subject(slug) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS subject_children ON subject (parent)
     WHERE parent IS NOT NULL;
+
+-- The strip's numbers, precomputed per subject and year.
+--
+-- Not an optimisation reached for early. Measured: the eighteen hand-written
+-- regexes answered in 0.5s, twenty-seven derived subjects in 3.7s, and the
+-- same twenty-seven plus twelve sub-subjects in 163 SECONDS. A sub-subject is
+-- counted inside its parent, so each child evaluates its own alternation AND
+-- its parent's against every published title, and `~*` cannot use an index.
+-- R8.1 asks for meaningful content in one second.
+--
+-- The vocabulary changes when somebody runs `bin/subjects.py`. The front page
+-- is read constantly. So the join happens at curation time and the page reads
+-- 39 x 12 rows, which is the same trade `speaker_resolved` makes against
+-- resolving four levels of speaker claim on every transcript request.
+--
+-- Rebuilt whole, never incrementally: a vocabulary edit can move any row in
+-- any year, and a partial refresh would leave the strip disagreeing with the
+-- terms that produced it, silently.
+CREATE TABLE IF NOT EXISTS subject_year (
+    slug      text NOT NULL REFERENCES subject(slug) ON DELETE CASCADE,
+    year      text NOT NULL,
+    items     integer NOT NULL DEFAULT 0,
+    meetings  integer NOT NULL DEFAULT 0,
+    decided   integer NOT NULL DEFAULT 0,
+    continued integer NOT NULL DEFAULT 0,
+    refused   integer NOT NULL DEFAULT 0,
+    divided   integer NOT NULL DEFAULT 0,
+    lines     integer NOT NULL DEFAULT 0,
+    heard     integer NOT NULL DEFAULT 0,
+    first     text,
+    last      text,
+    built_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (slug, year)
+);

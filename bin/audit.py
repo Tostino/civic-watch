@@ -506,6 +506,65 @@ def _(con):
         "SELECT COUNT(*) FROM subject_term WHERE status = 'kept' AND NOT negative"
 
 
+@check("subjects.rollup_is_current",
+       "the strip the front page reads was built from the vocabulary it has now")
+def _(con):
+    """A stale `subject_year` is worse than a slow one.
+
+    The front page reads a precomputed table because the live join costs 163
+    seconds once sub-subjects exist. That trade is only safe while the table
+    agrees with the terms that produced it, and nothing about a stale rollup
+    LOOKS wrong: the strip renders perfectly, in yesterday's vocabulary.
+
+    Every pass that can move a row calls the rebuild, so this fires when
+    somebody edits `subject_term` by hand - which is exactly the moment it is
+    hard to remember, and exactly when the numbers on a public page would
+    quietly stop matching the words underneath them.
+
+    Both directions: a kept subject with no rolled-up row is a row missing
+    from the page, and a rolled-up row for a subject that is no longer kept is
+    a row that should have gone.
+    """
+    q = """FROM (
+             SELECT s.slug FROM subject s
+              WHERE s.status = 'kept'
+                AND EXISTS (SELECT 1 FROM subject_term t
+                             WHERE t.slug = s.slug AND t.status = 'kept'
+                               AND NOT t.negative)
+             EXCEPT SELECT DISTINCT slug FROM subject_year
+             UNION
+             SELECT DISTINCT y.slug FROM subject_year y
+              WHERE NOT EXISTS (SELECT 1 FROM subject s
+                                 WHERE s.slug = y.slug AND s.status = 'kept')
+           ) x"""
+    return count(con, f"SELECT COUNT(*) {q}"), \
+        f"SELECT x.slug {q} ORDER BY 1 LIMIT 12", \
+        "SELECT COUNT(DISTINCT slug) FROM subject_year"
+
+
+@check("subjects.children_fit_their_parent",
+       "no sub-subject counts more items than the subject it narrows")
+def _(con):
+    """An indented row that is bigger than the row above it is a lie.
+
+    A child's vocabulary is not a subset of its parent's, it is a different
+    list, so left unconstrained a sub-subject reaches items the subject it
+    narrows never matched. `_issue_specs` pushes the parent's own pattern down
+    as `record_in` to stop that; this is what proves it stayed true, since the
+    failure is invisible on the page - the row just looks like a big one.
+    """
+    q = """FROM subject c
+           JOIN subject p ON p.slug = c.parent
+           JOIN (SELECT slug, SUM(items) AS n FROM subject_year GROUP BY slug) cy
+             ON cy.slug = c.slug
+           JOIN (SELECT slug, SUM(items) AS n FROM subject_year GROUP BY slug) py
+             ON py.slug = p.slug
+           WHERE c.status = 'kept' AND p.status = 'kept' AND cy.n > py.n"""
+    return count(con, f"SELECT COUNT(*) {q}"), \
+        f"SELECT c.slug, cy.n AS child, p.slug AS parent, py.n {q} LIMIT 12", \
+        "SELECT COUNT(*) FROM subject WHERE parent IS NOT NULL AND status = 'kept'"
+
+
 @check("subjects.have_a_vocabulary",
        "every kept subject has at least one kept positive phrase")
 def _(con):

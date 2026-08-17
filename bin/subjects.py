@@ -39,6 +39,7 @@ pattern, and nobody would have found it buried in 21,274 individual labels.
     bin/subjects.py --terms          ask for phrases, ground every one
     bin/subjects.py --split          narrow a subject too broad to answer anything
     bin/subjects.py --triage         keep what grounds cleanly, queue the rest
+    bin/subjects.py --rollup         rebuild what the front page reads
     bin/subjects.py --review         the queue, with counts and samples
     bin/subjects.py --keep SLUG…     accept a subject, or a term by id
     bin/subjects.py --drop SLUG…     reject one
@@ -548,9 +549,50 @@ def triage(con):
     left = con.execute(
         "SELECT COUNT(*) FROM subject_term WHERE status = 'proposed'").fetchone()[0]
     print(f"  kept {kept} phrases across {subs} subjects")
+    rollup(con)
     print(f"  {left} left for a person: nothing found, or broader than "
           f"{cap:,} items")
     print("  bin/subjects.py --review   to read them")
+
+
+def rollup(con):
+    """Recompute `subject_year`, which is what the front page actually reads.
+
+    The expensive join happens HERE, once, at curation time. Measured on the
+    live archive: 18 hand-written regexes answered in 0.5s, 27 derived
+    subjects in 3.7s, and 27 plus 12 sub-subjects in 163 seconds - because a
+    child is counted inside its parent, so it evaluates its own alternation
+    and its parent's against every published title, and `~*` takes no index.
+
+    Called at the end of every pass that can change what a subject matches.
+    Forgetting to call it would leave the strip showing yesterday's
+    vocabulary, which is worse than slow, so it is not a separate step anyone
+    has to remember.
+    """
+    sys.path.insert(0, os.path.join(ROOT, "web"))
+    import archive
+    # `live=True` forces the join rather than reading the table this is about
+    # to replace. `archive` owns the SQL that defines what a row means; a
+    # second copy of it here is the drift the subject tables exist to end.
+    d = archive.issues(con, live=True)
+    cur = con.cursor()
+    cur.execute("DELETE FROM subject_year")
+    n = 0
+    for i in d["issues"]:
+        for y in i["years"]:
+            if not (y["items"] or y["lines"]):
+                continue
+            cur.execute("""
+                INSERT INTO subject_year (slug, year, items, meetings, decided,
+                                          continued, refused, divided, lines,
+                                          heard, first, last)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (i["slug"], y["year"], y["items"], y["meetings"], y["decided"],
+                 y.get("continued", 0), y.get("refused", 0), y.get("divided", 0),
+                 y["lines"], y["heard"], i["first"], i["last"]))
+            n += 1
+    con.commit()
+    print(f"  rebuilt subject_year: {n} rows across {len(d['issues'])} subjects")
 
 
 def setstatus(con, targets, status):
@@ -569,6 +611,7 @@ def setstatus(con, targets, status):
         n += cur.rowcount
     con.commit()
     print(f"  {status}: {n} row(s)")
+    rollup(con)
 
 
 def status(con):
@@ -675,6 +718,7 @@ def main():
     g.add_argument("--terms", nargs="?", const=True, metavar="SLUG")
     g.add_argument("--review", action="store_true")
     g.add_argument("--triage", action="store_true")
+    g.add_argument("--rollup", action="store_true")
     g.add_argument("--split", nargs="?", const=True, metavar="SLUG")
     g.add_argument("--keep", nargs="+", metavar="SLUG|ID")
     g.add_argument("--drop", nargs="+", metavar="SLUG|ID")
@@ -691,6 +735,8 @@ def main():
         return review(con)
     if a.triage:
         return triage(con)
+    if a.rollup:
+        return rollup(con)
     if a.split:
         return split(con, None if a.split is True else a.split)
     if a.keep:

@@ -423,4 +423,12 @@
     padding-inline-start: var(--sp-2);
     margin-inline-start: 0.2rem;
   }
+
+  /* An 11px text link is an 18px target. Padded rather than enlarged: the
+   * label beside it sets the row's rhythm and a bigger typeface here would
+   * compete with the subject name for it. */
+  .narrow {
+    padding-block: 0.35rem;
+    padding-inline-end: 0.35rem;
+  }
 }
