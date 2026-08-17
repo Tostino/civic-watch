@@ -188,12 +188,26 @@ def build_passages(con, video_id=None):
             r = vrows[i]
             long_turn = len(r["text"].split()) >= TURN_WORDS
             if long_turn:
-                # Accumulate this VOICE's run up to MAX_WORDS. Bounded by
+                # Accumulate this SPEAKER's run up to MAX_WORDS. Bounded by
                 # local_label rather than cluster: 30 (video, cluster) pairs
                 # hold two diarization labels, so the cluster is not the voice
                 # and grouping by it merges two people into one passage.
-                chunk, words, voice = [], 0, r["local_label"]
+                #
+                # AND BOUNDED BY THE RESOLVED NAME TOO, which is the same
+                # argument one level up: the voice is not the speaker. A clerk
+                # reading correspondence into the record is one local_label
+                # across six letters by six people, so a voice-bounded chunk
+                # ran straight through every author change and took
+                # chunk[0]'s name for all of it - passage 329-331 of
+                # BTQQU-4nOq8 was Michael Killian's letter, Joanne Killian's
+                # first two lines, and Michael Killian's name on the lot.
+                # Before read_aloud attributed whole letters, one voice really
+                # was one speaker for the length of a run and this could not
+                # happen.
+                chunk, words = [], 0
+                voice, who = r["local_label"], r["speaker"]
                 while (i < len(vrows) and vrows[i]["local_label"] == voice
+                       and vrows[i]["speaker"] == who
                        and words < MAX_WORDS):
                     chunk.append(vrows[i])
                     words += len(vrows[i]["text"].split())

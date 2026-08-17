@@ -889,11 +889,19 @@ def _(con):
     # filter and every quote the agent prints. When it drifts from the
     # transcript the archive contradicts itself, and the agent is the half
     # nobody is reading closely enough to notice.
-    # Membership, not majority. Utterances OVERLAP in time - two people talk at
-    # once - so a passage's time window catches speech from voices that are not
-    # its own, and picking the modal name off that window mislabels short
-    # passages on a tie. The invariant that actually holds is that the baked
-    # name is one the transcript gives somewhere inside the passage.
+    # EVERY LINE, not merely one of them. This asked whether the baked name
+    # was a name the transcript gives SOMEWHERE inside the passage, and that
+    # is too weak to see the defect it exists for: passage 329-331 of
+    # BTQQU-4nOq8 was Michael Killian's letter plus the first two lines of
+    # Joanne Killian's, filed under Michael Killian, and it passed - because
+    # line 329 really is his. A passage is built from a contiguous run of ONE
+    # speaker, so every named line under it must be that speaker, and any
+    # passage that cannot say so should be `(exchange)` and carry inline
+    # labels.
+    #
+    # The weaker form was written when a voice was a speaker for the length of
+    # a run, which was true until read_aloud began attributing whole letters
+    # to their authors across a single reader's voice.
     # Joined on the INDEX range, not the time window. A passage is built from a
     # contiguous run of utterances and stores their idx bounds exactly, while
     # `start` and `end` are doubles that do not always round-trip: three of the
@@ -902,13 +910,13 @@ def _(con):
     # stale name from its own boundary arithmetic. Integers cannot drift.
     q = """FROM passages p
            WHERE p.speaker <> '(exchange)'
-             AND NOT EXISTS (
+             AND EXISTS (
                  SELECT 1 FROM utterances u
                  JOIN utterance_speaker us
                    ON us.video_id = u.video_id AND us.idx = u.idx
                  WHERE u.video_id = p.video_id
                    AND u.idx BETWEEN p.start_idx AND p.end_idx
-                   AND us.name IS NOT DISTINCT FROM p.speaker)"""
+                   AND us.name IS DISTINCT FROM p.speaker)"""
     return count(con, f"SELECT COUNT(*) {q}"), \
         f"SELECT p.id, p.video_id, p.speaker, p.start {q} LIMIT 5", \
         "SELECT COUNT(*) FROM passages WHERE speaker <> '(exchange)'"

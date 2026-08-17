@@ -99,6 +99,29 @@ PROMPTED = re.compile(
 # covers only the read span; the reader keeps every claim either side of it.
 # Without this a staffer reading "My name is Corey Ward and I live at..." is
 # confidently named Corey Ward, above the voiceprint.
+# WHO IS BEING READ, and where their letter starts. A clerk reads a stack of
+# correspondence in one go and announces each item - "Next email is from
+# Michael Killian", "And I believe this is the last email. It is um sent in by
+# Daniel Honeywell" - so the announcements cut the run into letters. READING
+# below finds the run; this finds the seams inside it.
+# AN ANNOUNCEMENT, NOT A MENTION, and the determiner is what tells them apart.
+# "Next email is from Michael Killian" hands the floor to Michael Killian;
+# "there was also a letter from BayCare stating that masks should be worn" and
+# "it's right behind the letter from Witlicucci" are somebody talking ABOUT a
+# letter in the middle of their own remarks. Without the ordinal both matched,
+# and each took the following 14 to 16 utterances of the speaker's own words
+# with it - a commissioner's speech filed under an organisation's name.
+#
+# `X and Y` is one item read once: "Next um email Is from Michael and Diane
+# Jones" is a letter from a couple, and capturing `Michael` alone names one of
+# them and gets the surname of neither.
+READ_FROM = re.compile(
+    r"(?i:\b(?:next|last|first|second|third|fourth|fifth|final|another|following)\s+"
+    r"(?:\w+\s+){0,2}?(?:e-?mails?|letters?|correspondence|comment cards?)\b"
+    r"[^.]{0,20}?\b(?:is\s+|was\s+)?from"
+    r"|\bsent\s+in\s+by)"
+    r"[\s,]+" + _FILLER + r"(" + NAME + r"(?:\s+and\s+" + NAME + r")?)")
+
 READING = re.compile(
     r"\b(?:email|e-mail|letter|correspondence|comment card)\b[^.]{0,40}"
     r"\b(?:is )?from\b|\bread (?:it |this )?into the record\b"
@@ -301,6 +324,51 @@ def backfill(con, video_id=None, commit=True):
 
 
 # ------------------------------------------------------------------- extract
+def _letters(by_run):
+    """Cut each reading run into one span per letter, keyed to its author.
+
+    THE SPAN IS THE LETTER, not the line the author's name happens to fall on.
+    This claimed a single utterance - whichever one contained "my name is" -
+    so a resident's letter was attributed to its author for one line out of
+    six and to the commissioner reading it for the other five, and a letter
+    whose author never says their own name was not attributed at all. Most do
+    not: of the correspondence read into BTQQU-4nOq8, every item is announced
+    and only some introduce themselves.
+
+    THE ANNOUNCEMENT LINE OPENS THE AUTHOR'S SPAN. It has to go one way or the
+    other and nothing here can split an utterance: "Next email is from Michael
+    Killian, [address removed], to whom it could make concern. I moved my
+    family..." is one line holding the clerk's label and the opening of the
+    letter. Given to the author it mislabels one short clause; given to the
+    reader it hands a paragraph of somebody's letter to the person reading it,
+    which is the defect this exists to fix.
+
+    A letter ends where the next one is announced, or where the voice's own
+    contiguous run ends - never past it, because past it somebody else is
+    talking.
+    """
+    out = []
+    for key, utts in by_run.items():
+        vid = key[0]
+        if not any(READING.search(t) for _, t in utts):
+            continue
+        marks = []
+        for i, t in utts:
+            m = READ_FROM.search(t)
+            if not m:
+                continue
+            nm = m.group(1).strip()
+            cap = 6 if " and " in nm else 3      # a couple gets both names
+            if len(nm.split()) > cap or len(nm) < 4:
+                continue
+            marks.append((i, nm, t[max(0, m.start() - 20):m.end() + 60]))
+        for k, (lo, nm, quote) in enumerate(marks):
+            hi = marks[k + 1][0] - 1 if k + 1 < len(marks) else utts[-1][0]
+            if hi >= lo:
+                out.append((vid, lo, hi, nm, quote))
+    return out
+
+
 def extract(con, video_id=None, commit=True):
     """What the transcript says outright, which nothing has been reading.
 
@@ -323,12 +391,36 @@ def extract(con, video_id=None, commit=True):
                              {only}
                            ORDER BY video_id, idx""", arg).fetchall()
 
-    # Names heard anywhere in a meeting, for the corroboration flag. One pass
-    # per video rather than a query per claim.
+    # One pass over the transcript, serving both the corroboration flag and the
+    # read-aloud segmentation, rather than a query per claim.
     heard = collections.defaultdict(list)
-    for r in con.execute(f"SELECT video_id, lower(text) t FROM utterances "
+    texts = collections.defaultdict(dict)
+    for r in con.execute(f"SELECT video_id, idx, text FROM utterances "
                          f"WHERE true {only}", arg):
-        heard[r["video_id"]].append(r["t"])
+        t = " ".join(r["text"].split())
+        heard[r["video_id"]].append(t.lower())
+        texts[r["video_id"]][r["idx"]] = t
+
+    # Grouped by CONTIGUOUS RUN, which is the one boundary a letter may not
+    # cross: past the end of the run somebody else is speaking.
+    by_run = {}
+    for (vid, label), spans in voice_runs.items():
+        if vid not in texts:
+            continue
+        for k, (lo, hi) in enumerate(spans):
+            utts = [(i, texts[vid][i]) for i in range(lo, hi + 1) if i in texts[vid]]
+            if utts:
+                by_run[(vid, label, k)] = utts
+
+    # The letters, whole. Written before the self-introduction loop below so
+    # that a self-introduction INSIDE a letter can claim the letter rather
+    # than the line it sits on.
+    letter_of = {}
+    for vid, lo, hi, nm, quote in _letters(by_run):
+        claim(cur, vid, lo, hi, nm, "read_aloud", quote)
+        n["read_aloud"] += 1
+        for i in range(lo, hi + 1):
+            letter_of[(vid, i)] = (lo, hi)
 
     for r in rows:
         text = " ".join(r["text"].split())
@@ -388,8 +480,15 @@ def extract(con, video_id=None, commit=True):
         quote = text[max(0, m.start() - 30):m.end() + 40]
 
         if READING.search(text) or reading_run:
-            claim(cur, r["video_id"], r["idx"], r["idx"], name, "read_aloud",
-                  quote)
+            # The whole letter, when the announcements said where it starts
+            # and ends. Falling back to the single utterance is for
+            # correspondence read without being announced - "I am writing to
+            # you today" with no "next email is from" anywhere - where the
+            # only thing the archive knows is that THIS line is somebody
+            # else's words.
+            lo, hi = letter_of.get((r["video_id"], r["idx"]),
+                                   (r["idx"], r["idx"]))
+            claim(cur, r["video_id"], lo, hi, name, "read_aloud", quote)
             n["read_aloud"] += 1
             continue
 
@@ -618,6 +717,16 @@ SELECT u.video_id, u.idx, w.name_text, w.person_id, w.method, w.contested
                ON c2.video_id = c.video_id
               AND u.idx BETWEEN c2.start_idx AND c2.end_idx
               AND c2.name_text IS NOT NULL
+              -- A READ-ALOUD CLAIM DOES NOT CONTEST A VOICE CLAIM, and the
+              -- two overlap on every letter ever read into the record -
+              -- that is what reading aloud IS. They answer different
+              -- questions: whose words these are, and whose voice is saying
+              -- them. Counted as a disagreement, attributing letters over
+              -- their whole span put 4,905 utterances behind a `Disputed`
+              -- badge, nearly all of them correspondence the archive
+              -- understands perfectly well. So read_aloud is compared with
+              -- read_aloud, and everything else with everything else.
+              AND (c2.method = 'read_aloud') = (c.method = 'read_aloud')
        WHERE c.video_id = u.video_id
          AND u.idx BETWEEN c.start_idx AND c.end_idx
          -- A DETACH IS A CLAIM THAT THERE IS NO NAME, and it has to be able
