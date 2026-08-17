@@ -807,9 +807,23 @@ SELECT u.video_id,
        u.idx,
        u.local_label,
        u.cluster,
-       -- The key keeps its form: surname for a board member, because that is
-       -- what the roster, the facet and every filter are written against.
-       COALESCE(pe.surname, sr.name_text) AS name,
+       -- The key keeps its form: surname for a BOARD member, because that is
+       -- what the roster, the facet and every filter are written against, and
+       -- the person's own full name for everybody else.
+       --
+       -- THE kind TEST IS LOAD-BEARING and was missing. This read
+       -- COALESCE(pe.surname, sr.name_text), which was right only for as long
+       -- as members of the public had no surname stored. Keeping their
+       -- surnames - which is what the record deserves and what the old
+       -- UNIQUE(surname) was preventing - silently turned every public
+       -- speaker's key into a bare surname: `Beverly Camp` became `Camp`,
+       -- `Yolanda Hodges` became `Hodges`. passages.speaker IS THE FACET KEY
+       -- and /search filters on equality against it, so every Camp in the
+       -- archive would have collapsed into one speaker. display_name was
+       -- correct throughout, so nothing on the page would have looked wrong.
+       -- Caught by rebuilding ONE meeting and reading the diff.
+       CASE WHEN pe.kind = 'board' THEN COALESCE(pe.surname, sr.name_text)
+            ELSE COALESCE(pe.full_name, sr.name_text) END AS name,
        sr.method AS basis,
        -- COALESCE, because the old view's `human` is never NULL and 63,559
        -- utterances resolve to no name at all. Without it every unnamed line
