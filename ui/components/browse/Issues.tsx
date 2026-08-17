@@ -103,12 +103,33 @@ export function Issues({ d }: { d: IssuesData }) {
         ))}
       </div>
 
+      {/* R2.1 applies to the METHOD as much as to the numbers. The old note
+          said "we find each subject by its words" and left a reader to assume
+          the archive had discovered the subjects; a person had written
+          eighteen of them down. Saying who chose them, and how the words were
+          arrived at, is what makes the counts checkable rather than merely
+          stated. */}
       <p className={s.note}>
-        We find each subject by its words. The record is matched in the published title
-        of an item. The room is matched in the transcript, which is made by machine and
-        can be wrong. An item the county titled in other words is not counted. Each row
-        is shaded against its own busiest year, so a shade compares years within one
-        subject and never one subject against another.
+        These subjects were not chosen by hand. A model read a sample of the county&rsquo;s
+        own agenda titles and proposed the ones that recur; for each, it proposed the
+        words this county actually uses &mdash; programme names, acronyms, the spoken
+        wording &mdash; and every one of those was counted against this archive, with a
+        real example, before a person kept or dropped it.
+      </p>
+      <p className={s.note}>
+        Matching itself is literal: an item is counted when its published title contains
+        one of those phrases, so these numbers are exact and repeatable rather than a
+        judgement about each item. The room is matched the same way in the transcript,
+        which is made by machine and can be wrong. An item the county titled in words no
+        phrase covers is still not counted. Each row is shaded against its own busiest
+        year, so a shade compares years within one subject and never one subject against
+        another &mdash; except the third lane, which is a proportion.
+      </p>
+      <p className={s.note}>
+        These rows are not a division of the archive and do not add up to it. One item
+        can be two subjects at once &mdash; a comprehensive plan text amendment is a
+        change to the plan and a land-use amendment both &mdash; and it is counted under
+        each. Nothing on this page sums them.
       </p>
     </section>
   );

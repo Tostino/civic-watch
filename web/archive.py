@@ -633,6 +633,35 @@ ISSUES = [
 ]
 
 
+def _issue_specs(con):
+    """The subjects to draw, and the SQL each one matches with.
+
+    Read from `subject`/`subject_term` through `subjects.patterns()`, which is
+    the ONE place a kept phrase becomes a regex and a tsquery. Importing it
+    rather than re-deriving here is the point: a second copy of that
+    translation is exactly the drift the tables were built to end, and it
+    would be silent - two patterns that disagree still both return rows.
+
+    Falls back to the `ISSUES` literal while the tables are empty, so a
+    database that has not had `bin/subjects.py` run against it serves the
+    section it served before rather than a blank space. `--status` says which
+    of the two is live.
+    """
+    try:
+        import subjects
+        live = subjects.patterns(con)
+    except Exception:
+        live = {}
+    if live:
+        return [{"slug": slug, "label": d["label"], "q": d["q"],
+                 "record": d["record"], "record_not": d["record_not"],
+                 "room": d["room"], "room_not": d["room_not"]}
+                for slug, d in live.items()]
+    return [{"slug": i["slug"], "label": i["label"], "q": i["q"],
+             "record": i["record"], "record_not": None,
+             "room": i["room"], "room_not": None} for i in ISSUES]
+
+
 def issues(con):
     """Each issue's twelve years, in both sources and never merged.
 
@@ -646,14 +675,31 @@ def issues(con):
     of speech - a line is a ~40-second block, so it counts blocks that mention
     the issue, not sentences about it. Neither is a measure of importance and
     the page does not present them as one.
+
+    THE VOCABULARY IS DATA NOW, not the `ISSUES` literal below. `subject` and
+    `subject_term` hold subjects a model proposed from a sample of real titles
+    and phrases a person kept after seeing what each one actually matches here
+    (`bin/subjects.py`). Both lanes are built from the SAME kept phrases, which
+    the literal could not promise: it carried a regex for the record and a
+    separate tsquery for the room, and nothing checked that the two described
+    the same subject.
+
+    Matching stays lexical and stays here. That is what keeps these counts on
+    the record side of section 2 - counting the county's own published titles
+    by phrase is exact and reproducible, where a per-item model label would
+    make every number on this surface an inference and oblige it to be drawn
+    as one (R2.1, R2.3).
     """
-    vals = ", ".join(["(%s, %s)"] * len(ISSUES))
+    specs = _issue_specs(con)
+    if not specs:
+        return {"span": [], "heard_from": None, "issues": []}
+    vals = ", ".join(["(%s, %s, %s)"] * len(specs))
 
     # Two counts of meetings, one per source, and both are summed per year
     # later. That is exact rather than approximate: a meeting has one date, so
     # it falls in exactly one year and cannot be counted in two.
     record = [dict(r) for r in con.execute(f"""
-        WITH t(slug, rx) AS (VALUES {vals})
+        WITH t(slug, rx, rx_not) AS (VALUES {vals})
         SELECT t.slug, left(m.date, 4) AS year,
                COUNT(*)                                          AS items,
                COUNT(DISTINCT m.id)                              AS meetings,
@@ -669,24 +715,32 @@ def issues(con):
                                       ~* '{NAY_SQL}')            AS divided,
                MIN(m.date) AS first, MAX(m.date) AS last
           FROM t
-          JOIN agenda_items ai ON ai.source = 'agenda' AND ai.title ~* t.rx
+          JOIN agenda_items ai
+            ON ai.source = 'agenda' AND ai.title ~* t.rx
+           -- A negative phrase excludes. The archive genuinely needs it: bare
+           -- "license plate" takes in the county's spay/neuter specialty-plate
+           -- grant, which is not a camera.
+           AND (t.rx_not IS NULL OR ai.title !~* t.rx_not)
           JOIN meetings m ON m.id = ai.meeting_id
          WHERE m.date <= to_char(now(), 'YYYY-MM-DD')
          GROUP BY 1, 2""",
-        [v for i in ISSUES for v in (i["slug"], i["record"])])]
+        [v for s in specs for v in (s["slug"], s["record"], s["record_not"])])]
 
     room = [dict(r) for r in con.execute(f"""
-        WITH t(slug, tsq) AS (VALUES {vals})
+        WITH t(slug, tsq, tsq_not) AS (VALUES {vals})
         SELECT t.slug, left(m.date, 4) AS year,
                COUNT(*)             AS lines,
                COUNT(DISTINCT m.id) AS meetings,
                MIN(m.date) AS first, MAX(m.date) AS last
           FROM t
-          JOIN utterances u ON u.tsv @@ to_tsquery('english', t.tsq)
+          JOIN utterances u
+            ON u.tsv @@ to_tsquery('english', t.tsq)
+           AND (t.tsq_not IS NULL
+                OR NOT (u.tsv @@ to_tsquery('english', t.tsq_not)))
           JOIN videos v ON v.id = u.video_id
           JOIN meetings m ON m.id = v.meeting_id
          GROUP BY 1, 2""",
-        [v for i in ISSUES for v in (i["slug"], i["room"])])]
+        [v for s in specs for v in (s["slug"], s["room"], s["room_not"])])]
 
     # The axis is the archive's own span, so a thirteenth year needs no edit
     # here - the same reason TimeAxis derives its heading rather than printing
@@ -704,7 +758,7 @@ def issues(con):
         ).fetchone()[0]
 
     out = []
-    for spec in ISSUES:
+    for spec in specs:
         rec = {r["year"]: r for r in record if r["slug"] == spec["slug"]}
         rm = {r["year"]: r for r in room if r["slug"] == spec["slug"]}
         # Rule 1. A wording the county never used is not an issue it never

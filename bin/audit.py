@@ -452,6 +452,80 @@ def _rail_exempt():
     return f"ARRAY[{names}]::text[]"
 
 
+@check("subjects.terms_are_live",
+       "a kept subject phrase that finds nothing in either source",
+       review=True)
+def _(con):
+    """A phrase that sounded right and matches nothing.
+
+    Harmless to the counts and not harmless to the reader: it is a claim, in
+    the table, that the county uses this wording, and it is false. Usually the
+    model proposing a programme name this county does not run, or an acronym
+    it spells differently. Review rather than defect - the honest fix is to
+    drop the term, and that is a person's call.
+    """
+    # PROPOSED, not kept. `--triage` never keeps a phrase that found nothing,
+    # so scoping this to kept made it an invariant that could not fire - it
+    # would have read "ok" forever while 143 dead phrases sat in the queue
+    # behind it. What it should count is the queue itself, which is also the
+    # only measure anyone has of how much of the proposal was invented: 143 of
+    # 488 phrases name wording this county does not use, and among them is
+    # "trim costs", where the model read Florida's TRIM notice - Truth In
+    # Millage - as the English word.
+    q = """FROM subject_term t JOIN subject s ON s.slug = t.slug
+           WHERE t.status = 'proposed' AND s.status = 'kept'
+             AND coalesce(t.n_items, 0) = 0
+             AND coalesce(t.n_utterances, 0) = 0"""
+    return count(con, f"SELECT COUNT(*) {q}"), \
+        f"SELECT t.slug, t.phrase {q} ORDER BY t.slug LIMIT 12", \
+        "SELECT COUNT(*) FROM subject_term"
+
+
+@check("subjects.terms_are_specific",
+       "a kept subject phrase broad enough to name most of the archive",
+       review=True)
+def _(con):
+    """The `SHIP` failure, as an invariant.
+
+    `SHIP` as a substring matched 942 published titles because most of them
+    contain "township". Word boundaries fixed that one, and the general shape
+    survives them: a phrase can be perfectly bounded and still be so common
+    that it says nothing about a subject. A positive term naming more than a
+    twentieth of the published record is that, and it wants a person's eye.
+
+    Negative terms are exempt: a broad exclusion is doing its job.
+    """
+    total = count(con, "SELECT COUNT(*) FROM agenda_items WHERE source = 'agenda'")
+    cap = max(50, total // 20)
+    q = f"""FROM subject_term t JOIN subject s ON s.slug = t.slug
+            WHERE t.status = 'kept' AND s.status = 'kept'
+              AND NOT t.negative AND coalesce(t.n_items, 0) > {cap}"""
+    return count(con, f"SELECT COUNT(*) {q}"), \
+        f"""SELECT t.slug, t.phrase, t.n_items, left(t.sample, 60) AS sample {q}
+            ORDER BY t.n_items DESC LIMIT 12""", \
+        "SELECT COUNT(*) FROM subject_term WHERE status = 'kept' AND NOT negative"
+
+
+@check("subjects.have_a_vocabulary",
+       "every kept subject has at least one kept positive phrase")
+def _(con):
+    """A subject with only negative terms, or none, is drawn as an empty row.
+
+    Not a review item: `_issue_specs` silently skips such a subject, so the
+    front page loses a row and nothing anywhere says why. That is a defect in
+    the curation, and it is one `--keep`-ing a subject whose phrases were all
+    dropped produces easily.
+    """
+    q = """FROM subject s
+           WHERE s.status = 'kept'
+             AND NOT EXISTS (SELECT 1 FROM subject_term t
+                              WHERE t.slug = s.slug AND t.status = 'kept'
+                                AND NOT t.negative)"""
+    return count(con, f"SELECT COUNT(*) {q}"), \
+        f"SELECT s.slug, s.label {q} ORDER BY s.slug LIMIT 12", \
+        "SELECT COUNT(*) FROM subject WHERE status = 'kept'"
+
+
 @check("people.surname_unambiguous",
        "no surname is claimed by two different boards")
 def _(con):
