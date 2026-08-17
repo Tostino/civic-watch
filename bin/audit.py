@@ -311,7 +311,7 @@ def _(con):
 def _(con):
     q = """FROM speaker_identity si
            JOIN videos v ON v.id = si.video_id
-           JOIN people p ON lower(p.surname) = lower(si.name)
+           JOIN people p ON p.kind = 'board' AND lower(p.surname) = lower(si.name)
            WHERE v.upload_date IS NOT NULL
              AND NOT EXISTS (SELECT 1 FROM board_terms bt
                              WHERE bt.person_id = p.id
@@ -325,7 +325,7 @@ def _(con):
         ORDER BY si.name LIMIT 6""", \
         """SELECT COUNT(*) FROM speaker_identity si
            JOIN videos v ON v.id = si.video_id
-           JOIN people p ON lower(p.surname) = lower(si.name)
+           JOIN people p ON p.kind = 'board' AND lower(p.surname) = lower(si.name)
            WHERE v.upload_date IS NOT NULL"""
 
 
@@ -423,7 +423,13 @@ def _(con):
     # roster.clean_name strips them on the way in now. This is the assertion
     # that the parser and the stored rows have not drifted apart again - and
     # the pattern is roster.HONORIFIC_SQL, which is where to change it.
-    q = f"""FROM people WHERE full_name ~* '{roster.HONORIFIC_SQL}'"""
+    # BOARD ONLY. This asserts that roster.clean_name and the stored rows have
+    # not drifted - it is about names parsed from published agendas. `people`
+    # holds members of the public now, whose names come from the transcript and
+    # who really are introduced as "Pastor Danny Fields"; that is what the
+    # record says and not a parser defect.
+    q = f"""FROM people WHERE kind = 'board'
+              AND full_name ~* '{roster.HONORIFIC_SQL}'"""
     return count(con, f"SELECT COUNT(*) {q}"), \
         f"SELECT surname, full_name {q} LIMIT 5", \
         "SELECT COUNT(*) FROM people WHERE full_name IS NOT NULL"
@@ -624,7 +630,7 @@ def _(con):
                           WHERE us.video_id = si.video_id
                             AND us.name = si.name) utts
                  FROM speaker_identity si
-                 JOIN people p ON lower(p.surname) = lower(si.name)
+                 JOIN people p ON p.kind = 'board' AND lower(p.surname) = lower(si.name)
                  WHERE si.name IS NOT NULL
                  GROUP BY 1, 2 HAVING COUNT(DISTINCT si.local_label) > 1) t"""
     return count(con, f"SELECT COUNT(*) {q}"), f"""
@@ -632,7 +638,7 @@ def _(con):
         ORDER BY utts DESC, voices DESC LIMIT 8""", \
         """SELECT COUNT(*) FROM (SELECT si.video_id, si.name
            FROM speaker_identity si
-           JOIN people p ON lower(p.surname) = lower(si.name)
+           JOIN people p ON p.kind = 'board' AND lower(p.surname) = lower(si.name)
            WHERE si.name IS NOT NULL GROUP BY 1, 2) t"""
 
 
@@ -648,7 +654,7 @@ def _(con):
            JOIN voice_name vn ON vn.video_id = u.video_id
                              AND vn.cluster = u.cluster
            JOIN videos v   ON v.id = u.video_id
-           JOIN people p   ON lower(p.surname) = lower(vn.name)
+           JOIN people p   ON p.kind = 'board' AND lower(p.surname) = lower(vn.name)
            WHERE NOT EXISTS (
                SELECT 1 FROM board_terms bt
                WHERE bt.person_id = p.id
@@ -660,7 +666,7 @@ def _(con):
         GROUP BY 1,2 ORDER BY n DESC LIMIT 6""", \
         """SELECT COUNT(*) FROM utterances u
            JOIN voice_name vn ON vn.video_id=u.video_id AND vn.cluster=u.cluster
-           JOIN people p ON lower(p.surname)=lower(vn.name)"""
+           JOIN people p ON p.kind = 'board' AND lower(p.surname)=lower(vn.name)"""
 
 
 # ---------------------------------------------------------------- index

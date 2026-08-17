@@ -58,14 +58,19 @@ def load_rosters(con):
             JOIN meetings m ON m.id = mr.meeting_id
             JOIN videos v   ON v.meeting_id = m.id"""):
         rosters[r["vid"]].add(r["sn"])
-    # `people` is not only board members any more (SPEAKER_PLAN.md §2.7): a
-    # member of the public is keyed by id and carries NO surname, because the
-    # roster's key is not theirs to have. This set is about who could be
-    # SEATED, so it wants the ones who have one - and without the guard the
-    # NULLs arrive here and `.title()` below dies, which is how a schema
-    # change to `people` took the naming pipeline down.
+    # BOARD MEMBERS, and it has to say so. This set is "who could ever have
+    # been seated": it whitelists name voting, restricts the voice anchor, and
+    # decides whether a heard name is a commissioner at all.
+    #
+    # `people` is everybody named in the archive now (SPEAKER_PLAN.md §2.7),
+    # so "in the people table" stopped meaning "on the board" - 1,288 members
+    # of the public would have walked into this whitelist and been eligible to
+    # be assigned to any voice in any meeting. Presence in a table was never
+    # what this meant; it only looked that way while the table held nothing
+    # else.
     everyone = {r[0] for r in con.execute(
-        "SELECT lower(surname) FROM people WHERE surname IS NOT NULL")}
+        "SELECT lower(surname) FROM people "
+        "WHERE kind = 'board' AND surname IS NOT NULL")}
 
     # A meeting with no published agenda still has a knowable board: whoever's
     # term spans that date. Falling back to *everyone* let commissioners who

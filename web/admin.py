@@ -183,7 +183,13 @@ SPLITS_FROM = """
                    WHERE us.video_id = si.video_id
                      AND us.name = si.name) AS utts
           FROM speaker_identity si
-          JOIN people p ON lower(p.surname) = lower(si.name)
+          -- kind = 'board' because this queue is about a COMMISSIONER on two
+          -- voices in one meeting. `people` holds everybody named now, and a
+          -- member of the public whose whole name is one word - "Denise" -
+          -- would otherwise join here and arrive in a review queue that has
+          -- no question to ask about them.
+          JOIN people p ON p.kind = 'board'
+                       AND lower(p.surname) = lower(si.name)
           WHERE si.name IS NOT NULL
           GROUP BY 1, 2
           HAVING COUNT(DISTINCT si.local_label) > 1) t"""
