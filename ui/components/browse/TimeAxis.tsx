@@ -129,9 +129,15 @@ export function TimeAxis({
    * row carrying the only forward-looking thing on this page, and burying it
    * under a control labelled with older years would be the wrong shape as well
    * as the wrong claim. */
-  const folded = expanded ? [] : years.filter((y) => y < from);
-  const shown = years.filter((y) => !folded.includes(y));
-  const fold = totals(folded);
+  /* The summary row is ALWAYS the control, in one place. It used to vanish on
+   * expanding and be replaced by a "show the last five years only" link under
+   * the whole grid, so the thing you had just pressed moved to the far side of
+   * seven new rows - and pressing it again moved it back. A control that
+   * relocates as a result of being used is one a reader has to re-find every
+   * time. It stays at the head of the year rows and only its verb changes. */
+  const earlier = years.filter((y) => y < from);
+  const shown = expanded ? years : years.filter((y) => !earlier.includes(y));
+  const fold = totals(earlier);
   /* Stated rather than implied. The gradient used to carry "there is no video
    * before 2018" on its own, and folding those rows takes that with them - so
    * the summary says it in words, and finds the year rather than being told
@@ -201,31 +207,32 @@ export function TimeAxis({
           </span>
         </div>
 
-        {folded.length ? (
+        {earlier.length ? (
           <a
-            href={href({ axis: "all" })}
+            href={href({ axis: expanded ? undefined : "all" })}
             className={`${s.row} ${s.fold}`}
             role="row"
             onClick={(e) => {
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
               e.preventDefault();
-              toggle(true);
+              toggle(!expanded);
             }}
+            aria-expanded={expanded}
             aria-label={
-              `Show ${folded.length} earlier years: ` +
-              `${folded[0]} to ${folded[folded.length - 1]}, ` +
+              `${expanded ? "Hide" : "Show"} ${earlier.length} earlier years: ` +
+              `${earlier[0]} to ${earlier[earlier.length - 1]}, ` +
               `${fold.meetings} meetings, ${fold.recorded} on video`
             }
           >
             <span className={s.foldYears} role="rowheader">
-              {folded[0]}&ndash;{folded[folded.length - 1]}
+              {earlier[0]}&ndash;{earlier[earlier.length - 1]}
             </span>
             <span className={s.foldSays} role="gridcell" >
               {fold.meetings.toLocaleString()} meetings
               {fold.recorded ? `, ${fold.recorded} on video` : ""}
               {/* Explicit: JSX strips the newline between two expressions, so
                   without it this reads "on video— nothing recorded". */}
-              {firstRecorded && firstRecorded > folded[0] ? (
+              {firstRecorded && firstRecorded > earlier[0] ? (
                 <>
                   {" "}
                   <span className={s.foldNone}>
@@ -235,7 +242,7 @@ export function TimeAxis({
               ) : null}
             </span>
             <span className={s.foldGo} aria-hidden>
-              show
+              {expanded ? "hide" : "show"}
             </span>
           </a>
         ) : null}
@@ -332,22 +339,6 @@ export function TimeAxis({
         })}
       </div>
 
-      {/* Only when there is something to fold BACK - `folded` is empty while
-          expanded, so the test has to be the window, not the fold. */}
-      {expanded && years.some((y) => y < from) ? (
-        <p className={s.foldBack}>
-          <a
-            href={href({ axis: undefined })}
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
-              e.preventDefault();
-              toggle(false);
-            }}
-          >
-            Show the last {OPEN_YEARS} years only
-          </a>
-        </p>
-      ) : null}
     </section>
   );
 }

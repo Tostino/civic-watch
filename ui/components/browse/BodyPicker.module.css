@@ -15,12 +15,27 @@
 /* Deliberately a native select. A custom listbox here would cost a focus
  * trap, a roving tabindex and a mobile sheet, to arrive back at what the
  * platform gives for free and what every reader already knows how to drive. */
+/* Drawn as the heading it is: the panel's own type, no box. A bordered
+ * control here read as a form parked on a title rather than as the title. The
+ * native caret still says it opens, and hover brings the frame back so it is
+ * discoverable as a control rather than only as a label. */
 .select {
+  font-family: var(--font-record);
+  font-size: var(--text-md);
+  font-weight: 600;
+  background: none;
+  border-color: transparent;
+  padding-inline-start: 0;
   min-width: 0;
-  /* The closed control sized itself to "Village of Pasadena Hills Planning
-   * and Policy" and took 323px of a heading row. Capped here; the open list
-   * still shows every name in full, which is what matters, and the names stay
-   * full because `shortBody` collapses two different boards to "Planning". */
+  /* A native select sizes to its widest OPTION, so "All meetings" rendered in
+   * a 256px box with the caret marooned at the far end - which is exactly what
+   * made it look like a form control parked on a heading rather than the
+   * heading itself. `field-sizing: content` sizes it to what is SELECTED, so
+   * it hugs its own text and the caret sits where a reader would put it.
+   *
+   * Not universal yet, so the cap stays as the fallback: without it the
+   * control is wide but still legible, which is where this was a moment ago. */
+  field-sizing: content;
   max-width: min(100%, 16rem);
   text-overflow: ellipsis;
   padding: 0.3rem 0.5rem;
@@ -28,12 +43,13 @@
   font-weight: 550;
   color: var(--ink);
   background: var(--surface);
-  border: 1px solid var(--rule-strong);
+  border: 1px solid transparent;
   border-radius: var(--radius);
 }
 
 .select:hover {
-  border-color: var(--accent-line);
+  border-color: var(--rule-strong);
+  padding-inline-start: 0.4rem;
 }
 
 .go {

@@ -1,7 +1,7 @@
 .page {
   max-width: 68rem;
   margin: 0 auto;
-  padding: var(--sp-7) var(--sp-5) 8rem;
+  padding: var(--sp-5) var(--sp-5) 8rem;
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
@@ -9,16 +9,17 @@
 
 /* PRIOR_ART §1: a resident arrives cold. Councilmatic's masthead says what the
  * body is before asking anyone to search; ours said nothing at all. */
+/* No --measure cap. That is a rule for PROSE and the lede is one line now;
+ * holding it to 42rem wrapped a sentence that fits, and cost a row. */
 .hero {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
-  max-width: var(--measure);
+  gap: var(--sp-2);
 }
 
 .title {
   font-family: var(--font-record);
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   font-weight: 600;
   letter-spacing: -0.02em;
   text-wrap: balance;
@@ -35,6 +36,7 @@
  * the lede's paragraph block. */
 .find {
   margin-block-start: var(--sp-2);
+  max-width: 34rem;
 }
 
 .bodies {

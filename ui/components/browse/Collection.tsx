@@ -63,10 +63,12 @@ export function Collection({
 
   return (
     <section className={s.wrap} aria-label="What this archive holds">
-      <div className={s.top}>
-        <h2 className={s.heading}>{body || "The archive"}</h2>
-        {picker}
-      </div>
+      {/* The picker IS the heading. Parked beside one it was a 29px control
+          against a 21px line of type, sitting five pixels low and reading as
+          a form bolted to a title - and the title said the board's name while
+          the control beside it said the same thing again. One element says
+          what this panel is about and changes it. */}
+      <div className={s.top}>{picker}</div>
 
       <dl className={s.facts}>
         {facts.map((f) => (

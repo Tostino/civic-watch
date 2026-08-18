@@ -141,10 +141,14 @@ export default async function BrowsePage({ searchParams }: Props) {
     <div className={s.page}>
       <header className={s.hero}>
         <h1 className={s.title}>The Pasco County meeting record</h1>
+        {/* ONE LINE. Three sentences and 82px of them was the pitch delivered
+            before the reader had seen anything to be pitched about, and it
+            pushed the first actual figure to 331px down the page. What it has
+            to do is say what this is; the panel underneath says how much of
+            it there is, which the prose was also doing. */}
         <p className={s.lede}>
-          What the county published &mdash; agendas and approved minutes &mdash; joined to the
-          recordings, so a decision can be read, heard, and cited. The county&rsquo;s portal is a
-          filing cabinet of PDFs. This is the record.
+          The county&rsquo;s agendas, minutes and recordings, joined up &mdash; so a
+          decision can be read, heard and cited.
         </p>
         {/* The front page had no input on it at all: the one verb a reader
             arrives holding was a nav link, and the first door into an actual
