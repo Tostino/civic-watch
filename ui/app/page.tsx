@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BodyPicker } from "@/components/browse/BodyPicker";
 import { Collection } from "@/components/browse/Collection";
 import { Entryways } from "@/components/browse/Entryways";
 import { Issues } from "@/components/browse/Issues";
@@ -156,31 +157,19 @@ export default async function BrowsePage({ searchParams }: Props) {
         </div>
       </header>
 
-      <nav className={s.bodies} aria-label="Filter by board or commission">
-        <Link href={href({ body: undefined })} className={`${s.chip} ${!body ? s.chipOn : ""}`}>
-          All meetings
-        </Link>
-        {listed.map((b) => (
-          <Link
-            key={b.body}
-            href={href({ body: body === b.body ? undefined : b.body })}
-            className={`${s.chip} ${body === b.body ? s.chipOn : ""}`}
-            title={`${b.meetings} meetings · ${b.recorded} on video · ${b.with_agenda} with a published agenda`}
-          >
-            {b.body}
-            <span className={s.chipN}>{b.meetings}</span>
-          </Link>
-        ))}
-      </nav>
 
-      <Collection o={overview} body={body} />
+      <Collection
+        o={overview}
+        body={body}
+        picker={<BodyPicker bodies={listed} body={body} />}
+      />
 
       <TimeAxis
         months={overview.months}
         year={year}
         month={month}
-        expanded={axis === "all"}
-        href={href}
+        body={body}
+        initialExpanded={axis === "all"}
       />
 
       {/* After the axis, because it is read against it: the axis says how much

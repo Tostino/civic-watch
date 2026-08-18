@@ -1,0 +1,46 @@
+.wrap {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* Deliberately a native select. A custom listbox here would cost a focus
+ * trap, a roving tabindex and a mobile sheet, to arrive back at what the
+ * platform gives for free and what every reader already knows how to drive. */
+.select {
+  min-width: 0;
+  /* The closed control sized itself to "Village of Pasadena Hills Planning
+   * and Policy" and took 323px of a heading row. Capped here; the open list
+   * still shows every name in full, which is what matters, and the names stay
+   * full because `shortBody` collapses two different boards to "Planning". */
+  max-width: min(100%, 16rem);
+  text-overflow: ellipsis;
+  padding: 0.3rem 0.5rem;
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+}
+
+.select:hover {
+  border-color: var(--accent-line);
+}
+
+.go {
+  padding: 0.25rem 0.7rem;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: var(--radius);
+}

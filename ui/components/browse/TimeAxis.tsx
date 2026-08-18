@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 import type { MonthCell } from "@/lib/types";
 import s from "./TimeAxis.module.css";
@@ -46,18 +49,50 @@ export function TimeAxis({
   months,
   year,
   month,
-  expanded = false,
-  href,
+  body,
+  initialExpanded = false,
 }: {
   months: MonthCell[];
   /** Currently selected, from the URL. */
   year?: string;
   month?: string;
-  /** Every year row is drawn, rather than the recent window. From the URL. */
-  expanded?: boolean;
-  /** Builds the URL for a cell, preserving whatever else is filtered. */
-  href: (next: { year?: string; month?: string; axis?: string }) => string;
+  /** Carried through every cell link, so picking a month keeps the board. */
+  body?: string;
+  /** Every year row drawn on arrival, from `?axis=all`. */
+  initialExpanded?: boolean;
 }) {
+  /* A CLIENT COMPONENT for the same reason the subject strip is one: opening
+   * the earlier years threw the whole document away and rebuilt it to add
+   * seven rows. The URL still says what is open, and the control is still a
+   * real link that works without script - the click is simply intercepted
+   * when there is script to intercept it with.
+   *
+   * `href` used to arrive as a FUNCTION from the page, which cannot cross
+   * into a client component. The parts it closed over - the body filter -
+   * come as data now, and the URL is built here. */
+  const [expanded, setExpanded] = useState(initialExpanded);
+
+  const href = (next: { year?: string; month?: string; axis?: string }) => {
+    const p = new URLSearchParams();
+    if (body) p.set("body", body);
+    const y = "year" in next ? next.year : year;
+    const m = "month" in next ? next.month : month;
+    if (y) p.set("year", y);
+    if (m) p.set("month", m);
+    if (next.axis) p.set("axis", next.axis);
+    const qs = p.toString();
+    return qs ? `/?${qs}` : "/";
+  };
+
+  const toggle = (open: boolean) => {
+    setExpanded(open);
+    if (typeof window === "undefined") return;
+    const u = new URL(window.location.href);
+    if (open) u.searchParams.set("axis", "all");
+    else u.searchParams.delete("axis");
+    window.history.replaceState(null, "", u);
+  };
+
   if (!months.length) return null;
 
   const byMonth = new Map(months.map((m) => [m.month, m]));
@@ -167,10 +202,15 @@ export function TimeAxis({
         </div>
 
         {folded.length ? (
-          <Link
+          <a
             href={href({ axis: "all" })}
             className={`${s.row} ${s.fold}`}
             role="row"
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+              e.preventDefault();
+              toggle(true);
+            }}
             aria-label={
               `Show ${folded.length} earlier years: ` +
               `${folded[0]} to ${folded[folded.length - 1]}, ` +
@@ -180,7 +220,7 @@ export function TimeAxis({
             <span className={s.foldYears} role="rowheader">
               {folded[0]}&ndash;{folded[folded.length - 1]}
             </span>
-            <span className={s.foldSays} role="gridcell" aria-colspan={12}>
+            <span className={s.foldSays} role="gridcell" >
               {fold.meetings.toLocaleString()} meetings
               {fold.recorded ? `, ${fold.recorded} on video` : ""}
               {/* Explicit: JSX strips the newline between two expressions, so
@@ -197,7 +237,7 @@ export function TimeAxis({
             <span className={s.foldGo} aria-hidden>
               show
             </span>
-          </Link>
+          </a>
         ) : null}
 
         {shown.map((y) => {
@@ -296,9 +336,16 @@ export function TimeAxis({
           expanded, so the test has to be the window, not the fold. */}
       {expanded && years.some((y) => y < from) ? (
         <p className={s.foldBack}>
-          <Link href={href({ axis: undefined })}>
+          <a
+            href={href({ axis: undefined })}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+              e.preventDefault();
+              toggle(false);
+            }}
+          >
             Show the last {OPEN_YEARS} years only
-          </Link>
+          </a>
         </p>
       ) : null}
     </section>

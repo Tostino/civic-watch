@@ -242,7 +242,12 @@
  * It carries words where the rows above carry cells, and that is the point:
  * the gradient used to be what said "there is no video before 2018", and
  * folding those rows away takes that with them unless the summary says it. */
+/* Its OWN columns. It was inheriting the year grid, whose gutter is 2.6rem -
+ * wide enough for "2024" and 6px short of "2015-2021", so the range overran
+ * its cell and collided with the summary beside it. This row has three parts
+ * and none of them is a month, so it has no business borrowing a month grid. */
 .fold {
+  grid-template-columns: auto minmax(0, 1fr) auto;
   padding-block: 0.15rem;
   border-radius: var(--radius-sm);
   text-decoration: none;
@@ -262,7 +267,6 @@
 }
 
 .foldSays {
-  grid-column: span 12;
   min-width: 0;
   font-size: var(--text-2xs);
   color: var(--ink-3);
@@ -298,5 +302,6 @@
    * column meant for a square. */
   .foldSays {
     grid-column: 2 / -1;
+    white-space: normal;
   }
 }

@@ -1,94 +1,99 @@
+/* A strip, not a panel. Figures on one baseline, coverage beneath them, one
+ * sentence under that. */
 .wrap {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  gap: var(--sp-5);
-  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
   background: var(--surface);
-  /* --radius, like Issues, Entryways and the not-yet-held aside. This was the
-   * only panel on the page at --radius-lg, which read as a different KIND of
-   * container rather than as the same one holding different content. */
   border: 1px solid var(--rule);
   border-radius: var(--radius);
 }
 
-/* Five facts never fit one row here: beside the coverage panel this track is
- * ~526px at the 68rem page width, and five legible cells need ~570px. So the
- * choice is which uneven split, and 3+2 beats the 4+1 that 7.5rem produced -
- * an orphan on its own row reads as a mistake, and the wider cell lets the
- * sub-labels wrap to two lines instead of three. */
+/* auto-fit with a floor low enough that all five fit one row at the page
+ * width, which is what makes them a strip rather than a grid to hunt. */
+/* The heading row the selector lives in. Baseline-aligned so the control sits
+ * on the same line as the name of what it scopes rather than floating above
+ * it. */
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.heading {
+  font-family: var(--font-record);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+}
+
 .facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-  gap: var(--sp-4) var(--sp-3);
-  align-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--sp-2) var(--sp-4);
 }
 
 .fact {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
   min-width: 0;
 }
 
 .label {
   font-size: var(--text-2xs);
-  font-weight: 700;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   color: var(--ink-4);
 }
 
+/* Wraps rather than truncates. Beside the figure when the column is wide
+ * enough and under it when it is not - at 790px the captions were rendering
+ * as "283 …", "17,531 de…", "1,377 rec…", and a number cut off mid-word is
+ * worse than a number on its own line. */
 .value {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 0.45em;
+  min-width: 0;
+}
+
+/* Every figure is one token and breaks like one: "2015–2026" wrapped after
+ * the en dash when it was a bare text node in a flex column. */
+.num {
   font-family: var(--font-record);
   font-size: var(--text-lg);
   font-weight: 600;
-  line-height: 1.15;
+  line-height: 1.1;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-}
-
-.num {
   white-space: nowrap;
 }
 
+/* Beside the figure, not beneath it, and short enough never to wrap. The
+ * captions used to run to three lines and set five different cell heights. */
 .sub {
-  font-family: var(--font-ui);
   font-size: var(--text-2xs);
-  font-weight: 400;
   color: var(--ink-3);
-  text-wrap: pretty;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------- coverage */
-.coverage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding-inline-start: var(--sp-5);
-  border-inline-start: 1px solid var(--rule);
-}
-
-.coverHead {
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--ink-4);
-}
-
 .bars {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--sp-1) var(--sp-5);
+  padding-block-start: var(--sp-2);
+  border-block-start: 1px solid var(--rule);
 }
 
 .barRow {
   display: grid;
-  grid-template-columns: 8.5rem minmax(0, 1fr) 4.2rem;
+  grid-template-columns: 4.5rem minmax(0, 1fr) 4rem;
   gap: var(--sp-2);
   align-items: center;
   font-size: var(--text-xs);
@@ -99,7 +104,7 @@
 }
 
 .track {
-  height: 0.5rem;
+  height: 0.45rem;
   border-radius: var(--radius-full);
   background: var(--bg-sunk);
   border: 1px solid var(--rule);
@@ -143,26 +148,20 @@
 
 .note {
   font-size: var(--text-2xs);
-  line-height: var(--leading-normal);
-  color: var(--ink-3);
+  line-height: var(--leading-snug);
+  color: var(--ink-4);
   text-wrap: pretty;
 }
 
-@media (max-width: 56rem) {
-  .wrap {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .coverage {
-    padding-inline-start: 0;
-    border-inline-start: 0;
-    padding-block-start: var(--sp-4);
-    border-block-start: 1px solid var(--rule);
-  }
-}
-
-@media (max-width: 34rem) {
+@media (max-width: 40rem) {
   .barRow {
-    grid-template-columns: 7rem minmax(0, 1fr) 3.6rem;
+    grid-template-columns: 4.5rem minmax(0, 1fr) 3.6rem;
+  }
+
+  /* Two across, not one. At 375px the content column is 317 and the 10rem
+   * floor needs 320 for a second track, so it missed by three pixels and the
+   * panel ran to five stacked rows. */
+  .facts {
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   }
 }
