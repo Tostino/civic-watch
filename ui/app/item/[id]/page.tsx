@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ItemView } from "@/components/item/ItemView";
-import { ApiError, getItem } from "@/lib/api";
+import { ApiError, getFacts, getItem } from "@/lib/api";
 import { meetingDate, outcomeLabel, shortTitle } from "@/lib/format";
 
 /* Next 16: params and searchParams are Promises. */
@@ -43,5 +43,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ItemPage({ params }: Props) {
   const { id } = await params;
-  return <ItemView data={await load(id)} />;
+  // Separately caught: the item is the page, and a failed count is a clause
+  // this page does not make rather than a page it does not render.
+  const [data, facts] = await Promise.all([load(id), getFacts().catch(() => null)]);
+  return <ItemView data={data} facts={facts} />;
 }

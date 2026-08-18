@@ -9,6 +9,7 @@ import type {
   ItemDetail,
   MeetingDetail,
   MeetingRow,
+  Facts,
   Overview,
   ToolsManifest,
   Transcript,
@@ -49,6 +50,10 @@ export const getBodies = () => get<Body[]>(`/api/bodies`);
 /** The tool surface and what the MCP endpoint will refuse. Costs no database
  *  work, so /about can ask for it alongside the counts. */
 export const getTools = () => get<ToolsManifest>(`/api/tools`);
+
+/** The archive measured, for copy that would otherwise type a number. Cached
+ *  for an hour on the server, so a page may ask on every render. */
+export const getFacts = () => get<Facts>(`/api/facts`);
 
 /**
  * A run of the agent the server kept, which is what a shared `/ask/<id>` link

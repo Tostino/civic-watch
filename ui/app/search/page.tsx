@@ -3,7 +3,8 @@ import Link from "next/link";
 import { FilterRail, type Query } from "@/components/search/FilterRail";
 import { RecordHits, TranscriptHits } from "@/components/search/Hits";
 import { SearchBox } from "@/components/search/SearchBox";
-import { ApiError, find, getFacets } from "@/lib/api";
+import { ApiError, find, getFacets, getFacts } from "@/lib/api";
+import type { Facts } from "@/lib/types";
 import s from "./search.module.css";
 
 /* `/search` — §5.6. Enter, by asking rather than by browsing.
@@ -76,7 +77,11 @@ export default async function SearchPage({ searchParams }: Props) {
    * survive a rename. A value the tools reject is a bad request, not a broken
    * archive, and it must not take the whole route down with it. */
   let rejected: string | null = null;
-  const [facets, result] = await Promise.all([
+  const [facts, facets, result] = await Promise.all([
+    // Always: <Empty> quotes it too, and it is the one call on this route that
+    // is cheap whether or not anybody has typed anything. A failure costs the
+    // clauses that quote a number, not the page.
+    getFacts().catch(() => null),
     searching ? getFacets() : null,
     searching
       ? find({
@@ -112,6 +117,7 @@ export default async function SearchPage({ searchParams }: Props) {
       <header className={s.top}>
         <SearchBox
           q={query.q}
+          facts={facts}
           hidden={{
             body: query.body, outcome: query.outcome, phase: query.phase,
             case: query.case, speaker: query.speaker, since: query.since,
@@ -131,7 +137,7 @@ export default async function SearchPage({ searchParams }: Props) {
       ) : null}
 
       {!result ? (
-        rejected ? null : <Empty />
+        rejected ? null : <Empty facts={facts} />
       ) : (
         <div className={s.body}>
           {/* Non-null whenever a result is: both are fetched together, under
@@ -161,6 +167,7 @@ export default async function SearchPage({ searchParams }: Props) {
             />
 
             <TranscriptHits
+              facts={facts}
               hits={result.transcript.hits}
               query={result.query}
               degraded={result.transcript.degraded}
@@ -168,9 +175,11 @@ export default async function SearchPage({ searchParams }: Props) {
 
             {!result.record.total && !result.transcript.count ? (
               <p className={s.dead}>
-                Nothing matched. The archive holds 23,122 published items and 283
-                recorded meetings &mdash;{" "}
-                <Link href="/">browse it by month</Link> if a search does not help.
+                Nothing matched. The archive holds{" "}
+                {facts ? `${facts.items} published items and ${facts.recorded} recorded meetings`
+                       : "the county's published items and its recorded meetings"}{" "}
+                &mdash; <Link href="/">browse it by month</Link> if a search does not
+                help.
               </p>
             ) : null}
           </main>
@@ -185,7 +194,7 @@ export default async function SearchPage({ searchParams }: Props) {
  * duality, and an example somebody can click teaches it better than a
  * placeholder they have to read.
  */
-function Empty() {
+function Empty({ facts }: { facts: Facts | null }) {
   const tries: [string, string][] = [
     ["impact fees", "a subject, across twelve years"],
     ["Orange Belt Trail", "a place"],
@@ -198,9 +207,11 @@ function Empty() {
       <h1 className={s.emptyHead}>Two sources, one search</h1>
       <p className={s.emptyWhy}>
         The <b>record</b> is what the county published &mdash; every agenda item and the
-        outcome its approved minutes recorded, twelve years deep. The{" "}
-        <b>room</b> is what people said &mdash; 1,036 hours of recordings, beginning in
-        2018. Searching only one of them is how you conclude the archive holds nothing.
+        outcome its approved minutes recorded{facts ? `, ${facts.first_year} to ${facts.last_year}.` : "."}{" "}
+        The <b>room</b> is what people said{facts
+          ? ` — ${facts.hours} hours of recordings, beginning in ${facts.first_rec_year}.`
+          : "."}{" "}
+        Searching only one of them is how you conclude the archive holds nothing.
       </p>
       <ul className={s.tries}>
         {tries.map(([q, why]) => (

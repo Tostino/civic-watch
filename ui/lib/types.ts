@@ -731,6 +731,40 @@ export interface Body {
  * the number comes from the server so the sentence cannot drift from the
  * setting behind it.
  */
+/**
+ * The archive measured, for copy that would otherwise quote a number.
+ *
+ * Every field is a formatted STRING, not a number: these land in sentences,
+ * and "23,130" is what belongs there. `/api/facts` serves the same values the
+ * tool descriptions and the two system prompts are built from, so a page and a
+ * model cannot disagree about how much archive there is.
+ *
+ * This exists because seven counts were typed into JSX and four had gone
+ * wrong: 23,122 items were 23,130, 283 recorded meetings were 290, and
+ * "beginning in 2018" became 2017 the afternoon a parser fix attached a 2017
+ * workshop to its meeting.
+ */
+export interface Facts {
+  /** Hours of transcribed recording, ALL of it - including the recordings
+   *  that belong to no meeting, because search reaches those too. */
+  hours: string;
+  items: string;
+  meetings: string;
+  recorded: string;
+  /** Published items the minutes never record an outcome for. */
+  pct_no_outcome: string;
+  recurring: string;
+  /** Decided items whose discussion the transcript can actually reach. */
+  pct_transcript: string;
+  pct_no_name: string;
+  first_year: string;
+  last_year: string;
+  /** The earliest year a recording exists for. */
+  first_rec_year: string;
+  deep_case: string;
+  deep_case_meetings: string;
+}
+
 export interface ToolsManifest {
   tools: { name: string; description: string }[];
   dense: string | null;

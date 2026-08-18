@@ -20,7 +20,7 @@ import {
   sameThing,
   sessionLabel,
 } from "@/lib/format";
-import type { ItemDetail, ItemRun, Line, Video } from "@/lib/types";
+import type { Facts, ItemDetail, ItemRun, Line, Video } from "@/lib/types";
 import s from "./ItemView.module.css";
 
 /**
@@ -38,7 +38,15 @@ import s from "./ItemView.module.css";
  * never show its result; the minutes record the result and never the argument.
  * A page that blended them would be more readable and would be lying.
  */
-export function ItemView({ data }: { data: ItemDetail }) {
+export function ItemView({
+  data,
+  facts,
+}: {
+  data: ItemDetail;
+  /** Measured counts for the two gap notices. Absent when /api/facts failed,
+   *  and each notice then states the gap without a share. */
+  facts?: Facts | null;
+}) {
   const { item, meeting, offices, prev, next } = data;
   const player = usePlayer();
   const playhead = usePlayhead();
@@ -188,7 +196,8 @@ export function ItemView({ data }: { data: ItemDetail }) {
                     <h3 className={s.gapTitle}>No outcome in the minutes</h3>
                     <p>
                       The approved minutes do not say what became of this item. That is a gap
-                      in the record, not a decision. It is the normal state for 24% of items.
+                      in the record, not a decision. It is the normal
+                      state{facts ? ` for ${facts.pct_no_outcome}% of items.` : "."}{" "}
                       Most of those are regular business and board reports that the minutes do
                       not record in writing. This archive never infers an outcome from the
                       fact that someone called a vote.
@@ -231,7 +240,12 @@ export function ItemView({ data }: { data: ItemDetail }) {
           {/* ------------------------------------- the case thread (R5.3.3) */}
           {item.case_id && item.thread.length ? (
             <section className={s.block}>
-              <CaseThread caseId={item.case_id} steps={item.thread} currentId={item.id} />
+              <CaseThread
+                caseId={item.case_id}
+                steps={item.thread}
+                currentId={item.id}
+                facts={facts}
+              />
             </section>
           ) : null}
 
@@ -260,9 +274,10 @@ export function ItemView({ data }: { data: ItemDetail }) {
                     </>
                   ) : (
                     <>
-                      Only 283 of the 1,214 meetings in this archive have a recording, and only
-                      9% of decided items are bound to one. The record above is the whole record
-                      for this item.
+                      {facts
+                        ? `Only ${facts.recorded} of the ${facts.meetings} meetings in this archive have a recording, and only ${facts.pct_transcript}% of decided items are bound to one.`
+                        : "Most meetings in this archive have no recording, and only a minority of decided items are bound to one."}{" "}
+                      The record above is the whole record for this item.
                     </>
                   )}
                 </p>

@@ -418,6 +418,21 @@ def _measure(con):
                   FROM videos WHERE transcribed)                    AS hours,
                (SELECT count(*) FROM agenda_items
                  WHERE source = 'agenda')                           AS items,
+               -- Meetings that have HAPPENED. The county posts its calendar
+               -- months ahead, and counting those would claim coverage of
+               -- events nobody has attended (archive.overview says the same).
+               (SELECT count(*) FROM meetings
+                 WHERE date <= to_char(now(), 'YYYY-MM-DD'))        AS meetings,
+               (SELECT count(*) FROM meetings m
+                 WHERE m.date <= to_char(now(), 'YYYY-MM-DD')
+                   AND EXISTS (SELECT 1 FROM videos v
+                                WHERE v.meeting_id = m.id
+                                  AND v.transcribed))               AS recorded,
+               -- The gap the item and case pages name: published, and the
+               -- minutes never say what became of it.
+               (SELECT round(100.0 * count(*) FILTER (WHERE outcome IS NULL)
+                        / nullif(count(*), 0))
+                  FROM agenda_items WHERE source = 'agenda')        AS pct_no_outcome,
                (SELECT count(*) FROM cases WHERE meetings > 1)      AS recurring,
                (SELECT round(100.0 * count(*) FILTER (
                           WHERE EXISTS (SELECT 1 FROM item_spans s
@@ -448,9 +463,9 @@ def _measure(con):
     f["deep_case_meetings"] = f"{d['meetings']:,}" if d else "several"
     # Thousands separators here rather than in every template, so a placeholder
     # is only ever a name.
-    for k in ("hours", "items", "recurring"):
+    for k in ("hours", "items", "recurring", "meetings", "recorded"):
         f[k] = f"{int(f[k] or 0):,}"
-    for k in ("pct_transcript", "pct_no_name"):
+    for k in ("pct_transcript", "pct_no_name", "pct_no_outcome"):
         f[k] = str(int(f[k] or 0))
     return f
 

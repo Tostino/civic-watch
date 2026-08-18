@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { OutcomeBadge } from "@/components/OutcomeBadge";
 import { meetingDate, shortBody } from "@/lib/format";
-import type { ThreadStep } from "@/lib/types";
+import type { Facts, ThreadStep } from "@/lib/types";
 import s from "./CaseThread.module.css";
 
 /**
@@ -25,10 +25,14 @@ export function CaseThread({
   caseId,
   steps,
   currentId,
+  facts,
 }: {
   caseId: string;
   steps: ThreadStep[];
   currentId: number;
+  /** Measured, so the share-of-items clause cannot go stale. Absent when
+   *  /api/facts failed, and the clause is then simply not made. */
+  facts?: Facts | null;
 }) {
   const here = steps.findIndex((x) => x.id === currentId);
   const decided = steps.filter((x) => x.outcome && x.outcome !== "continued");
@@ -104,7 +108,8 @@ export function CaseThread({
       {decided.length === 0 && steps.length > 1 ? (
         <p className={s.open}>
           No appearance of this case has a final outcome in the minutes. It was continued,
-          or the minutes do not record one in writing — which is true for 24% of items.
+          or the minutes do not record one in
+          writing{facts ? ` — which is true for ${facts.pct_no_outcome}% of items.` : "."}
         </p>
       ) : null}
     </section>

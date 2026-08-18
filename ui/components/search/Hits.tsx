@@ -1,4 +1,6 @@
 import { Fragment } from "react";
+import type { Facts } from "@/lib/types";
+
 import Link from "next/link";
 
 import { ItemCard } from "@/components/ItemCard";
@@ -100,10 +102,14 @@ export function TranscriptHits({
   hits,
   query,
   degraded,
+  facts,
 }: {
   hits: TranscriptHit[];
   query: string;
   degraded: string | null;
+  /** Measured, for the register note. Absent when /api/facts failed, and the
+   *  note then says the shape of the gap without its size. */
+  facts?: Facts | null;
 }) {
   return (
     <section className={s.block} aria-labelledby="tr-head">
@@ -117,8 +123,16 @@ export function TranscriptHits({
         </p>
       </header>
       <p className={s.about}>
-        Machine transcription of 283 recorded meetings &mdash; 9% of decided items have
-        one. Speaker names are inferred from voice and can be wrong.
+        {facts ? (
+          <>
+            Machine transcription of {facts.recorded} recorded meetings &mdash;{" "}
+            {`${facts.pct_transcript}% of decided items have one.`}
+          </>
+        ) : (
+          <>Machine transcription of the meetings that were recorded, which is a
+            minority of them.</>
+        )}{" "}
+        Speaker names are inferred from voice and can be wrong.
       </p>
 
       {degraded ? (

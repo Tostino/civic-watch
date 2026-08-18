@@ -426,6 +426,15 @@ def api_issues(request, con):
 # somebody else is driving (web/mcp_server.py). /api/find is the page's call,
 # and it is nothing but two of these tools - the page and the agent share one
 # surface on purpose, so what a reader can find by hand the agent can too.
+# The same measured numbers the tool descriptions and the system prompts quote
+# (tools.facts). Page copy reads them from here rather than typing them:
+# "23,122 published agenda items" was 23,130 and "283 recorded meetings" was
+# 290 while both sat in JSX, which is the defect this endpoint exists to end.
+@reads
+def api_facts(request, con):
+    return _json(request, tools.facts(con))
+
+
 @reads
 def api_tools(request, con):
     # `mcp` is here so /about can tell a reader what the tool endpoint will
@@ -985,6 +994,7 @@ def public_app():
             Route("/api/issues", api_issues),
 
             Route("/api/tools", api_tools),
+            Route("/api/facts", api_facts),
             Route("/api/tool/{name}", api_tool),
             Route("/api/find", api_find),
             Route("/api/facets", api_facets),
