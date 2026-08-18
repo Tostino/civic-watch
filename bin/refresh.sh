@@ -50,4 +50,24 @@ for want in "$@"; do
     *) echo "unknown stage: $want" >&2; exit 2 ;;
   esac
 done
+
+# WHAT THE FRONT PAGE READS IS A TABLE, and no stage above rebuilds it. The
+# issues strip reads `subject_year` rather than computing it, because the live
+# join costs 163 seconds once sub-subjects exist - and only bin/subjects.py
+# writes that table, from passes that are all CURATION. So landing agendas or
+# parsing minutes changes what every subject matches while the public page
+# keeps yesterday's numbers, rendering perfectly and saying nothing wrong.
+# That is the failure mode subjects.rollup() names: worse than slow.
+#
+# Unconditional rather than a stage to remember, for the same reason. It is
+# 12 seconds against stages measured in hours, it is a no-op on a database
+# with no kept vocabulary, and it is one transaction - readers see the old
+# rows until it commits, never an empty table.
+#
+# Time-dependent as well as data-dependent: the record lane counts meetings
+# with `date <= now()`, so a meeting whose agenda landed a week ago enters
+# the counts on the day it is held, with no ingest involved at all.
+echo; echo "=== subjects --rollup ==="; date "+    started %H:%M:%S"
+$PY bin/subjects.py --rollup
+
 echo; echo "=== refresh complete ==="

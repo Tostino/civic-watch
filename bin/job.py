@@ -71,6 +71,22 @@ JOBS = {
              "cmd": [PY, "bin/land_agenda.py"]},
             {"say": "Read the minutes for the outcome of every item",
              "cmd": [PY, "bin/parse_minutes.py", "--write"]},
+            # THE ONLY STEP THAT REBUILDS A PUBLIC SURFACE RATHER THAN A
+            # DERIVED LAYER. The front page's subject strip reads
+            # `subject_year`, a table, because computing it live costs 163
+            # seconds - and the two steps directly above are exactly what
+            # moves it: landing agendas changes which items a subject
+            # matches, and parsing minutes changes every decided, continued,
+            # refused and divided count inside it.
+            #
+            # Nothing else writes that table. Every other writer is a
+            # CURATION pass in bin/subjects.py, which is not on this path, so
+            # without this step the strip keeps yesterday's numbers after
+            # every sweep - rendering perfectly, contradicting nothing on
+            # screen, and quietly disagreeing with the archive underneath it.
+            # It is 12 seconds and it is a no-op where no vocabulary is kept.
+            {"say": "Recount each subject's years for the front page",
+             "cmd": [PY, "bin/subjects.py", "--rollup"]},
             {"say": "Check the archive for integrity",
              "cmd": [PY, "bin/audit.py"]},
         ],
