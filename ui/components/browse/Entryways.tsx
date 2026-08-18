@@ -181,7 +181,7 @@ function DecidedCard({ days }: { days: DecidedDay[] }) {
         <h2 className={s.title}>What the board has been deciding</h2>
         <p className={s.why}>
           Each meeting&rsquo;s business, most recent first. The bar is how much was disposed
-          of, to the same scale across days &mdash; most of it consent, passed in one motion.
+          of, to the same scale across days. Most of it is consent, passed in one motion.
         </p>
       </header>
       <ul className={s.list}>

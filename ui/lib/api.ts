@@ -57,7 +57,10 @@ export const getAnswer = (id: string) =>
 export const getOverview = (body?: string) =>
   get<Overview>(`/api/overview${body ? `?body=${encodeURIComponent(body)}` : ""}`);
 
-export const getHighlights = (limit = 6) => get<Highlights>(`/api/highlights?limit=${limit}`);
+/** All four lists scroll back through history now, so both limits are deep.
+ *  They stayed separate because the server caps them differently. */
+export const getHighlights = (limit = 6, divided = 60) =>
+  get<Highlights>(`/api/highlights?limit=${limit}&divided=${divided}`);
 
 /** What the county keeps coming back to, per year, in both sources (R5.1.4). */
 export const getIssues = () => get<Issues>(`/api/issues`);

@@ -19,6 +19,8 @@
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   min-width: 0;
+  /* Bounded, like the dissent lanes and for the same reason. */
+  max-height: 26rem;
 }
 
 .head {
@@ -171,6 +173,27 @@
   flex-direction: column;
   gap: var(--sp-2);
   min-width: 0;
+  /* BOUNDED, so the section stops being 801px of front page, and the heading
+   * stays put while the list moves under it. */
+  max-height: 26rem;
+}
+
+/* The list is what scrolls, not the lane or the card, so the heading - and
+ * the sentence under it saying which source this is - stays on screen the
+ * whole way down. A reader who has scrolled back to 2019 needs to know which
+ * list they are in more than a reader at the top does.
+ *
+ * All four of these are a HISTORY, and six rows of one was the last two
+ * months with no way back: too much page for too little archive. Sixty now,
+ * behind a bound. */
+.lane .list,
+.card .list {
+  overflow-y: auto;
+  min-height: 0;
+  padding-inline-end: var(--sp-2);
+  /* The scroll ends on a fade rather than on a hard cut, so a half-row at the
+   * bottom reads as more-below instead of as a clipped row. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.5rem), transparent);
 }
 
 .laneHead {
@@ -343,4 +366,15 @@
   font-size: var(--text-2xs);
   color: var(--ink-2);
   line-height: var(--leading-snug);
+}
+
+@media (max-width: 46rem) {
+  /* The lanes stack rather than sitting side by side, so two 26rem panes make
+   * the section 986px - taller than the phone it is on, and two scrollers
+   * queued down one column. Shorter here: the bound is doing the same job
+   * against half the width. */
+  .lane,
+  .card {
+    max-height: 17rem;
+  }
 }

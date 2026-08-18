@@ -423,15 +423,22 @@ def _tighten(text, kind, want=240):
     return ("…" + out) if start == 0 and out[:1].islower() else out
 
 
-def highlights(con, limit=6):
+def highlights(con, limit=6, divided_limit=None):
     """R5.1.4 - curated entry points, so arriving does not require a question.
 
     Three named queries over data already held, which is the test PRIOR_ART
     sets: none of this needs a new pipeline stage.
+
+    `divided_limit` is separate because the two lanes are read differently
+    from the lists beside them. "Cases the board continued again and again" is
+    a top-N and a reader wants the worst few; the dissent lanes are a HISTORY,
+    and six of them showed the last two months and offered no way back. The
+    lanes scroll, so they are sent deep and the page bounds them.
     """
-    record = _divided_record(con, limit)
+    record = _divided_record(con, divided_limit or limit)
     divided = {"record": record,
-               "room": _divided_room(con, limit, [r["id"] for r in record])}
+               "room": _divided_room(con, divided_limit or limit,
+                                     [r["id"] for r in record])}
 
     # A case the board could not settle. Ordered by how many times it came
     # back, because that IS the story - five continuances over ten months is

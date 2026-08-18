@@ -426,7 +426,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, archive.overview(con, one("body")))
             if u.path == "/api/highlights":
                 return self._send(200, archive.highlights(
-                    con, min(int(one("limit", 6)), 30)))
+                    con, min(int(one("limit", 6)), 120),
+                    divided_limit=min(int(one("divided", 6)), 120)))
             if u.path == "/api/issues":
                 return self._send(200, ISSUES_CACHE.get(con))
 

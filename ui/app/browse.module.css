@@ -106,61 +106,6 @@
   white-space: nowrap;
 }
 
-/* Announced, not held. Kept out of the record's way and clearly labelled -
- * they carry no agenda, no minutes and no recording because they have not
- * happened, which is not the same as a gap. */
-.soon {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4);
-  border: 1px dashed var(--rule-strong);
-  border-radius: var(--radius);
-  background: var(--surface-2);
-}
-
-.soonHead {
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-.soonList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-5);
-}
-
-.soonRow {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5em;
-  font-size: var(--text-xs);
-}
-
-.soonDate {
-  font-family: var(--font-mono);
-  color: var(--ink-2);
-  font-weight: 600;
-}
-
-.soonBody {
-  color: var(--ink-3);
-}
-
-.soonAgenda {
-  font-size: var(--text-2xs);
-  color: var(--ok);
-  font-weight: 600;
-}
-
-.soonNote {
-  font-size: var(--text-2xs);
-  color: var(--ink-4);
-}
-
 .year {
   display: flex;
   flex-direction: column;

@@ -58,7 +58,7 @@ export default async function BrowsePage({ searchParams }: Props) {
     .slice(0, 6);
   const filtered = Boolean(year || month);
 
-  const [bodies, overview, issues, highlights, page, soon] = await Promise.all([
+  const [bodies, overview, issues, highlights, page] = await Promise.all([
     getBodies(),
     getOverview(body),
     // Archive-wide, and so is the heading over it: these are the county's
@@ -78,7 +78,7 @@ export default async function BrowsePage({ searchParams }: Props) {
         }),
     // Only when there is nothing narrower on screen - once a reader has picked
     // a month, three archive-wide lists are noise between them and the answer.
-    filtered ? null : getHighlights(6),
+    filtered ? null : getHighlights(60, 60),
     // Past only. The county announces meetings months ahead, so the newest
     // rows in the raw table are events that have not happened - no agenda, no
     // minutes, no recording - and sorting by date puts every one of them above
@@ -89,7 +89,6 @@ export default async function BrowsePage({ searchParams }: Props) {
     // informative view of a collection this size. Under a date filter the list
     // IS what the reader asked for and stays long.
     getMeetings({ body, year, month, when: "past", limit: filtered ? 400 : 12 }),
-    filtered ? null : getMeetings({ body, when: "upcoming", limit: 4 }),
   ]);
 
   // Bodies this archive actually holds something for. The county's portal
@@ -183,26 +182,14 @@ export default async function BrowsePage({ searchParams }: Props) {
 
       {highlights ? <Entryways h={highlights} /> : null}
 
-      {soon?.meetings.length ? (
-        <aside className={s.soon}>
-          <h2 className={s.soonHead}>Not yet held</h2>
-          <ul className={s.soonList}>
-            {soon.meetings
-              .slice()
-              .reverse()
-              .map((m) => (
-                <li key={m.id} className={s.soonRow}>
-                  <span className={s.soonDate}>{meetingDate(m.date, "short")}</span>
-                  <span className={s.soonBody}>{m.body}</span>
-                  {m.items ? <span className={s.soonAgenda}>agenda published</span> : null}
-                </li>
-              ))}
-          </ul>
-          <p className={s.soonNote}>
-            Scheduled but not yet held. The board decided nothing, and there is no recording.
-          </p>
-        </aside>
-      ) : null}
+      {/* "Not yet held" is gone. It rendered four rows of the same
+          Metropolitan Planning Organization meeting in January 2027 with no
+          agenda, no minutes and no recording, because that is all a scheduled
+          meeting has - and UI_REQUIREMENTS section 5.9.1 predicted exactly
+          this: built before the agendas are fetched on a schedule it "would
+          render 37 rows of not posted yet, which is the honest state and is
+          not a door anyone walks through". `bin/forward.sh` is the missing
+          piece; the surface can come back when it has something to show. */}
 
       <div className={s.listHead}>
         <h2 className={s.listTitle}>
