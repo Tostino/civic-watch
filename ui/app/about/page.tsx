@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CopyButton } from "@/components/CopyButton";
+import { McpClients } from "@/components/McpClients";
 import { getBodies, getOverview, getTools } from "@/lib/api";
-import { installs, mcpUrl } from "@/lib/mcp";
+import { mcpUrl } from "@/lib/mcp";
 import { meetingDate } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import s from "./about.module.css";
@@ -218,36 +219,13 @@ export default async function AboutPage() {
           <CopyButton className={s.copy} value={mcpUrl(siteUrl())} label="Copy" />
         </div>
 
-        {/* Four ways in, in descending order of how little the reader has to
-            do. The first two hand the server to the program over a URL scheme
-            and it asks them to confirm; the third is a command because Claude
-            Code has no scheme to hand it to; the fourth is a settings pane and
-            a paste, which is still where most readers will end up. The note on
-            each one says what happens NEXT, because the failure this block
-            invites is a reader clicking a button, seeing their editor come to
-            the front, and not knowing whether anything was saved. */}
+        {/* Five ways in, and only one of them on screen at a time. They used
+            to be four rows of control-plus-sentence, which worked while each
+            one WAS a sentence; a command, a config file and two sets of
+            numbered steps do not stack. The reader knows which program they
+            use, so asking them is cheaper than showing them all five. */}
         <p className={s.installsLead}>Add it to</p>
-        <ul className={s.installs}>
-          {installs(siteUrl()).map((x) => (
-            <li key={x.id} className={s.installRow}>
-              {x.kind === "link" ? (
-                <a className={s.install} href={x.href}>
-                  {x.client}
-                </a>
-              ) : x.kind === "copy" ? (
-                <CopyButton
-                  className={s.install}
-                  value={x.value!}
-                  label={x.client}
-                  done="Command copied"
-                />
-              ) : (
-                <span className={s.installPlain}>{x.client}</span>
-              )}
-              <span className={s.installNote}>{x.note}</span>
-            </li>
-          ))}
-        </ul>
+        <McpClients origin={siteUrl()} />
 
         {/* The tool list needs a lead of its own now. Directly under four
             install rows and with none of its own, it read as a fifth one. */}

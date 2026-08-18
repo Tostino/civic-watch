@@ -199,6 +199,12 @@
  * `--surface-2` rather than `--surface`, so the endpoint inside it still has a
  * lighter card to sit on and the two do not flatten into one panel. */
 .connect {
+  /* This section is a grid item, and a grid item will not go below its own
+   * min-content unless told to. It now holds a block of code and a row of
+   * tabs, either of which can ask for more than a phone has; without this the
+   * section measured 399px inside a 375px page and took every other section on
+   * /about out with it. */
+  min-width: 0;
   padding: var(--sp-4);
   background: var(--surface-2);
   border: 1px solid var(--rule);
@@ -218,82 +224,3 @@
   color: var(--ink-4);
 }
 
-/* A definition list in all but name: the control on the left is the term and
- * the sentence on the right is what it means. Grid rather than flex so the
- * four notes start at one column and the block reads down, instead of each
- * note starting wherever its own control happened to end. */
-.installs {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  align-items: baseline;
-  gap: var(--sp-2) var(--sp-3);
-  margin: 0 0 var(--sp-4);
-  padding: 0;
-  list-style: none;
-}
-
-.installRow {
-  display: contents;
-}
-
-.install {
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: 0.2rem var(--sp-3);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--accent);
-  text-decoration: none;
-  background: var(--surface);
-  border: 1px solid var(--accent-line);
-  border-radius: var(--radius);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.install:hover {
-  border-color: var(--accent);
-}
-
-.install[data-copied] {
-  color: var(--ok);
-  border-color: var(--ok);
-}
-
-/* The row with nothing to click. It sits in the same column as the controls
- * and must not pretend to be one of them: no border, no ground, the weight of
- * a label. */
-.installPlain {
-  justify-self: start;
-  padding: 0.2rem 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--ink-2);
-}
-
-.installNote {
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  color: var(--ink-3);
-  text-wrap: pretty;
-}
-
-/* Under about 30rem the two columns cannot both be honest, so the control
- * takes its own line and the note follows it. */
-@media (max-width: 30rem) {
-  .installs {
-    grid-template-columns: 1fr;
-    gap: var(--sp-1) 0;
-  }
-  .installRow {
-    display: block;
-    margin-bottom: var(--sp-3);
-  }
-  .installNote {
-    display: block;
-    margin-top: var(--sp-1);
-  }
-}

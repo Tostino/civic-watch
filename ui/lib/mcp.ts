@@ -1,111 +1,132 @@
 /**
- * Where the tool endpoint can be added, and what each client needs to be
- * handed to take it.
+ * Where the tool endpoint can be added, and the exact thing each client wants
+ * to be given.
  *
- * The address is one string and every client wants it in a different wrapper:
- * two of them accept a URL scheme the browser can hand straight to the app,
- * one wants a command line, and the rest want the bare address typed into a
- * settings pane. So this is a list rather than a component - the pages differ
- * on how much of it they show, not on what it says.
+ * The address is one string, and no two of these take it the same way. Two are
+ * a command in a terminal, two are a settings pane and a paste, and the last is
+ * whatever config file the program keeps. So this is a list of instructions
+ * rather than a list of buttons: the earlier version of this page carried a
+ * VS Code and a Cursor deeplink, which install in one click and are the wrong
+ * two programs for the people who read a county meeting archive.
  *
  * ORIGIN IS PASSED IN, never read here. `siteUrl()` reads a server-only
- * environment variable, and one of the two callers is a client component; a
+ * environment variable and one of the two callers is a client component; a
  * helper that reached for it directly would render the deployed host on the
  * server and localhost in the browser, which is a hydration mismatch that
- * looks like a copy bug. The server decides the origin once and hands it
- * down.
+ * presents as a copy button handing over the wrong address.
+ *
+ * NOTHING HERE IS A SCREENSHOT OF A SETTINGS PANE. Every step is written as
+ * the words on the control, so it survives the pane being rearranged: a
+ * sentence that is one release out of date is still followable, and an image
+ * is not.
  */
 
-/** The name the server answers to (web/mcp_server.py `NAME`). A client shows
- *  it in its own list of servers, so it should match what the handshake says
- *  rather than being a second, prettier name for the same thing. */
+/** The name the server answers to (web/mcp_server.py `NAME`). A client lists
+ *  its servers under this, so it should match what the handshake says rather
+ *  than being a second, prettier name for the same thing. */
 export const MCP_NAME = "pasco-meeting-archive";
-
-export type Install = {
-  /** Stable handle. /ask shows three of these and not the fourth, and it has
-   *  to select them by something other than the label a copy pass may change. */
-  id: "vscode" | "cursor" | "claude-code" | "manual";
-  /** What the reader calls the program, not what its vendor calls itself. */
-  client: string;
-  /** `link` opens the client and it confirms. `copy` puts a line on the
-   *  clipboard for the reader to run or paste. `manual` is a settings pane
-   *  and a sentence about where it is. */
-  kind: "link" | "copy" | "manual";
-  /** For `link`. */
-  href?: string;
-  /** For `copy`: the exact string that lands on the clipboard. */
-  value?: string;
-  /** What actually happens next, in one sentence. Read out on /about, held
-   *  back on /ask where the label is the whole affordance. */
-  note: string;
-};
 
 export const mcpUrl = (origin: string) => `${origin}/mcp`;
 
-/** The Claude Code one-liner. No deeplink exists for it, and this is the
- *  documented form for a remote server over HTTP. */
-export const claudeCodeCommand = (origin: string) =>
-  `claude mcp add --transport http ${MCP_NAME} ${mcpUrl(origin)}`;
+/** A block the reader is meant to copy whole. `lang` is for the label in the
+ *  corner, not for highlighting: there is no syntax colouring here and there
+ *  should not be, since two of these three are one line long. */
+export type Snippet = {
+  lang: "shell" | "toml" | "json";
+  text: string;
+  /** What the copy control says. Written per snippet because "Copy" alone is
+   *  ambiguous the moment a panel holds two of them. */
+  label: string;
+};
 
-/** Base64 in whichever runtime this is. `btoa` is global in Node 16+ and in
- *  every browser; the fallback is there for the older Node a build machine
- *  might still be on. Safe for this input either way: an https URL and a
- *  hyphenated name are ASCII. */
-function b64(s: string): string {
-  return typeof btoa === "function"
-    ? btoa(s)
-    : Buffer.from(s, "utf8").toString("base64");
-}
+export type Client = {
+  id: string;
+  name: string;
+  /** One line under the tab, saying what this client is. */
+  lede: string;
+  snippet?: Snippet;
+  /** The subordinate path: an older release, or the file behind the command. */
+  also?: { lead: string } & Snippet;
+  /** Numbered, for the clients where the work is in a settings pane. */
+  steps?: string[];
+  /** Whether that pane needs the address on the clipboard first. */
+  wantsAddress?: boolean;
+  /** The limit, or the caveat, in the reader's own interest. */
+  note?: string;
+};
 
-/**
- * VS Code takes the whole server object url-encoded after `vscode:mcp/install`.
- * Cursor takes the name as a query parameter and the config alone, base64'd.
- * Both then show the reader what they are about to add and wait to be told
- * yes, which is why it is honest to call these one click: nothing is written
- * behind the reader's back.
- */
-export function installs(origin: string): Install[] {
+export function clients(origin: string): Client[] {
   const url = mcpUrl(origin);
-  const vscode =
-    "vscode:mcp/install?" +
-    encodeURIComponent(JSON.stringify({ name: MCP_NAME, type: "http", url }));
-  const cursor =
-    "cursor://anysphere.cursor-deeplink/mcp/install?name=" +
-    encodeURIComponent(MCP_NAME) +
-    "&config=" +
-    encodeURIComponent(b64(JSON.stringify({ url })));
-
   return [
     {
-      id: "vscode",
-      client: "VS Code",
-      kind: "link",
-      href: vscode,
-      note: "Opens VS Code, which shows you the server and asks before it saves it.",
-    },
-    {
-      id: "cursor",
-      client: "Cursor",
-      kind: "link",
-      href: cursor,
-      note: "Opens Cursor, which shows you the server and asks before it saves it.",
-    },
-    {
       id: "claude-code",
-      client: "Claude Code",
-      kind: "copy",
-      value: claudeCodeCommand(origin),
-      note: "Copies one command. Run it in a terminal, in any directory.",
+      name: "Claude Code",
+      lede: "One command, in a terminal.",
+      snippet: {
+        lang: "shell",
+        text: `claude mcp add --transport http ${MCP_NAME} ${url}`,
+        label: "Copy the command",
+      },
+      note:
+        "Run it in any directory. That saves it for the project you are in; " +
+        "add --scope user to the end to have it in all of them.",
     },
     {
-      id: "manual",
-      client: "Claude and ChatGPT",
-      kind: "manual",
+      id: "codex",
+      name: "Codex",
+      lede: "One command, in a terminal.",
+      snippet: {
+        lang: "shell",
+        text: `codex mcp add ${MCP_NAME} --url ${url}`,
+        label: "Copy the command",
+      },
+      also: {
+        lead: "If your Codex does not take --url, write it into ~/.codex/config.toml instead:",
+        lang: "toml",
+        text: `[mcp_servers.${MCP_NAME}]\nurl = "${url}"`,
+        label: "Copy the config",
+      },
+    },
+    {
+      id: "claude",
+      name: "Claude",
+      lede: "In the app, on the web, or on a phone.",
+      wantsAddress: true,
+      steps: [
+        "Open Settings, then Connectors.",
+        "Choose Add custom connector.",
+        "Paste the address, and save.",
+      ],
       note:
-        "Paste the address into the connector settings. In Claude it is Settings, " +
-        "Connectors, Add custom connector; in ChatGPT it is Settings, Connectors. " +
-        "Both of them keep custom connectors on the paid plans, which is their limit " +
-        "and not ours. Every other client that speaks MCP takes the address the same way.",
+        "Anthropic keeps custom connectors on the paid plans. That is their limit and not ours: " +
+        "the endpoint itself asks nothing of anybody.",
+    },
+    {
+      id: "chatgpt",
+      name: "ChatGPT",
+      lede: "In the app or on the web.",
+      wantsAddress: true,
+      steps: [
+        "Open Settings, then Connectors.",
+        "Add a connector, and paste the address.",
+        "Turn the connector on for the conversation you want it in.",
+      ],
+      note:
+        "OpenAI keeps custom connectors on the paid plans, and on some of them behind developer mode. " +
+        "That is their limit and not ours.",
+    },
+    {
+      id: "other",
+      name: "Anything else",
+      lede: "Streamable HTTP. No sign-in, no key, no account.",
+      snippet: {
+        lang: "json",
+        text: `{\n  "${MCP_NAME}": {\n    "type": "http",\n    "url": "${url}"\n  }\n}`,
+        label: "Copy the server block",
+      },
+      note:
+        "Most clients want the address on its own and nothing else. The block above is for the ones " +
+        "that keep a JSON file of their servers.",
     },
   ];
 }

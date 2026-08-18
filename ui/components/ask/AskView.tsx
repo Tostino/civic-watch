@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Answer, Lookups, TOOL_LABEL, type Lookup } from "./Answer";
 import { CopyButton } from "@/components/CopyButton";
-import { installs, mcpUrl } from "@/lib/mcp";
+import { clients, mcpUrl } from "@/lib/mcp";
 import type { AskResult, AskStage } from "@/lib/types";
 import s from "./AskView.module.css";
 
@@ -229,27 +229,24 @@ function currently(x: AskStage | undefined): string {
  * back in ten, is exactly who should be told the archive is also a tool
  * endpoint, and by then the sentence had been replaced by a trace.
  *
- * WHY IT IS NOW A ROW OF CONTROLS AND NOT A LINK. It said "how to connect
- * one" and sent the reader to /about#connect, on the reasoning that the
- * address is a string to paste into another program and whoever wants it
- * wants the instructions with it. That reasoning was about the address. Two
- * of these clients take a URL scheme instead: the browser hands the server to
- * the app, the app shows the reader what it is about to add and waits to be
- * told yes. There is nothing left to read first, so the thing to put here is
- * the act, not a pointer to a page describing the act.
+ * WHY THERE ARE CONTROLS HERE AND NOT A LINK. It said "how to connect one"
+ * and sent the reader to /about#connect, on the reasoning that the address is
+ * a string to paste into another program and whoever wants it wants the
+ * instructions with it. That reasoning holds for the two clients where the
+ * work is a settings pane, and those two are the link. It does not hold for
+ * the two where the whole of it is one line in a terminal: there is nothing
+ * to read, so the line itself belongs here.
  *
- * THE ADDRESS ITSELF IS STILL NOT ON SCREEN. It is on the clipboard button,
- * which is the same judgement as before and survives the change: a reader who
- * can act on a bare URL has somewhere to paste it, and one who cannot should
- * be reading /about#connect rather than a URL beside a search box. What the
- * link now offers is what the tools DO, which is the part of that page a
- * reader still has a reason to want.
+ * THE ADDRESS IS STILL NOT ON SCREEN. It is on a button, which is the same
+ * judgement as before and survives the change: a reader who can act on a bare
+ * URL has somewhere to paste it, and one who cannot should be reading
+ * /about#connect rather than a URL beside a search box.
  *
  * Small enough not to compete with the question: one sentence, and controls
  * at the size of the hint under the form. It carries no tool list and no
- * limits - those are on /about, stated once. */
+ * limits, and no third way of saying what MCP is. Those are on /about, once. */
 function Connect({ origin }: { origin: string }) {
-  const targets = installs(origin).filter((x) => x.kind !== "manual");
+  const commands = clients(origin).filter((c) => c.snippet?.lang === "shell");
   return (
     <aside className={s.connect} aria-label="Connecting your own assistant">
       <div className={s.connectHead}>
@@ -261,30 +258,24 @@ function Connect({ origin }: { origin: string }) {
       </div>
       <div className={s.connectRow}>
         <span className={s.connectLead}>Add it to</span>
-        {targets.map((x) =>
-          x.kind === "link" ? (
-            <a key={x.id} className={s.install} href={x.href} title={x.note}>
-              {x.client}
-            </a>
-          ) : (
-            <CopyButton
-              key={x.id}
-              className={s.install}
-              value={x.value!}
-              label={x.client}
-              done="Command copied"
-            />
-          ),
-        )}
+        {commands.map((c) => (
+          <CopyButton
+            key={c.id}
+            className={s.install}
+            value={c.snippet!.text}
+            label={c.name}
+            done="Command copied"
+          />
+        ))}
         <span className={s.connectSep} aria-hidden />
         <CopyButton
           className={s.install}
           value={mcpUrl(origin)}
-          label="Any other client"
+          label="The address"
           done="Address copied"
         />
         <Link className={s.connectMore} href="/about#connect">
-          What it can read
+          Claude, ChatGPT and the rest
         </Link>
       </div>
     </aside>
