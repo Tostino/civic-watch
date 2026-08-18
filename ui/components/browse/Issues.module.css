@@ -132,7 +132,7 @@
    * lanes keep the height they were legible at. Squeezing three into the old
    * 21px box would have made each 6px, which is where a hairline stops being
    * a value and starts being a smudge. */
-  min-height: 2.6rem;
+  min-height: 2.3rem;
 }
 
 /* Not sticky. `.grid` sets overflow-x, which makes it a scroll container on
@@ -210,14 +210,29 @@
 /* Two lanes, one column. No border: a 2px gap separates marks, and drawing a
  * rule around every one of 216 cells is what made this read as a wall of
  * boxes rather than as a field of values. */
+/* A column chart cell: the bar grows from the baseline, so a row of them
+ * reads as a shape rather than as twelve independent marks. */
 .cell {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-end;
+  height: 1.35rem;
   border-radius: 2px;
+  border-bottom: 1px solid var(--rule);
   transition: outline-color var(--fast) var(--ease);
   outline: 2px solid transparent;
   outline-offset: 1px;
+}
+
+.bar {
+  width: 100%;
+  height: calc(var(--h, 0) * 100%);
+  border-radius: 1px 1px 0 0;
+  background: var(--accent);
+  opacity: 0.82;
+}
+
+.cell:hover .bar {
+  opacity: 1;
 }
 
 .cell:hover {

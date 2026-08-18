@@ -121,28 +121,11 @@ export function Issues({
             tint is the only thing carrying magnitude, and a reader who meets
             it unexplained has already misread the first row by the time the
             footnote arrives. */}
+        {/* One clause. Four keys and a two-sentence scale note were the price
+            of three encodings; one encoding costs the single thing height
+            cannot say for itself, which is what it is measured against. */}
         <p className={s.legend}>
-          <span className={s.key}>
-            <span aria-hidden className={`${s.ramp} ${s.rampRecord}`} />
-            items the county published
-          </span>
-          <span className={s.key}>
-            <span aria-hidden className={`${s.ramp} ${s.rampSaid}`} />
-            lines said in the recordings
-          </span>
-          <span className={s.key}>
-            <span aria-hidden className={`${s.ramp} ${s.rampPushed}`} />
-            the share of them the board did not simply pass
-          </span>
-          <span className={s.key}>
-            <span aria-hidden className={s.swNone} />
-            no recording, or no outcome recorded
-          </span>
-          {/* Both grammars, in one clause each: the tints may only be read
-              along a row, the bar may be read down the column. */}
-          <span className={s.scaleNote}>
-            shade is within-row; the third lane is a proportion and compares across
-          </span>
+          Bars are published items per year, each row against its own busiest year.
         </p>
       </header>
 
@@ -206,31 +189,29 @@ function Row({
   open?: boolean;
   onToggle?: (slug: string) => void;
 }) {
-  /* Scaled to the row, not to the grid. The time axis shares one scale across
-   * its whole grid because the 2015 → 2025 ramp IS its finding. Here the rows
-   * are different subjects: rezoning peaks at 213 items in a year and the
-   * Orange Belt Trail at 4, so one scale would draw fourteen of these rows as
-   * blank paper and say nothing about any of them. Each row answers "when was
-   * this busy", and the totals column answers "how big is it". */
-  const peakItems = Math.max(1, ...i.years.map((y) => y.items));
-  const peakLines = Math.max(1, ...i.years.map((y) => y.lines));
-  /* NOT a third tint ramp, and the reason is measurable: --live sits at hue
-   * 22 and --no at hue 3, so two adjacent 10px bars carrying the same grammar
-   * nineteen degrees apart are one bar with a gradient in it. Every other
-   * palette entry is worse - green reads as approval for a lane that means
-   * the opposite, amber is closer to --live still.
+  /* ONE BAR PER YEAR, AND ITS HEIGHT IS THE WHOLE ENCODING.
    *
-   * So the third lane changes CHANNEL instead of hue: a proportional bar, its
-   * width the share of that year's decided items the board did not simply
-   * pass. That is honest rather than merely legible. Tint here is magnitude
-   * scaled to a row, which is why a shade may never be read across rows; a
-   * width is a rate, which may. Drawing a rate as a tint beside two
-   * magnitudes would have been the dual-axis mistake this file already
-   * refuses once, in the same 33px box. */
+   * This was three lanes in a 33px cell: the published record as a tint, what
+   * was said as a second tint, and the share the board did not simply pass as
+   * a proportional bar. Every one of them was defensible on its own and the
+   * cell was unreadable without the legend - two grammars, three colours, and
+   * a rule that shades compare along a row but the third lane compares down
+   * the column. Nobody arrives willing to learn that.
+   *
+   * Height needs no key. Taller is more, and a reader already knows it.
+   *
+   * The bar counts PUBLISHED ITEMS and nothing else, which is what makes one
+   * bar honest. Adding the speech in would put a step at 2018 in every row on
+   * this page - not because the county got busier, but because that is when a
+   * camera first ran - and the strip would be drawing our coverage while
+   * appearing to draw the county's. The speech is still here, as a number, in
+   * words, in the totals.
+   *
+   * Scaled to its own row, so a subject with 39 items is legible beside one
+   * with 5,835. That is the one thing height cannot say for itself, and it is
+   * the only clause left in the legend. */
+  const peak = Math.max(1, ...i.years.map((y) => y.items));
 
-  /* Renamed off `href`, which is now the prop that opens a narrowing. Two
-   * different link builders under one name in one component is how the wrong
-   * one gets called. */
   const hrefQ = (y?: IssueYear) =>
     `/search?q=${encodeURIComponent(i.q)}` +
     (y ? `&since=${y.year}-01-01&until=${y.year}-12-31` : "");
@@ -241,129 +222,62 @@ function Row({
       style={{ "--level": level } as React.CSSProperties}
     >
       <span className={s.label}>
-        {/* The counts in this row are of titles that name the issue; the link
-            runs a search, which ranks the whole archive and will report its
-            own total. Saying which words it searches for keeps the two from
-            reading as the same claim. */}
         <span className={s.nameRow}>
+          {/* The counts are of titles that name the subject; the link runs a
+              ranked search over the whole archive and reports its own total.
+              The hover says which words, so the two do not read as one claim. */}
           <Link href={hrefQ()} className={s.name} title={`Search the archive for “${i.q}”`}>
             {i.label}
           </Link>
-        {/* Only on a row that HAS sub-subjects, which is three of them. The
-            control says how many rather than drawing a bare chevron, because
-            the number is the reason to press it. */}
-        {/* A REAL LINK that a click intercepts. Without script it navigates
-            to the same view; with script `onToggle` moves the state and
-            rewrites the URL in place, so the row opens without the page
-            being thrown away and rebuilt. Modified clicks are left alone —
-            open-in-new-tab has to keep working on something with an href. */}
-        {kids && onToggle ? (
-          <a
-            href={`?open=${encodeURIComponent(i.slug)}`}
-            className={s.narrow}
-            aria-expanded={open}
-            onClick={(e) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
-              e.preventDefault();
-              onToggle(i.slug);
-            }}
-          >
-            {open ? "hide" : `show ${kids}`}
-          </a>
+          {kids && onToggle ? (
+            <a
+              href={`?open=${encodeURIComponent(i.slug)}`}
+              className={s.narrow}
+              aria-expanded={open}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+                e.preventDefault();
+                onToggle(i.slug);
+              }}
+            >
+              {open ? "hide" : `show ${kids}`}
+            </a>
           ) : null}
         </span>
-        {/* One line, and it does not wrap. Five facts wrapping to three lines
-            gave every row a different height, which is most of what stopped
-            the grid reading as a grid. The rest is on the hover and on the
-            search page the title links to. */}
         <span className={s.sub} title={summary(i)}>
           {shortSummary(i)}
         </span>
       </span>
 
       {i.years.map((y) => {
-        const said = y.lines > 0;
-        const on = y.items > 0;
-        const edge = y.year === heardFrom ? s.gate : "";
-        // No recording of that year exists at all - a different claim from a
-        // year nobody mentioned it, and the only one the said lane hatches.
-        const unheard = y.year < heardFrom;
-        /* Three states, and the third is the one that matters. `pushed` is 0
-         * both when the board passed everything and when the minutes record
-         * no outcome at all, and those are opposite facts (R6.3). So the lane
-         * hatches when nothing that year was decided, exactly as the said
-         * lane hatches for a year with no recording. */
-        const undecided = on && !y.decided;
-        const body = (
-          <>
-            <span
-              aria-hidden
-              className={`${s.lane} ${s.laneRecord} ${on ? "" : s.empty}`}
-              style={{ "--fill": fill(y.items, peakItems) } as React.CSSProperties}
-            />
-            <span
-              aria-hidden
-              className={`${s.lane} ${s.laneSaid} ${unheard ? s.none : said ? "" : s.empty}`}
-              style={{ "--fill": fill(y.lines, peakLines) } as React.CSSProperties}
-            />
-            <span
-              aria-hidden
-              className={`${s.lane} ${s.lanePushed} `
-                + `${undecided ? s.none : y.decided ? "" : s.empty}`}
-            >
-              {y.pushed ? (
-                <span
-                  className={s.pushedFill}
-                  style={{ "--share": (y.pushed / y.decided).toFixed(3) } as React.CSSProperties}
-                />
-              ) : null}
-            </span>
-          </>
-        );
-        // Nothing in either source. Not a link: there is nothing to open, and
-        // a cell that navigates to an empty search is a dead end (R4.3).
-        if (!on && !said) {
+        const label = cell(i, y, heardFrom);
+        if (!y.items) {
           return (
             <span
               key={y.year}
-              className={`${s.cell} ${edge}`}
-              title={`${i.label} — ${y.year}: nothing found`}
-            >
-              {body}
-            </span>
+              className={s.cell}
+              title={`${i.label} — ${y.year}: nothing published`}
+            />
           );
         }
         return (
-          <Link
-            key={y.year}
-            href={hrefQ(y)}
-            className={`${s.cell} ${edge}`}
-            aria-label={cell(i, y, heardFrom)}
-            title={cell(i, y, heardFrom)}
-          >
-            {body}
+          <Link key={y.year} href={hrefQ(y)} className={s.cell}
+                aria-label={label} title={label}>
+            <span aria-hidden className={s.bar}
+                  style={{ "--h": height(y.items, peak) } as React.CSSProperties} />
           </Link>
         );
       })}
 
-      {/* Each number wears the lane's colour as a mark beside it, not as its
-          own ink - the figure stays readable text either way. */}
+      {/* Words, not a colour key. Three dots each standing for a lane meant
+          the totals could only be read by somebody who had decoded the
+          legend, which is what this row was asked to stop requiring. */}
       <span className={s.totals}>
-        <span className={s.tRow} title={`${i.items.toLocaleString()} published items`}>
-          <span aria-hidden className={`${s.dot} ${s.dotRecord}`} />
-          {i.items.toLocaleString()}
+        <span className={s.tRow}>
+          <b className={s.tN}>{i.items.toLocaleString()}</b> filed
         </span>
-        <span className={s.tRow} title={`${i.lines.toLocaleString()} lines of speech`}>
-          <span aria-hidden className={`${s.dot} ${s.dotSaid}`} />
-          {i.lines ? i.lines.toLocaleString() : "—"}
-        </span>
-        {/* A RATE, and the only figure in this section that may honestly be
-            read down the column: every tint here is scaled to its own row, so
-            comparing two rows' shading says nothing, while "12% pushed back"
-            against "0%" says exactly what it looks like. */}
-        <span className={s.tRow} title={pushedSays(i)}>
-          <span aria-hidden className={`${s.dot} ${s.dotPushed}`} />
-          {decided(i) ? `${Math.round((pushed(i) / decided(i)) * 100)}%` : "—"}
+        <span className={s.tRow}>
+          <b className={s.tN}>{i.lines ? i.lines.toLocaleString() : "\u2014"}</b> said
         </span>
       </span>
     </div>
@@ -387,11 +301,29 @@ function pushedSays(i: Issue): string {
   return `${p} of ${d.toLocaleString()} decided items — ${bits.join(", ")}`;
 }
 
-/* LOW keeps a year with one item clearly tinted: the quietest year an issue
- * appeared in must never look like a year it did not. */
-const LOW = 0.16;
-const fill = (n: number, peak: number) =>
+/* LOW keeps a year with one item visible: the quietest year a subject
+ * appeared in must never look like a year it did not appear at all. At a 22px
+ * cell that floor is about 4px, which reads as a mark rather than as dust. */
+const LOW = 0.18;
+const height = (n: number, peak: number) =>
   n <= 0 ? "0" : (LOW + (1 - LOW) * (n / peak)).toFixed(3);
+
+/**
+ * How often the board did not simply pass, as a phrase rather than a percent.
+ *
+ * "16%" makes a reader do the work of turning a rate back into a thing that
+ * happens; "about 1 in 6" is the same number already turned. Rounded to a
+ * whole ratio on purpose - the precision was never real, since it rests on
+ * which items the minutes recorded an outcome for at all.
+ */
+function contested(i: Issue): string {
+  const d = decided(i);
+  if (!d) return "no outcomes recorded";
+  const p = pushed(i);
+  if (!p) return "none contested";
+  const n = Math.round(d / p);
+  return n <= 1 ? "nearly all contested" : `1 in ${n} contested`;
+}
 
 /** How much of a subject's own activity the printed range has to cover. */
 const ACTIVE_SHARE = 0.8;
@@ -466,7 +398,8 @@ function shortSummary(i: Issue): string {
     return `${when} · heard in ${i.heard} recorded `
       + `${i.heard === 1 ? "meeting" : "meetings"}, never in a published title`;
   }
-  return `${when} · ${i.meetings} ${i.meetings === 1 ? "meeting" : "meetings"}`;
+  return `${when} · ${i.meetings} ${i.meetings === 1 ? "meeting" : "meetings"}`
+    + ` · ${contested(i)}`;
 }
 
 /** The row's own line, for the hover. This one keeps the FULL extent — the
@@ -492,28 +425,19 @@ function summary(i: Issue): string {
 
 /** One cell, in a sentence, for a screen reader and for a hover. */
 function cell(i: Issue, y: IssueYear, heardFrom: string): string {
-  const parts = [`${i.label} — ${y.year}: `];
-  parts.push(
-    y.items
-      ? `${y.items} published ${y.items === 1 ? "item" : "items"} in ${y.meetings} ${y.meetings === 1 ? "meeting" : "meetings"}`
-      : "nothing in the published record",
-  );
+  const bits = [`${i.label} — ${y.year}: ${y.items} published `
+    + `${y.items === 1 ? "item" : "items"} in ${y.meetings} `
+    + `${y.meetings === 1 ? "meeting" : "meetings"}`];
   if (y.lines) {
-    parts.push(`, ${y.lines} ${y.lines === 1 ? "line" : "lines"} said in ${y.heard} recorded ${y.heard === 1 ? "meeting" : "meetings"}`);
+    bits.push(`, ${y.lines} ${y.lines === 1 ? "line" : "lines"} said about it`);
   } else if (y.year < heardFrom) {
-    parts.push(", and no recording of that year exists");
+    bits.push(", and no recording of that year exists");
   }
-  /* The rate the lane deliberately does not draw. Said against `decided`
-   * rather than against `items`, because an item the minutes never disposed of
-   * is not an item that passed. */
-  if (y.items && !y.decided) {
-    parts.push(", and the minutes record no outcome for any of them");
-  } else if (y.pushed) {
-    parts.push(
-      `; the board continued, denied or split over ${y.pushed} of the ${y.decided} it decided`,
-    );
+  if (y.pushed) {
+    bits.push(`; the board continued, denied or split over ${y.pushed} of the `
+      + `${y.decided} it decided`);
   } else if (y.decided) {
-    parts.push(`; all ${y.decided} it decided passed`);
+    bits.push(`; all ${y.decided} it decided passed`);
   }
-  return parts.join("");
+  return bits.join("");
 }
