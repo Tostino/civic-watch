@@ -759,6 +759,25 @@ CREATE TABLE IF NOT EXISTS organizations (
 CREATE UNIQUE INDEX IF NOT EXISTS people_public_name
     ON people (lower(full_name)) WHERE kind = 'public';
 
+-- A BOARD member IS keyed by surname, and only a board member. bin/roster.py
+-- has always upserted on it - `ON CONFLICT (surname)` - and the constraint
+-- that made that legal is dropped forty lines above, deliberately: once every
+-- resident who speaks went into this table, one Christopher B. Poole owned
+-- "Poole" and a member of the public called Sean Poole could not exist. There
+-- are twelve Johnsons in here now.
+--
+-- So the uniqueness comes back scoped to the people it was ever true of. The
+-- roster is 28 board members with no repeated surname, while `surname` stays
+-- a plain attribute for the other 1,270.
+--
+-- Without this, roster.py raises `there is no unique or exclusion constraint
+-- matching the ON CONFLICT specification` and takes the whole chain with it -
+-- rebuild.sh at its second stage, and the console's "Fetch county documents"
+-- at step two of seven. Nothing caught it because nothing had rebuilt a
+-- roster from empty since the constraint was dropped.
+CREATE UNIQUE INDEX IF NOT EXISTS people_board_surname
+    ON people (surname) WHERE kind = 'board';
+
 CREATE TABLE IF NOT EXISTS person_alias (
     alias     text PRIMARY KEY,
     person_id integer NOT NULL REFERENCES people(id) ON DELETE CASCADE

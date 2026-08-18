@@ -224,7 +224,12 @@ def main():
             # repaired row would leave the row repaired but the rule unproven
             # (gotcha 68).
             cur.execute("INSERT INTO people (surname, full_name) VALUES (%s,%s) "
-                        "ON CONFLICT (surname) DO UPDATE SET full_name = "
+                        # The predicate is REQUIRED, not decoration: it is how
+                        # Postgres infers the partial index. `kind` is not in the
+                        # column list because it defaults to 'board', which is
+                        # what makes the row eligible for that index at all.
+                        "ON CONFLICT (surname) WHERE kind = 'board' "
+                        "DO UPDATE SET full_name = "
                         "  CASE WHEN people.full_name IS NULL "
                         "         OR people.full_name ~* %s "
                         "       THEN COALESCE(EXCLUDED.full_name, people.full_name) "
@@ -234,7 +239,17 @@ def main():
             cur.execute("""
                 INSERT INTO board_terms (person_id, body, district, first_seen,
                                          last_seen, meetings)
-                VALUES ((SELECT id FROM people WHERE surname=%s), %s,%s,%s,%s,%s)
+                -- AND kind='board'. A bare surname lookup was a scalar
+                -- subquery back when `people` was 28 commissioners and
+                -- surname was UNIQUE. It is 1,298 rows now, 1,270 of them
+                -- members of the public, and twelve of those are Johnsons -
+                -- so this returned several ids and Postgres raised
+                -- `more than one row returned by a subquery used as an
+                -- expression`. Scoped to the people the roster is about, it
+                -- is single-valued again, and it matches the partial unique
+                -- index the upsert above infers on.
+                VALUES ((SELECT id FROM people
+                          WHERE surname=%s AND kind='board'), %s,%s,%s,%s,%s)
                 ON CONFLICT (person_id, body, district) DO UPDATE SET
                     first_seen = LEAST(board_terms.first_seen, EXCLUDED.first_seen),
                     last_seen  = GREATEST(board_terms.last_seen, EXCLUDED.last_seen),
@@ -244,7 +259,9 @@ def main():
                     "(SELECT id FROM meetings WHERE body=%s)", (args.body,))
         cur.executemany("""
             INSERT INTO meeting_roster (meeting_id, person_id, district, office)
-            VALUES (%s, (SELECT id FROM people WHERE surname=%s), %s, %s)
+            -- Same reason as board_terms above.
+            VALUES (%s, (SELECT id FROM people
+                          WHERE surname=%s AND kind='board'), %s, %s)
             ON CONFLICT (meeting_id, person_id) DO UPDATE
                 SET district=EXCLUDED.district, office=EXCLUDED.office""",
             per_meeting)

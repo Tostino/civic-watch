@@ -223,7 +223,11 @@ def main():
             # The derived layer only. A human label on any of these voices
             # still wins, because utterance_speaker consults speaker_label
             # first (R5.8.7).
-            _claim_chair(con, cluster, name)
+            # c, not `cluster`/`name` - neither exists in this scope. This
+            # raised NameError on the first cluster it had to apply, which
+            # is every run of `--write` that finds anything, and took
+            # rebuild.sh, refresh.sh chair and rederive.py down with it.
+            _claim_chair(con, c["cluster"], c["name"])
             cur.execute("""UPDATE speaker_identity SET name = %s, confidence = %s,
                                   source = 'chair'
                             WHERE cluster = %s
