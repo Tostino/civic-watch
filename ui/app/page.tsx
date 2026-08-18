@@ -140,23 +140,14 @@ export default async function BrowsePage({ searchParams }: Props) {
     <div className={s.page}>
       <header className={s.hero}>
         <h1 className={s.title}>The Pasco County meeting record</h1>
-        {/* ONE LINE. Three sentences and 82px of them was the pitch delivered
-            before the reader had seen anything to be pitched about, and it
-            pushed the first actual figure to 331px down the page. What it has
-            to do is say what this is; the panel underneath says how much of
-            it there is, which the prose was also doing. */}
-        <p className={s.lede}>
-          County meeting agendas, minutes and video in one place. See what was
-          decided, hear it, and share it.
-        </p>
-        {/* The front page had no input on it at all: the one verb a reader
-            arrives holding was a nav link, and the first door into an actual
-            document sat 3,031px down. §5.1 is still right that a bare search
-            box answers nothing about what is here - so this sits UNDER the
-            lede and above the collection, and the panels below keep making
-            the argument they made before. */}
+        {/* Only where the header cannot carry one. Above 48rem the field is in
+            the bar, on every page; below it the bar is a full nowrap row, so
+            browse keeps its own rather than leaving a phone with nothing but a
+            nav link. Both are rendered, exactly one is ever visible, and the
+            ids differ because two `id="q"` in a document points the second
+            label at the first field. */}
         <div className={s.find}>
-          <SearchBox q="" compact />
+          <SearchBox q="" compact id="q-browse" />
         </div>
       </header>
 

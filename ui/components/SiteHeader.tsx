@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SearchBox } from "./search/SearchBox";
 import { Mark } from "./Mark";
 import { ThemeToggle } from "./ThemeToggle";
 import s from "./SiteHeader.module.css";
@@ -52,6 +53,19 @@ export function SiteHeader() {
             <span className={s.what}>meeting record</span>
           </span>
         </Link>
+
+        {/* Search on every page rather than only on two of them. R4.5 asks
+            for a command palette so the deeper entities stay reachable from
+            anywhere without growing the nav bar; a field in the bar is the
+            same answer with no keyboard shortcut to discover, no focus trap
+            to get wrong, and it works with script off.
+
+            Hidden below 48rem, where the bar is already a nowrap row that
+            overflowed at 320px before anything was added to it. Browse keeps
+            its own field for those widths. */}
+        <div className={s.find}>
+          <SearchBox q="" compact id="q-nav" />
+        </div>
 
         <nav className={s.nav} aria-label="Main">
           {NAV.map((n) => {

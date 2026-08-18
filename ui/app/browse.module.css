@@ -39,6 +39,13 @@
   max-width: 34rem;
 }
 
+/* The header's field takes over here. */
+@media (min-width: 48.0625rem) {
+  .find {
+    display: none;
+  }
+}
+
 .bodies {
   display: flex;
   flex-wrap: wrap;

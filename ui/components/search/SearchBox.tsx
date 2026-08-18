@@ -15,6 +15,7 @@ export function SearchBox({
   q,
   hidden = {},
   compact = false,
+  id = "q",
 }: {
   q: string;
   /** Facets to carry through the submit, so searching again keeps them. */
@@ -26,29 +27,64 @@ export function SearchBox({
    * IS the page and the duality it teaches has nothing else to lean on.
    */
   compact?: boolean;
+  /**
+   * The input's id, because two of these can be in one document.
+   *
+   * The header carries one above 48rem and browse carries its own below that
+   * - never both visible, always both rendered, since which one shows is a
+   * media query rather than a branch. Two `id="q"` in a document is invalid
+   * and, worse, silently points the second label at the first field.
+   */
+  id?: string;
 }) {
   return (
     <form className={s.form} action="/search" method="get" role="search">
-      <label className={compact ? "sr-only" : s.label} htmlFor="q">
+      <label className={compact ? "sr-only" : s.label} htmlFor={id}>
         Search the record and the recordings
       </label>
-      <div className={s.row}>
+      {/* ONE CONTROL, not two objects with a gap between them. The input and
+          the button were separately bordered and separately rounded with 8px
+          of page showing through, which reads as two things that happen to be
+          next to each other; a search field is one thing. The border is on
+          the wrapper now, the parts are flush inside it, and the focus ring
+          goes round the whole via :focus-within. */}
+      <div className={`${s.row} ${compact ? s.rowCompact : ""}`}>
+        {/* THE GLYPH IS THE SUBMIT BUTTON in the compact field. A solid
+            accent "Search" slab sat inches from the nav links and made two
+            competing clusters at that end of the bar, in the loudest colour
+            on the page, for a control every reader already submits with
+            Enter. As a button it keeps the affordance and stops shouting.
+            /search keeps the worded button: there the field is the page. */}
+        <button
+          type="submit"
+          className={s.glyphGo}
+          tabIndex={compact ? 0 : -1}
+          aria-label="Search"
+        >
+          <svg className={s.glyph} viewBox="0 0 16 16" aria-hidden focusable="false">
+            <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M10.5 10.5 L14 14" stroke="currentColor" strokeWidth="1.6"
+                  strokeLinecap="round" />
+          </svg>
+        </button>
         <input
-          id="q"
+          id={id}
           name="q"
           type="search"
           className={s.input}
           defaultValue={q}
           autoComplete="off"
           placeholder="impact fees, Orange Belt Trail, PDE-25-7738, R-58…"
-          {...(compact ? {} : { "aria-describedby": "q-hint" })}
+          {...(compact ? {} : { "aria-describedby": `${id}-hint` })}
         />
-        <button type="submit" className={s.go}>
-          Search
-        </button>
+        {compact ? null : (
+          <button type="submit" className={s.go}>
+            Search
+          </button>
+        )}
       </div>
       {compact ? null : (
-        <p id="q-hint" className={s.hint}>
+        <p id={`${id}-hint`} className={s.hint}>
           Subject words search 23,122 published agenda items and 1,036 hours of
           recordings. An item code or case number is matched as an identifier.
         </p>

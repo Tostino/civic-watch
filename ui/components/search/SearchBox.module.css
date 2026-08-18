@@ -12,49 +12,89 @@
   color: var(--ink-4);
 }
 
+/* The whole control. One border, one radius, one focus ring - the input and
+ * the button used to carry their own of each with 8px of page between them,
+ * so a search field read as two objects side by side. */
 .row {
   display: flex;
-  gap: var(--sp-2);
   align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong, var(--rule));
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.row:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* Says "search" before the placeholder has to, and submits. */
+.glyphGo {
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding-inline: 0.6rem 0.25rem;
+  color: var(--ink-4);
+}
+
+.glyphGo:hover {
+  color: var(--accent);
+}
+
+.glyph {
+  width: 1rem;
+  height: 1rem;
 }
 
 .input {
   flex: 1;
   min-width: 0;
-  padding: 0.6rem 0.8rem;
-  font-size: var(--text-md);
+  padding: 0.55rem 0.5rem;
+  font-size: var(--text-base);
   color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--rule-strong, var(--rule));
-  border-radius: var(--radius);
-}
-
-.input::placeholder {
-  /* The placeholder is instruction, not decoration (R5.6.4), so it has to be
-   * readable rather than the usual ghost grey. --ink-3 clears 4.5:1. */
-  color: var(--ink-3);
+  background: none;
+  border: 0;
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  border-color: var(--accent);
+  outline: none;
 }
 
+/* Flush inside the frame, so it reads as part of the field. Its own rounded
+ * corners inside a rounded parent were the tell that these were two controls. */
 .go {
   flex: none;
-  padding: 0 1.1rem;
+  padding: 0 1rem;
   font: inherit;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--accent-ink);
   background: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
+  border: 0;
   cursor: pointer;
 }
 
 .go:hover {
   filter: brightness(1.1);
+}
+
+/* In the bar the field is furniture, not the subject. A --rule-strong frame
+ * and a white fill made it the brightest object up there; a sunk fill and a
+ * quiet edge let it read as a slot in the bar until it is used, when the
+ * focus ring says everything it needs to. */
+.rowCompact {
+  background: var(--bg-sunk);
+  border-color: var(--rule);
+}
+
+.rowCompact:hover {
+  border-color: var(--rule-strong);
+}
+
+.rowCompact .input {
+  padding-block: 0.35rem;
+  font-size: var(--text-sm);
 }
 
 .hint {

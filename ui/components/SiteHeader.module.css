@@ -51,6 +51,16 @@
   text-transform: uppercase;
 }
 
+/* ANCHORED TO THE BRAND, not floated between the two ends. With an `auto`
+ * margin it sat hard against the nav with a 570px hole to its left at 1080,
+ * so the bar read as two clusters with nothing in the middle. Beside the
+ * wordmark it reads as one group, and it gives its width back first as the
+ * window narrows. */
+.find {
+  flex: 0 1 22rem;
+  min-width: 0;
+}
+
 .nav {
   display: flex;
   align-items: center;
@@ -94,6 +104,15 @@
 .theme:hover {
   color: var(--ink);
   background: var(--surface-2);
+}
+
+/* The bar is a fixed 3.25rem that the meeting page measures its panes
+ * against, so it cannot wrap. Below 48rem the brand, four links and the
+ * toggle already fill it - at 320px they overflowed before this existed. */
+@media (max-width: 48rem) {
+  .find {
+    display: none;
+  }
 }
 
 @media (max-width: 40rem) {
