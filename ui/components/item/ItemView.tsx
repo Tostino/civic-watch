@@ -170,7 +170,7 @@ export function ItemView({ data }: { data: ItemDetail }) {
                   </div>
                 ) : null}
 
-                {item.disposition ? (
+                {item.outcome_text ? (
                   <div className={s.record}>
                     <ProvenanceMark kind="minutes" />
                     <h3 className={s.recordLabel}>
@@ -181,7 +181,7 @@ export function ItemView({ data }: { data: ItemDetail }) {
                         decided". The classified outcome sits beside it rather
                         than replacing it, because the classification is ours
                         and the sentence is the county's. */}
-                    <blockquote className={s.recordQuote}>{item.disposition}</blockquote>
+                    <blockquote className={s.recordQuote}>{item.outcome_text}</blockquote>
                   </div>
                 ) : (
                   <div className={s.gap}>

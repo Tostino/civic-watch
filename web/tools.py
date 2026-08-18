@@ -353,7 +353,7 @@ def items_at(con, ids):
     rows = con.execute("""
         SELECT ai.id, ai.seq, ai.code, ai.title, ai.search_title,
                ai.case_id, ai.section, ai.phase, ai.department,
-               ai.recommendation, ai.disposition, ai.outcome,
+               ai.recommendation, ai.outcome_text, ai.outcome,
                ai.outcome_source, ai.source, ai.districts, ai.file_number,
                m.id AS meeting_id, m.date, m.body, m.title AS meeting_title,
                EXISTS (SELECT 1 FROM item_spans sp

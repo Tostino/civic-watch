@@ -193,7 +193,7 @@ a.case {
   color: var(--accent);
 }
 
-.disposition {
+.outcomeText {
   margin: 0;
   padding: var(--sp-3);
   background: var(--surface);
@@ -204,7 +204,7 @@ a.case {
   gap: var(--sp-2);
 }
 
-.disposition p {
+.outcomeText p {
   font-family: var(--font-record);
   font-size: var(--text-base);
   line-height: var(--leading-record);

@@ -3961,6 +3961,21 @@ here, not claims about the archive as it stands.*
   Board reports have no agenda code at all and never will.
 - 24% of agenda items have no disposition — mostly regular-agenda and board
   reports the minutes simply do not dispose of in writing.
+- **`agenda_items.disposition` is `agenda_items.outcome_text`** (2026-08-18).
+  The column holds the minutes' own sentence; `outcome` is that sentence
+  classified and `outcome_source` says where it came from, so the family reads
+  `outcome` / `outcome_text` / `outcome_source`. Renamed because the county
+  uses "disposition" for disposal of records and property — 19 of 791 minutes
+  files contain the word and every one means DISPOSAL — so the reader-facing
+  copy dropped it first and the schema followed before launch. The rename lives
+  in `bin/schema.sql` as a guarded `DO $$` block, and it MUST stay above the
+  `ADD COLUMN IF NOT EXISTS outcome_text` line: the other order creates an empty
+  column, skips the rename, and strands 17,532 sentences. The `agenda_fts`
+  expression index followed the rename on its own, as Postgres does. Verified
+  by md5 over the column before and after — identical. Two audit checks were
+  renamed with it (`outcome.matches_text`, `minutes.no_subsidiary_outcome`);
+  STATE.md entries above this line use the old names.
+
 - **Numbers quoted to a model are measured, never typed** (2026-08-18).
   `tools.facts()` measures every count the tool descriptions and the two system
   prompts quote — hours, agenda items, recurring cases, the 9% of decided items

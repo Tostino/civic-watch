@@ -831,7 +831,7 @@ def rollup(con):
                COUNT(*) FILTER (WHERE ai.outcome IS NOT NULL),
                COUNT(*) FILTER (WHERE ai.outcome = 'continued'),
                COUNT(*) FILTER (WHERE ai.outcome IN ('denied','no_action')),
-               COUNT(*) FILTER (WHERE ai.disposition ~* %s),
+               COUNT(*) FILTER (WHERE ai.outcome_text ~* %s),
                MIN(mt.date), MAX(mt.date)
           FROM pg_temp.m_item m
           JOIN agenda_items ai ON ai.id = m.item_id

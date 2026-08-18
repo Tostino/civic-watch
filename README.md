@@ -11,11 +11,17 @@ its own recordings. The codebase is generic; the county is configuration.
 
 | | |
 |---|---|
-| meetings | 432 recorded, 1,214 in the published record |
-| transcript | 298,737 utterances, 1,036 hours |
-| retrieval | 167,174 passages, BM25 + pgvector HNSW + curated thread keys |
-| published record | 23,122 agenda items, their dispositions and case histories |
-| invariants | 50 data checks, run after every rebuild, repairing nothing |
+| meetings | twelve years of the published record, seven of recordings |
+| transcript | machine transcription of every recording the county published |
+| retrieval | BM25 + pgvector HNSW + curated thread keys, over speaker-bounded passages |
+| published record | agenda items with the outcome the minutes recorded, and case histories |
+| invariants | data checks, run after every rebuild, repairing nothing |
+
+Counts are deliberately absent here. Every one this table used to carry had
+gone stale — 23,122 agenda items were 23,130, 167,174 passages were 167,043,
+50 checks were 64 — because a README cannot measure anything. The live
+figures are on [/about](https://pasco.watch/about), which counts them at
+request time, and `tools.facts()` serves the same numbers to a model.
 
 ## How it fits together
 

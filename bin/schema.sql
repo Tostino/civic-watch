@@ -291,7 +291,26 @@ ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS file_number    text;
 ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS case_id        text REFERENCES cases(id);
 ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS districts      text;
 ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS recommendation text;
-ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS disposition    text;
+-- Renamed from `disposition` on 2026-08-18. The county uses that word for
+-- disposal of records and property, which is not what this holds, and the
+-- reader-facing copy stopped using it. Guarded both ways so this file stays
+-- what it claims to be - safe to re-run - and so a fresh database and an
+-- existing one converge on the same schema. It MUST precede the ADD COLUMN
+-- below: the other order creates an empty `outcome_text`, skips the rename,
+-- and strands 17,532 sentences in a column nothing reads.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'agenda_items'
+                  AND column_name = 'disposition')
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'agenda_items'
+                          AND column_name = 'outcome_text')
+    THEN
+        ALTER TABLE agenda_items RENAME COLUMN disposition TO outcome_text;
+    END IF;
+END $$;
+ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS outcome_text   text;
 ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS portal_event_id integer REFERENCES portal_events(id);
 -- Provenance. 'agenda' items are published fact; 'transcript' items are the
 -- procedural phases (call to order, recess, adjourn) that only the recording
@@ -364,7 +383,7 @@ CREATE TABLE IF NOT EXISTS meeting_roster (
     PRIMARY KEY (meeting_id, person_id)
 );
 
--- The official outcome, from the minutes. `disposition` is the sentence as
+-- The official outcome, from the minutes. `outcome_text` is the sentence as
 -- written; `outcome` is that sentence classified, because "Approved to
 -- continue the item to the August 11 meeting" is a CONTINUANCE, not an
 -- approval, and the leading verb says otherwise.
@@ -379,14 +398,14 @@ CREATE INDEX IF NOT EXISTS pass_item ON passages (agenda_item_id);
 
 -- The published record has to be searchable in its OWN right, not only
 -- reachable from a transcript passage. Only 1,622 of the 17,988 items the
--- minutes dispose of are bound to a recording - 9%. Everything else was
+-- minutes record an outcome for are bound to a recording - 9%. Everything else was
 -- decided at a meeting this archive holds no video of, and a passage-only
 -- index cannot see any of it: ask what the board decided about one of those
 -- and the honest answer used to be "nothing in the indexed meetings matches".
 CREATE INDEX IF NOT EXISTS agenda_fts ON agenda_items
     USING gin (to_tsvector('english',
         coalesce(title, '') || ' ' || coalesce(case_id, '') || ' ' ||
-        coalesce(department, '') || ' ' || coalesce(disposition, '')));
+        coalesce(department, '') || ' ' || coalesce(outcome_text, '')));
 
 -- This column was added without a foreign key, and it dangled: rebuilding the
 -- spans deletes the transcript-derived items, and every passage still pointing

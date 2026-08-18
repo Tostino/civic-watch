@@ -196,20 +196,23 @@ def _(con):
            JOIN agenda_items ai ON ai.id = p.agenda_item_id"""
 
 
-@check("outcome.matches_disposition",
+# Was `outcome.matches_disposition` until the column was renamed; STATE.md
+# entries before 2026-08-18 use the old name.
+@check("outcome.matches_text",
        "outcome is not contradicted by the sentence it came from")
 def _(con):
-    q = """FROM agenda_items WHERE outcome IS NOT NULL AND disposition IS NOT NULL
-           AND ((outcome='approved' AND disposition ~* 'withdraw|denied')
-             OR (outcome='approved' AND disposition ~* 'continue(d|s)? (the|this|to)')
-             OR (outcome='withdrawn' AND disposition !~* 'withdraw'))"""
+    q = """FROM agenda_items WHERE outcome IS NOT NULL AND outcome_text IS NOT NULL
+           AND ((outcome='approved' AND outcome_text ~* 'withdraw|denied')
+             OR (outcome='approved' AND outcome_text ~* 'continue(d|s)? (the|this|to)')
+             OR (outcome='withdrawn' AND outcome_text !~* 'withdraw'))"""
     return count(con, f"SELECT COUNT(*) {q}"), f"""
-        SELECT code, outcome, outcome_source, left(disposition,74) {q} LIMIT 6""", \
+        SELECT code, outcome, outcome_source, left(outcome_text,74) {q} LIMIT 6""", \
         """SELECT COUNT(*) FROM agenda_items
-           WHERE outcome IS NOT NULL AND disposition IS NOT NULL"""
+           WHERE outcome IS NOT NULL AND outcome_text IS NOT NULL"""
 
 
-@check("minutes.no_subsidiary_disposition",
+# Was `minutes.no_subsidiary_disposition`; same rename.
+@check("minutes.no_subsidiary_outcome",
        "an item's recorded outcome is not a motion about something else")
 def _(con):
     """A public hearing's minutes hold several motions and only one disposes
@@ -236,21 +239,21 @@ def _(con):
                          WHERE pe.meeting_id = agenda_items.meeting_id
                            AND pf.kind = 'Minutes' AND pf.chars > 2000)"""
     q = f"""FROM agenda_items
-            WHERE disposition IS NOT NULL AND {readable} AND disposition ~* %s"""
+            WHERE outcome_text IS NOT NULL AND {readable} AND outcome_text ~* %s"""
     # The examples query is run without parameters by main(), so the pattern
     # goes in as a literal and its apostrophe has to be doubled. The count
     # binds it properly and must NOT be.
     lit = q.replace("%s", "'" + rx.replace("'", "''") + "'")
     return count(con, f"SELECT COUNT(*) {q}", (rx,)), \
-        f"SELECT code, outcome, outcome_source, left(disposition,80) {lit} LIMIT 6", \
-        f"SELECT COUNT(*) FROM agenda_items WHERE disposition IS NOT NULL AND {readable}"
+        f"SELECT code, outcome, outcome_source, left(outcome_text,80) {lit} LIMIT 6", \
+        f"SELECT COUNT(*) FROM agenda_items WHERE outcome_text IS NOT NULL AND {readable}"
 
 
 @check("minutes.orphaned_outcomes",
        "an outcome whose minutes are no longer attached to its meeting",
        review=True)
 def _(con):
-    """These items hold a disposition that `parse_minutes` can no longer see.
+    """These items hold an outcome that `parse_minutes` can no longer see.
 
     Their meeting has no readable minutes document, because the portal event
     carrying it is now linked to a DIFFERENT meeting record for the same day -
@@ -285,7 +288,7 @@ def _(con):
     sections - meeting 27's C1 is a Consent resolution AND a Public Hearings
     rezoning. `parse_minutes` resolved to a code and then updated
     `WHERE meeting_id=%s AND code=%s`, so one sentence landed on both: 58 rows
-    across 28 pairs held a disposition parsed for a genuinely different item,
+    across 28 pairs held an outcome parsed for a genuinely different item,
     and which sentence it was depended on the query plan (task #33).
 
     Restricted to rows in DIFFERENT sections deliberately. Two items in the
@@ -296,13 +299,13 @@ def _(con):
     q = """FROM agenda_items a
            JOIN agenda_items b ON b.meeting_id = a.meeting_id
                               AND b.code = a.code AND b.id <> a.id
-           WHERE a.disposition IS NOT NULL
-             AND b.disposition IS NOT DISTINCT FROM a.disposition
+           WHERE a.outcome_text IS NOT NULL
+             AND b.outcome_text IS NOT DISTINCT FROM a.outcome_text
              AND lower(COALESCE(a.section,'')) <> lower(COALESCE(b.section,''))"""
     return count(con, f"SELECT COUNT(DISTINCT a.id) {q}"), f"""
         SELECT a.meeting_id, a.code, a.section, b.section AS other_section,
-               left(a.disposition, 60) {q} LIMIT 6""", \
-        """SELECT COUNT(*) FROM agenda_items a WHERE a.disposition IS NOT NULL
+               left(a.outcome_text, 60) {q} LIMIT 6""", \
+        """SELECT COUNT(*) FROM agenda_items a WHERE a.outcome_text IS NOT NULL
              AND EXISTS (SELECT 1 FROM agenda_items b
                           WHERE b.meeting_id = a.meeting_id AND b.code = a.code
                             AND b.id <> a.id)"""

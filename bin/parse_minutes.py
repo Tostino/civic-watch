@@ -1,4 +1,4 @@
-"""Parse published minutes into a disposition for every agenda item.
+"""Parse published minutes into an outcome for every agenda item.
 
 The minutes restate each item exactly as the agenda did, then add one line
 saying what the board actually did with it:
@@ -16,7 +16,7 @@ in bulk:
     C50, and C69 which were pulled for discussion or revision and Agenda Items
     C27 and C72 which were withdrawn.
 
-Resolving that sentence is the whole job. A regex over disposition lines finds
+Resolving that sentence is the whole job. A regex over outcome lines finds
 maybe a fifth of the items; the other four fifths are covered by exactly one
 sentence per meeting that has to be read as "everything in this section EXCEPT
 these, and here is what happened to those instead".
@@ -26,7 +26,7 @@ continue the item to the August 11 meeting" begins with "Approved" and is a
 CONTINUANCE - reading the first word would file a delay as a decision, which
 is the single most misleading thing this table could say.
 
-An item may carry SEVERAL motions, and most of them are not its disposition:
+An item may carry SEVERAL motions, and most of them are not its outcome:
 
     P83     Zoning Amendment (Regular) - Evans County Line 80 MPUD ...
             Recommendation    Approval with Conditions
@@ -69,7 +69,7 @@ CODE = re.compile(r"\b([A-Z]{1,3})\s?-?\s?(\d{1,3})\b")
 
 # A page marker without the word "Page", which is how it extracts in the
 # 2015-2017 minutes. NOISE demands "Page" and misses these, and a stray "15 of
-# 17" in the middle of a disposition is what a swallowed line looks like.
+# 17" in the middle of an outcome is what a swallowed line looks like.
 PAGE = re.compile(r"^\d{1,3}\s+of\s+\d{1,3}$")
 
 # These minutes carry the video offset after the sentence:
@@ -79,11 +79,11 @@ PAGE = re.compile(r"^\d{1,3}\s+of\s+\d{1,3}$")
 # which is furniture, and it defeated the "has this sentence finished" test in
 # parse(). The sentence then stayed open and swallowed the next eight lines -
 # the following item's heading, its File Number, its Recommendation - so `cur`
-# never advanced and every disposition after it was filed under the wrong item.
-# Measured: 86 stored dispositions contained a later item's heading. Now 0.
+# never advanced and every outcome after it was filed under the wrong item.
+# Measured: 86 stored outcomes contained a later item's heading. Now 0.
 TAIL = re.compile(r"\s*\(\d{1,2}:\d{2}(?::\d{2})?\)\s*$")
 
-# Motions that are NOT a disposition of the item.
+# Motions that are NOT an outcome for the item.
 #
 # Two kinds, both read from the minutes rather than imagined:
 #
@@ -91,7 +91,7 @@ TAIL = re.compile(r"\s*\(\d{1,2}:\d{2}(?::\d{2})?\)\s*$")
 #                "Approved to receive and file documents submitted by Mr.
 #                Vermillion", "Approved to accept ex parte forms". 300-odd of
 #                these. The person's name is the tell: a bare "receive and
-#                file the report" IS a disposition, and Noted Items are
+#                file the report" IS an outcome, and Noted Items are
 #                recommended "Receive and File" as their whole substance.
 #   procedural   whether to take the item up at all - "Approved to hear the
 #                emergency", "to hear the walk-on", "Approved to reconsider
@@ -122,7 +122,7 @@ SUBSIDIARY = re.compile(
 # The same invariant, in Postgres ARE, for bin/audit.py to count in bulk. It
 # lives HERE rather than in audit.py so the two definitions sit in one file and
 # a change to either is visibly a change to both - `minutes.no_subsidiary_
-# disposition` and `choose()` must agree, or the audit will bless exactly what
+# outcome_text` and `choose()` must agree, or the audit will bless exactly what
 # the parser broke. `tests/` would be better; a shared constant is what this
 # project has, and `bin/audit.py --only minutes` is how you check they agree.
 #
@@ -152,7 +152,7 @@ def load_agenda(con, meeting_id):
     Read into a dict keyed on code, with no ORDER BY, whichever row the query
     happened to yield last decided the whole meeting's map. Measured in the
     sandbox with NOTHING changed but `enable_indexscan`: 4 of 688 items stored
-    a different disposition, and meeting 220's PC5 stored one under one plan
+    a different outcome_text, and meeting 220's PC5 stored one under one plan
     and nothing at all under the other.
 
     ORDER BY here makes even the last-resort tie-break deterministic; the
@@ -231,7 +231,7 @@ def pick(by_code, code, section=None, heading=None):
 
 
 def choose(sentences, code=None, by_code=None):
-    """Which of an item's recorded motions is its disposition?
+    """Which of an item's recorded motions is its outcome?
 
     Subsidiary motions are dropped, and of what is left the LAST is the answer:
     the minutes are chronological, so the final action on an item is what became
@@ -256,7 +256,7 @@ def choose(sentences, code=None, by_code=None):
     letter, approve what is left - not a reversal. The board said no.
 
     Returns None when EVERY motion is subsidiary. The minutes then record no
-    disposition for this item, and saying so is the honest answer - it is
+    outcome for this item, and saying so is the honest answer - it is
     already the designed state for the 24% of items the minutes do not dispose
     of in writing. Keeping the subsidiary motion instead would not be
     preserving information; it would be asserting something false, which is the
@@ -272,7 +272,7 @@ def choose(sentences, code=None, by_code=None):
         """"Approved to accept the withdrawal of N91." under item RS4.
 
         A motion naming a DIFFERENT agenda code, and not this one, is that
-        item's disposition sitting in the wrong place - and it drags its
+        item's outcome sitting in the wrong place - and it drags its
         outcome with it, so RS4 was being recorded as `withdrawn`. Restricted
         to codes that are really on this agenda, so a contract number or a road
         name cannot disqualify a good sentence.
@@ -300,7 +300,8 @@ BULK_SECTION = [
 
 
 def classify(text):
-    """Disposition sentence -> outcome. Order matters; see the module docstring."""
+    """Outcome sentence -> classified outcome. Order matters; see the module
+    docstring."""
     t = " ".join((text or "").split()).lower()
     if not t:
         return None
@@ -340,11 +341,11 @@ def codes_in(text):
 
 
 def parse(text):
-    """(occurrences, bulk) - the disposition sentences per ITEM OCCURRENCE.
+    """(occurrences, bulk) - the outcome sentences per ITEM OCCURRENCE.
 
     Each occurrence is {code, heading, sentences}, in document order, and
     carries a LIST of sentences because an item routinely records several
-    motions and only one of them is its disposition (see `choose()`). It used
+    motions and only one of them is its outcome (see `choose()`). It used
     to `setdefault` the first and discard the rest, which is how an evidentiary
     motion became 106 items' recorded outcome.
 
@@ -371,7 +372,7 @@ def parse(text):
         buf, target = None, None
 
     for ln in lines:
-        # An OPEN disposition sentence swallows everything until it ends. This
+        # An OPEN outcome sentence swallows everything until it ends. This
         # is not fussiness: the exception list wraps, and its second line reads
         # "C69 which were pulled for discussion ..." - which matches ITEM. Let
         # that break the sentence and the exception list silently loses every
@@ -382,7 +383,7 @@ def parse(text):
         # before asking whether the sentence has ended (TAIL), and a line that
         # begins the NEXT item is never eaten however unfinished this sentence
         # looks - being wrong about where an item ends is worse than truncating
-        # a disposition, because it silently re-parents everything after it.
+        # an outcome, because it silently re-parents everything after it.
         if buf is not None:
             done = TAIL.sub("", " ".join(buf).rstrip()).endswith(".")
             if (not done and len(buf) < 8
@@ -402,12 +403,12 @@ def parse(text):
         if FIELD.match(ln):
             after_fields = True
             continue
-        # The capital is load-bearing. A disposition always begins a sentence
+        # The capital is load-bearing. An outcome always begins a sentence
         # in these documents, so a lowercase match is a WRAPPED LINE - "pulled
         # for discussion. Agenda Items C12, C13, and C34 were withdrawn.",
         # "withdrawn.", "denied PDD's recommendation of denial ...". There are
         # 132 of those against 8,589 real ones, and treating a fragment as a
-        # new disposition is how one becomes an item's recorded outcome.
+        # new outcome is how one becomes an item's recorded outcome.
         if VERB.match(ln) and ln[:1].isupper():
             buf = [ln]
             # A sentence naming a whole section belongs to the section, not to
@@ -431,7 +432,7 @@ def resolve(occurrences, bulk, items, by_code):
     The key is the item's ID, not its code. Returning {code: ...} and then
     updating `WHERE meeting_id=%s AND code=%s` wrote one minutes sentence onto
     every row sharing the code - measured: 58 rows across 28 pairs, each
-    carrying a disposition parsed for a genuinely different item, with meeting
+    carrying an outcome parsed for a genuinely different item, with meeting
     27's consent resolution and its rezoning both reading `approved` from the
     same sentence.
     """
@@ -568,41 +569,41 @@ def main():
         with con.cursor() as cur:
             # Clear, then write. These columns are DERIVED, so an UPDATE-only
             # write leaves whatever an older run decided about any item this run
-            # no longer resolves - which is exactly how a disposition the parser
+            # no longer resolves - which is exactly how an outcome the parser
             # has since learned to reject survives the fix that rejected it.
             #
             # The clear runs whenever this meeting's minutes were READ, not only
             # when they yielded something. Guarding on `hits` looked safer and
             # was the bug: a meeting whose only motions are subsidiary correctly
             # resolves to nothing, and the guard then preserved precisely the
-            # subsidiary dispositions that decision had just rejected.
+            # subsidiary motions that decision had just rejected.
             cur.execute(
-                "UPDATE agenda_items SET disposition=NULL, outcome=NULL, "
+                "UPDATE agenda_items SET outcome_text=NULL, outcome=NULL, "
                 "outcome_source=NULL WHERE meeting_id=%s AND code IS NOT NULL",
                 (meeting_id,))
             if hits:
                 # BY ID. `WHERE meeting_id=%s AND code=%s` wrote every row
                 # sharing the code, and 39 (meeting_id, code) pairs name more
-                # than one row: 58 items carried a disposition parsed for a
+                # than one row: 58 items carried an outcome parsed for a
                 # different item, deterministically and wrongly.
                 cur.executemany(
-                    "UPDATE agenda_items SET disposition=%s, outcome=%s, "
+                    "UPDATE agenda_items SET outcome_text=%s, outcome=%s, "
                     "outcome_source=%s WHERE id=%s",
                     [(d[:400], o, src, item_id)
                      for item_id, (d, o, src) in hits])
         con.commit()
 
     print(f"{len(rows)} minutes documents · {tot_items:,} agenda items in those "
-          f"meetings\n  {matched:,} given a disposition "
+          f"meetings\n  {matched:,} given an outcome "
           f"({100*matched//max(tot_items,1)}%)")
     for k, v in sorted(by_src.items(), key=lambda kv: -kv[1]):
         print(f"    {k:<16}{v:>7,}")
     # Said out loud rather than left implied: these are the two places where an
-    # item's disposition was a judgement rather than a reading.
+    # item's outcome was a judgement rather than a reading.
     print(f"\n  {n_subsidiary:,} subsidiary motions skipped "
           f"(evidence accepted, or a motion to hear the item at all)")
     print(f"  {n_silent:,} items had NOTHING but subsidiary motions and are "
-          f"left with no disposition")
+          f"left with no outcome")
     print(f"  {n_multi:,} items still carry more than one substantive motion; "
           f"the last is taken, unless one of them is a refusal")
     # The third place the parser judges rather than reads. A code that names

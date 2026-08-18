@@ -185,8 +185,8 @@ export function CaseView({ data }: { data: CaseDetail }) {
                   <strong>{outcomeLabel(terminal.outcome)}</strong> by the {terminal.body} on{" "}
                   {meetingDate(terminal.date, "short")}
                 </span>
-                {terminal.disposition ? (
-                  <blockquote className={s.verdictQuote}>{terminal.disposition}</blockquote>
+                {terminal.outcome_text ? (
+                  <blockquote className={s.verdictQuote}>{terminal.outcome_text}</blockquote>
                 ) : null}
               </>
             ) : (
@@ -423,10 +423,10 @@ function Step({
           </p>
         )}
 
-        {step.disposition ? (
-          <blockquote className={s.disposition}>
+        {step.outcome_text ? (
+          <blockquote className={s.outcomeText}>
             <ProvenanceMark kind="minutes" />
-            <p>{step.disposition}</p>
+            <p>{step.outcome_text}</p>
           </blockquote>
         ) : null}
 

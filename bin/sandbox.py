@@ -244,7 +244,7 @@ COMPARE = [
     ("transcript items", "SELECT count(*) FROM agenda_items WHERE source='transcript'"),
     ("items with an outcome", "SELECT count(*) FROM agenda_items WHERE outcome IS NOT NULL"),
     ("items with a nay vote",
-     "SELECT count(*) FROM agenda_items WHERE disposition ~* 'vot(ing|ed) nay'"),
+     "SELECT count(*) FROM agenda_items WHERE outcome_text ~* 'vot(ing|ed) nay'"),
     ("cases", "SELECT count(*) FROM cases"),
     ("segments", "SELECT count(*) FROM segments"),
     ("item spans", "SELECT count(*) FROM item_spans"),

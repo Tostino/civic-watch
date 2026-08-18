@@ -805,8 +805,8 @@ def _item_block(i, full=False):
         out.append(f"  department: {i['department']}")
     if full and i.get("recommendation"):
         out.append(f"  staff recommendation: {_clip(i['recommendation'], 200)}")
-    if i.get("disposition"):
-        out.append(f"  MINUTES: {_clip(i['disposition'], 320)}"
+    if i.get("outcome_text"):
+        out.append(f"  MINUTES: {_clip(i['outcome_text'], 320)}"
                    f"  (recorded outcome: {i.get('outcome')})")
     else:
         out.append("  MINUTES: no outcome recorded for this item")

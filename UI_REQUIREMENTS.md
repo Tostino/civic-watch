@@ -704,7 +704,7 @@ column on `agenda_items`. Proposed shape:
 
 ```
 item_facts(item_id, kind, value, value_num,
-           source,      -- title | disposition | transcript | model
+           source,      -- title | outcome_text | transcript | model
            extractor,   -- name and version, so a re-run is identifiable
            evidence,    -- the exact substring it came from
            confidence)  -- null when the parse is deterministic

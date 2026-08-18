@@ -291,7 +291,7 @@ def decisions_in_play(con, passages, max_segments=8, per_segment=4):
 
 ITEM_FTS = """to_tsvector('english',
     coalesce(ai.title,'') || ' ' || coalesce(ai.case_id,'') || ' ' ||
-    coalesce(ai.department,'') || ' ' || coalesce(ai.disposition,''))"""
+    coalesce(ai.department,'') || ' ' || coalesce(ai.outcome_text,''))"""
 
 
 # An identifier, not a topic. `PDE-25-7738`, `R-58`, `C10`, `CPAL-2206`. The
@@ -312,7 +312,7 @@ ORDERS = {
     "relevance": "{rank}, m.date DESC",
     # What an agent asking "what was decided" means. A case carries five
     # continuances and one approval, and the approval is the answer, so a
-    # terminal disposition outranks a better word match. Wrong for a human
+    # terminal outcome outranks a better word match. Wrong for a human
     # search box - it puts "Trench Plate Build-A-Box" above "License Plate
     # Detection Systems" because the trench plate was approved.
     "decided": ("(ai.outcome IN ('approved','adopted','denied','withdrawn'))"
@@ -333,7 +333,7 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
     "nothing in the indexed meetings matches that" while the county's own
     minutes recorded the decision.
 
-    Terminal dispositions rank above continuances: a case carries five
+    Terminal outcomes rank above continuances: a case carries five
     deferrals and one approval, and the approval is the answer.
 
     Facets are applied in SQL rather than to the result page, so narrowing by
@@ -387,7 +387,7 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
         return n, [dict(r) for r in con.execute(f"""
             SELECT ai.id, ai.seq, ai.code, ai.title, ai.search_title,
                    ai.case_id, ai.section, ai.phase, ai.department,
-                   ai.recommendation, ai.disposition, ai.outcome,
+                   ai.recommendation, ai.outcome_text, ai.outcome,
                    ai.outcome_source, ai.source, ai.districts, ai.file_number,
                    m.id AS meeting_id, m.date, m.body, m.title AS meeting_title,
                    EXISTS (SELECT 1 FROM item_spans sp
@@ -468,7 +468,7 @@ def items_for(con, passages, limit=18):
                  JOIN seed ON seed.id = ai.id WHERE ai.case_id IS NOT NULL)
         SELECT ai.id, ai.code, ai.title, ai.search_title, ai.case_id,
                ai.section, ai.phase, ai.department, ai.recommendation,
-               ai.disposition, ai.outcome, ai.outcome_source, ai.source,
+               ai.outcome_text, ai.outcome, ai.outcome_source, ai.source,
                m.id AS meeting_id, m.date, m.body, m.title AS meeting_title,
                EXISTS (SELECT 1 FROM item_spans sp
                        WHERE sp.agenda_item_id = ai.id) AS has_recording

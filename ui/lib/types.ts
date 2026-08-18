@@ -55,7 +55,7 @@ export interface Item {
   case_id: string | null;
   department: string | null;
   recommendation: string | null;
-  disposition: string | null;
+  outcome_text: string | null;
   outcome: Outcome | null;
   source: Source;
   districts: string | null;
@@ -234,7 +234,7 @@ export interface ThreadStep {
   title: string | null;
   phase: string;
   outcome: Outcome | null;
-  disposition: string | null;
+  outcome_text: string | null;
   meeting_id: number;
   date: string;
   body: string;
@@ -288,7 +288,7 @@ export interface CaseStep {
   title: string | null;
   department: string | null;
   recommendation: string | null;
-  disposition: string | null;
+  outcome_text: string | null;
   outcome: Outcome | null;
   source: Source;
   districts: string | null;
@@ -313,7 +313,7 @@ export interface CaseHearing extends ItemRun {
   body: string;
   phase: string;
   outcome: Outcome | null;
-  disposition: string | null;
+  outcome_text: string | null;
 }
 
 export interface CaseDetail {
@@ -342,7 +342,7 @@ export interface CaseDetail {
     date: string;
     body: string;
     outcome: Outcome;
-    disposition: string | null;
+    outcome_text: string | null;
   } | null;
   continuances: number;
   recorded: number;
@@ -413,7 +413,7 @@ interface DividedBase {
 /** Dissent as the approved minutes recorded it. Quotable. */
 export interface DividedInRecord extends DividedBase {
   source: "record";
-  disposition: string;
+  outcome_text: string;
   /** Who voted nay, from the minutes' own wording. */
   dissent: string[];
   /** Items carried on this one motion — six consent items can share it. */

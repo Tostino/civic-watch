@@ -567,10 +567,10 @@ function RecordCite({ item, n }: { item: RecordHit; n: number | undefined }) {
       <Link href={`/item/${item.id}`} className={s.recTitle}>
         {shortTitle(item.title, 150) || "(no title published)"}
       </Link>
-      {item.disposition ? (
-        <p className={s.disposition}>{item.disposition}</p>
+      {item.outcome_text ? (
+        <p className={s.outcomeText}>{item.outcome_text}</p>
       ) : (
-        <p className={s.noDisposition}>The minutes record no outcome for this item.</p>
+        <p className={s.noOutcome}>The minutes record no outcome for this item.</p>
       )}
     </div>
   );

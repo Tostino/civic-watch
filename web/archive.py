@@ -195,7 +195,7 @@ def overview(con, body=None):
 #                    published weeks late, so the most recent contested
 #                    meetings are always missing from it
 #   the transcript   catches division the minutes never record at all - a
-#                    debate that produced no motion leaves no disposition,
+#                    debate that produced no motion leaves no outcome,
 #                    which is exactly how the August 2026 argument over Flock
 #                    licence-plate cameras came to be invisible here
 #
@@ -343,21 +343,21 @@ ROOM_ARGS = {"gate": ROOM_GATE, "fail": ROOM_FAIL, "tally": ROOM_TALLY,
 
 def _divided_record(con, limit):
     """Dissent as the minutes recorded it. Authoritative, and always behind."""
-    # Items heard together share one motion and one disposition verbatim -
+    # Items heard together share one motion and one outcome sentence verbatim -
     # six consent items in February 2016 carry the same sentence about
     # Commissioner Mariano. Six identical rows is not six disagreements, so
     # the motion is the unit and the rest are counted, not listed.
     rows = [dict(r) for r in con.execute(f"""
-        SELECT DISTINCT ON (ai.meeting_id, ai.disposition)
-               ai.id, ai.code, ai.title, ai.outcome, ai.disposition,
+        SELECT DISTINCT ON (ai.meeting_id, ai.outcome_text)
+               ai.id, ai.code, ai.title, ai.outcome, ai.outcome_text,
                ai.case_id, m.id AS meeting_id, m.date, m.body,
-               COUNT(*) OVER (PARTITION BY ai.meeting_id, ai.disposition) AS items
+               COUNT(*) OVER (PARTITION BY ai.meeting_id, ai.outcome_text) AS items
           FROM agenda_items ai JOIN meetings m ON m.id = ai.meeting_id
-         WHERE ai.disposition ~* '{NAY_SQL}'
-         ORDER BY ai.meeting_id, ai.disposition, ai.seq""")]
+         WHERE ai.outcome_text ~* '{NAY_SQL}'
+         ORDER BY ai.meeting_id, ai.outcome_text, ai.seq""")]
     for r in rows:
         r["source"] = "record"
-        r["dissent"] = NAY_NAMES.findall(r["disposition"] or "")
+        r["dissent"] = NAY_NAMES.findall(r["outcome_text"] or "")
     rows.sort(key=lambda r: (r["date"], r["id"]), reverse=True)
     return rows[:limit]
 
@@ -474,7 +474,7 @@ def highlights(con, limit=6, divided_limit=None):
                                                                        AS refused,
                COUNT(*) FILTER (WHERE ai.outcome = 'withdrawn')        AS withdrawn,
                COUNT(*) FILTER (WHERE ai.outcome = 'continued')        AS continued,
-               COUNT(*) FILTER (WHERE ai.disposition ~* %s)            AS divided,
+               COUNT(*) FILTER (WHERE ai.outcome_text ~* %s)            AS divided,
                COUNT(*) FILTER (WHERE ai.outcome IS NOT NULL
                                   AND ai.phase IN ('public_hearing','regular'))
                                                                        AS heard,
@@ -494,7 +494,7 @@ def highlights(con, limit=6, divided_limit=None):
               FROM agenda_items ai
              WHERE ai.meeting_id = %s
                AND (ai.outcome IN ('denied','no_action')
-                    OR ai.disposition ~* %s)
+                    OR ai.outcome_text ~* %s)
              ORDER BY (ai.outcome IN ('denied','no_action')) DESC, ai.seq
              LIMIT 2""", (d["meeting_id"], NAY_SQL))]
 
@@ -806,7 +806,7 @@ def issues(con, live=False):
                COUNT(*) FILTER (WHERE ai.outcome = 'continued')  AS continued,
                COUNT(*) FILTER (WHERE ai.outcome
                                       IN ('denied','no_action')) AS refused,
-               COUNT(*) FILTER (WHERE ai.disposition
+               COUNT(*) FILTER (WHERE ai.outcome_text
                                       ~* '{NAY_SQL}')            AS divided,
                MIN(m.date) AS first, MAX(m.date) AS last
           FROM t
@@ -882,7 +882,7 @@ def issues(con, live=False):
             "lines": sum(r["lines"] for r in rm.values()),
             "heard": sum(r["meetings"] for r in rm.values()),
             "first": min(dates), "last": max(dates),
-            # `pushed` is continued + denied/no_action + a disposition naming a
+            # `pushed` is continued + denied/no_action + an outcome naming a
             # nay vote: the item did not simply pass. Already counted per year
             # by the query above and previously summed away, so the strip could
             # say when a subject was BUSY and never when it was HARD.
@@ -1035,7 +1035,7 @@ def meeting(con, meeting_id):
     # two spans, which is why spans are aggregated rather than joined flat.
     out["items"] = [dict(r) for r in con.execute("""
         SELECT ai.id, ai.seq, ai.code, ai.section, ai.phase, ai.title,
-               ai.case_id, ai.department, ai.recommendation, ai.disposition,
+               ai.case_id, ai.department, ai.recommendation, ai.outcome_text,
                ai.outcome, ai.source, ai.districts, ai.file_number,
                COALESCE((
                    SELECT json_agg(json_build_object(
@@ -1270,7 +1270,7 @@ def item(con, item_id):
     r = con.execute("""
         SELECT ai.id, ai.meeting_id, ai.seq, ai.code, ai.section, ai.phase,
                ai.title, ai.case_id, ai.department, ai.recommendation,
-               ai.disposition, ai.outcome, ai.outcome_source, ai.source,
+               ai.outcome_text, ai.outcome, ai.outcome_source, ai.source,
                ai.districts, ai.file_number,
                m.date, m.body, m.title AS meeting_title
         FROM agenda_items ai JOIN meetings m ON m.id = ai.meeting_id
@@ -1326,7 +1326,7 @@ def item(con, item_id):
     # Councilmatic puts the history ON the item for exactly this reason. The
     # dedicated view is one click away; this is the shape of the sequence.
     row["thread"] = [dict(x) for x in con.execute("""
-        SELECT ai.id, ai.code, ai.title, ai.phase, ai.outcome, ai.disposition,
+        SELECT ai.id, ai.code, ai.title, ai.phase, ai.outcome, ai.outcome_text,
                m.id AS meeting_id, m.date, m.body,
                EXISTS (SELECT 1 FROM item_spans sp
                         WHERE sp.agenda_item_id = ai.id) AS recorded
@@ -1385,7 +1385,7 @@ def case(con, case_id):
     """
     steps = [dict(r) for r in con.execute("""
         SELECT ai.id, ai.seq, ai.code, ai.section, ai.phase, ai.title,
-               ai.department, ai.recommendation, ai.disposition, ai.outcome,
+               ai.department, ai.recommendation, ai.outcome_text, ai.outcome,
                ai.source, ai.districts, ai.file_number,
                m.id AS meeting_id, m.date, m.body,
                (SELECT json_build_object('video_id', sp.video_id,
@@ -1432,7 +1432,7 @@ def case(con, case_id):
                           "meeting_id": st["meeting_id"], "date": st["date"],
                           "body": st["body"], "phase": st["phase"],
                           "outcome": st["outcome"],
-                          "disposition": st["disposition"]})
+                          "outcome_text": st["outcome_text"]})
     # Offices rotate annually and this case may span years, so the lookup that
     # turns a surname into "Starkey, Chairman" is per MEETING, not per case.
     offices = {m: _offices(con, m) for m in {h["meeting_id"] for h in heard}}
@@ -1469,7 +1469,7 @@ def case(con, case_id):
         "last": steps[-1]["date"],
         "terminal": ({"id": terminal["id"], "date": terminal["date"],
                       "body": terminal["body"], "outcome": terminal["outcome"],
-                      "disposition": terminal["disposition"]}
+                      "outcome_text": terminal["outcome_text"]}
                      if terminal else None),
         "continuances": sum(1 for s in steps if s["outcome"] == "continued"),
         "recorded": sum(1 for s in steps if s["span"]),

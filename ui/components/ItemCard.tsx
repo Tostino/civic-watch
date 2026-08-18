@@ -175,10 +175,10 @@ export function ItemCard({
 
       {/* The minutes, verbatim (R5.3.1). This is the authoritative answer to
           "what was decided" and it is set as the document it is. */}
-      {item.disposition ? (
-        <blockquote className={s.disposition}>
+      {item.outcome_text ? (
+        <blockquote className={s.outcomeText}>
           <ProvenanceMark kind="minutes" />
-          <p>{item.disposition}</p>
+          <p>{item.outcome_text}</p>
         </blockquote>
       ) : null}
 

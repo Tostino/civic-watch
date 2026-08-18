@@ -367,7 +367,7 @@
   padding-inline: 0.15em;
 }
 
-.disposition {
+.outcomeText {
   margin: 0;
   padding: var(--sp-3);
   background: var(--record-bg);
@@ -380,7 +380,7 @@
   max-width: var(--measure);
 }
 
-.disposition p {
+.outcomeText p {
   font-family: var(--font-record);
   font-size: var(--text-sm);
   line-height: var(--leading-record);
