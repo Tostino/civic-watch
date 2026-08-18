@@ -327,6 +327,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         u = urlparse(self.path)
+        # ...and this listener serves ONLY admin. Binding the reading API
+        # here as well would make the private port a second door onto
+        # everything, which is the shape this change exists to remove.
+        if getattr(self.server, "admin_only", False) \
+                and not u.path.startswith("/api/admin/"):
+            return self._send(404, {"error": "not found"})
         qs = parse_qs(u.query)
         one = lambda k, d=None: qs.get(k, [d])[0]
         # Opened below, and CLOSED IN THE `finally`, which is the whole reason
@@ -362,6 +368,13 @@ class Handler(BaseHTTPRequestHandler):
             # plain HTTP on a network is a giveaway, so the interface admin
             # will answer on is the one that never leaves the machine.
             if u.path.startswith("/api/admin/"):
+                # THE PORT IS THE BOUNDARY NOW. Admin binds its own listener
+                # that the edge proxy never routes, so a request arriving on
+                # the public one is not refused, it is not served: there is
+                # nothing here to reach. 404, not 403 - the public surface
+                # should not admit that an admin API exists.
+                if not getattr(self.server, "admin_only", False):
+                    return self._send(404, {"error": "not found"})
                 if not admin.loopback(self):
                     return self._send(403, {"error":
                                             "admin answers only on loopback"})
@@ -704,12 +717,25 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = urlparse(self.path)
+        # ...and this listener serves ONLY admin. Binding the reading API
+        # here as well would make the private port a second door onto
+        # everything, which is the shape this change exists to remove.
+        if getattr(self.server, "admin_only", False) \
+                and not u.path.startswith("/api/admin/"):
+            return self._send(404, {"error": "not found"})
         try:
             n = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(n) or "{}")
 
             # ------------------------------------------------- admin (D1, §9)
             if u.path.startswith("/api/admin/"):
+                # THE PORT IS THE BOUNDARY NOW. Admin binds its own listener
+                # that the edge proxy never routes, so a request arriving on
+                # the public one is not refused, it is not served: there is
+                # nothing here to reach. 404, not 403 - the public surface
+                # should not admit that an admin API exists.
+                if not getattr(self.server, "admin_only", False):
+                    return self._send(404, {"error": "not found"})
                 if not admin.loopback(self):
                     return self._send(403, {"error":
                                             "admin answers only on loopback"})
@@ -792,6 +818,23 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8765)
+    # A SEPARATE PORT FOR CURATION, and it is the whole security
+    # model. `loopback()` used to prove "this request is local" from
+    # the TCP peer plus the absence of a forwarding header. The peer
+    # is useless behind a proxy - every request looks like 127.0.0.1
+    # - and Next 16 now sets x-forwarded-for on EVERY request
+    # (base-server.js: `req.headers['x-forwarded-for'] ??=
+    # socket.remoteAddress`), so the second half stopped
+    # distinguishing anything and locked the console out of its own
+    # front end instead.
+    #
+    # A port the edge never routes cannot be reached from outside at
+    # all, whatever headers anyone sends. ui/next.config.ts only adds
+    # the /api/admin rewrite when ADMIN_API is set, which the
+    # production image does not set - so out there the route does
+    # not exist rather than being refused.
+    ap.add_argument("--admin-port", type=int,
+                    default=int(os.environ.get("ADMIN_PORT", 8766)))
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--no-dense", action="store_true",
                     help="skip loading the embedding model; search falls back "
@@ -818,16 +861,28 @@ def main():
     # say "does not match" while the operator holds the freshest file.
     try:
         httpd = ThreadingHTTPServer((args.host, args.port), Handler)
+        httpd.admin_only = False
     except OSError as e:
         print(f"cannot bind {args.host}:{args.port}: {e}", file=sys.stderr)
+        return 1
+    # Loopback ALWAYS, whatever --host says for the public one. There is no
+    # deployment in which curation should answer on a network interface.
+    try:
+        admin_httpd = ThreadingHTTPServer(("127.0.0.1", args.admin_port), Handler)
+        admin_httpd.admin_only = True
+    except OSError as e:
+        httpd.server_close()
+        print(f"cannot bind 127.0.0.1:{args.admin_port}: {e}", file=sys.stderr)
         return 1
     # D1: fresh admin token per process start. NEVER printed and never logged -
     # only the path is announced; the operator reads the file themselves.
     token_path = admin.init(ROOT)
     print(f"research  → http://{args.host}:{args.port}/")
     print(f"workbench → http://{args.host}:{args.port}/speakers")
-    print(f"admin     → http://localhost:3000/admin — paste the token from "
-          f"{token_path} (mode 600, regenerated each start)")
+    print(f"admin     → 127.0.0.1:{args.admin_port} (loopback only, its own "
+          f"listener) — paste the token from")
+    print(f"            {token_path} (mode 600, regenerated each start)")
+    threading.Thread(target=admin_httpd.serve_forever, daemon=True).start()
     httpd.serve_forever()
 
 

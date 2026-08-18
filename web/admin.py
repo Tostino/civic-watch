@@ -67,43 +67,37 @@ def init(root):
     return _token_path
 
 
-# Headers only a proxy adds. `x-forwarded-host` is deliberately NOT here: the
-# app's own Next rewrite adds that one on every request, including the
-# operator's on this machine, so treating it as evidence would lock the console
-# out of its own front end. Measured, not assumed - a local Next rewrite sends
-# x-forwarded-host and nothing else, and passes an incoming x-forwarded-for and
-# x-real-ip straight through.
-PROXIED = ("x-forwarded-for", "x-real-ip", "forwarded")
-
-
+# WHICH PORT ANSWERED IS THE SECURITY MODEL. See web/server.py --admin-port.
+#
+# This used to be two conditions: the TCP peer must be loopback, AND the
+# request must carry no forwarding header. The first is necessary and not
+# sufficient - any reverse proxy puts itself in the peer slot, so everything
+# arrives from 127.0.0.1. The second was doing the real work, on the measured
+# claim that "a local Next rewrite sends x-forwarded-host and nothing else".
+#
+# That measurement expired. Next 16 sets x-forwarded-for on EVERY request
+# (node_modules/next/dist/server/base-server.js:
+# `req.headers['x-forwarded-for'] ??= originalRequest?.socket?.remoteAddress`),
+# so the header became a constant rather than a signal - and since it is
+# present on the operator's own local request too, the rule that was meant to
+# keep the public out locked the console out of its own front end. Measured
+# 2026-08-18: every /api/admin call through the UI answered 403.
+#
+# Trusting the header's VALUE instead was the obvious repair and it is not
+# sound: Next only fills the header in when it is absent, so a remote client
+# that sends `x-forwarded-for: 127.0.0.1` has it forwarded untouched, and the
+# check would then be asserting exactly what the attacker supplied.
+#
+# So the boundary moved to something no header can forge. Curation binds its
+# own loopback listener; the public one 404s every /api/admin path; and the
+# UI only rewrites to that port when ADMIN_API is set, which the production
+# image does not set. Out there the route does not exist. The peer check below
+# stays as depth - it is free, and it still rules out anyone reaching the port
+# directly across a network.
 def loopback(handler):
-    """Is this request genuinely from this machine?
-
-    The peer address alone cannot answer that, and believing it was the whole
-    of gotcha 94. `client_address` is the TCP peer, so ANY reverse proxy makes
-    every request on earth look like 127.0.0.1 - and this app ships with one,
-    the `/api/:path*` rewrite in ui/next.config.ts. Verified before the fix:
-    `/api/admin/session` answered 200 through the public origin and
-    `POST /api/admin/login` reached the handler and validated tokens.
-
-    So two conditions, and they answer different questions. The peer must be
-    loopback, which rules out anyone reaching the port directly. And the
-    request must carry no forwarding header, which rules out anyone who came
-    through a proxy that put itself in the peer slot. A genuinely local client
-    sends neither.
-
-    This is why it does not consult ASK_TRUST_PROXY: that flag says "believe
-    the forwarded address for rate limiting", which is a statement about
-    counting requests. Admin is not counting anything - for admin, the presence
-    of the header is itself the disqualifying fact.
-
-    The operator still reaches the console the documented way: on the machine,
-    or over an SSH tunnel to it, where no proxy sits in between.
-    """
+    """Is this request from this machine? Asked of a port the edge cannot reach."""
     ip = handler.client_address[0]
-    if not (ip == "::1" or ip.startswith("127.")):
-        return False
-    return not any(handler.headers.get(h) for h in PROXIED)
+    return ip == "::1" or ip.startswith("127.")
 
 
 def session_of(handler):

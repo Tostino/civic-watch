@@ -5,6 +5,21 @@ import type { NextConfig } from "next";
 // and no absolute API host baked into client bundles.
 const API = process.env.ARCHIVE_API ?? "http://127.0.0.1:8765";
 
+// CURATION IS A DIFFERENT ORIGIN AND, IN PRODUCTION, NO ORIGIN AT ALL.
+// The note below used to say the hole "remains one line above" - that
+// `/api/:path*` forwarded /api/admin/* through this proxy, so the whole
+// admin API answered on the public origin and only a header check stood
+// in front of it. That check broke on Next 16 (see web/admin.py), so the
+// boundary is structural now: admin has its own loopback listener, the
+// public API 404s every admin path, and the rewrite that reaches the
+// admin port EXISTS ONLY WHEN ADMIN_API IS SET.
+//
+// Unset in the production image, so out there /api/admin/* matches the
+// general rule, hits the public API, and 404s. Defaulted in development
+// so the console works on the maintainer's machine with no setup.
+const ADMIN_API = process.env.ADMIN_API
+  ?? (process.env.NODE_ENV === "production" ? null : "http://127.0.0.1:8766");
+
 const nextConfig: NextConfig = {
   // Traces the server's real imports into .next/standalone, so the runtime
   // image carries no node_modules. Harmless in dev — it only changes what
@@ -41,6 +56,12 @@ const nextConfig: NextConfig = {
 
   async rewrites() {
     return [
+      // BEFORE the general rule, because the first match wins. Absent entirely
+      // when ADMIN_API is unset, which is what makes production safe.
+      ...(ADMIN_API
+        ? [{ source: "/api/admin/:path*",
+             destination: `${ADMIN_API}/api/admin/:path*` }]
+        : []),
       { source: "/api/:path*", destination: `${API}/api/:path*` },
       // The `/legacy/:path*` rewrite is deleted, not commented out. It existed
       // because "the surfaces this rebuild has not reached yet (search, ask)
