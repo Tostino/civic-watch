@@ -55,8 +55,11 @@ export function Entryways({ h }: { h: Highlights }) {
 /* ------------------------------------------------------------ disagreement */
 
 /**
- * The two sources, side by side and never blurred (UI_PLAN §2). Each lane is
- * blind where the other sees: the minutes name dissent formally but are
+ * The two sources, side by side and never blurred (UI_PLAN §2). The lanes are
+ * headed the way every other surface heads them - "What the minutes recorded"
+ * against "What was said" - because a reader who learns the pair on an item
+ * page should not have to learn it again here. Each lane is blind where the
+ * other sees: the minutes name dissent formally but are
  * published weeks late, and a debate that produced no motion leaves no
  * outcome to name at all. Reading only the minutes is how the August 2026
  * argument over licence-plate cameras came to be missing from this page.
@@ -82,7 +85,7 @@ function DividedSection({ d }: { d: Divided }) {
         <div className={s.lanes}>
           <div className={s.lane}>
             <h3 className={s.laneHead}>
-              <span className={s.laneWhat}>In the minutes</span>
+              <span className={s.laneWhat}>What the minutes recorded</span>
               <span className={s.laneWhy}>the official record, posted weeks later</span>
             </h3>
             <ul className={s.list}>
@@ -116,12 +119,12 @@ function DividedSection({ d }: { d: Divided }) {
 
           <div className={s.lane}>
             <h3 className={s.laneHead}>
-              <span className={s.laneWhat}>In the room</span>
+              <span className={s.laneWhat}>What was said</span>
               {/* R3.1: the transcript is machine-made and this lane is a
                   reading of it, so it says so where the claim is made rather
                   than in a footnote nobody reaches. */}
               <span className={`${s.laneWhy} ${s.inferred}`}>
-                from the video, typed up by a computer
+                from the recording, typed up by a computer
               </span>
             </h3>
             <ul className={s.list}>

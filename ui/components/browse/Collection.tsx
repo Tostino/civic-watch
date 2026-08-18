@@ -41,6 +41,13 @@ export function Collection({
   picker?: React.ReactNode;
 }) {
   const pct = (n: number) => (o.meetings ? Math.round((n / o.meetings) * 100) : 0);
+  /* FOUND, not typed. This read "No video before 2018" while the time axis
+     below it derived the same fact and said "nothing recorded before 2017" -
+     two claims on one page, disagreeing, because a 2017 workshop was attached
+     to its meeting and only the derived one noticed. `months` is ordered by
+     month, so the first with a recording is the year. TimeAxis does exactly
+     this and says why at its own `firstRecorded`. */
+  const firstRecorded = o.months.find((m) => m.recorded > 0)?.month.slice(0, 4);
   const bars = [
     { label: "agenda", n: o.with_agenda, tone: s.agenda },
     { label: "minutes", n: o.with_minutes, tone: s.minutes },
@@ -104,7 +111,8 @@ export function Collection({
       <p className={s.note}>
         {o.meetings.toLocaleString()} meetings, {o.first.slice(0, 4)} to{" "}
         {o.last.slice(0, 4)}. A missing agenda usually means the county posted a picture,
-        not text. No video before 2018.
+        not text.
+        {firstRecorded ? ` No recording before ${firstRecorded}.` : ""}
       </p>
     </section>
   );
