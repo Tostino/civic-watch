@@ -17,6 +17,23 @@ on:
       - ".github/workflows/images.yml"
   workflow_dispatch:
 
+# Actions are pinned to a commit SHA, with the tag in the comment beside it.
+#
+# Two reasons, and the deprecation warning was only the first. Every action
+# here was on a major that targets Node 20, which GitHub now force-runs on
+# Node 24 - the warning on every build since. The majors below target Node 24
+# natively and need Actions Runner v2.327.1 or later, which ubuntu-latest has
+# (it is what the forcing proves).
+#
+# The SHA is the second reason. A moving tag like `@v7` is whatever that repo
+# points it at today, and this workflow builds the image that runs the public
+# archive - a tag repointed under us is an unreviewed change to production.
+# The SHA cannot move; `# v7.0.1` beside it is what a human reads.
+#
+# Nothing updates these automatically. There is no Dependabot config in this
+# repo, so a pin here is frozen until somebody bumps it deliberately, which is
+# the trade: reproducible builds, and a security update that waits for you.
+
 permissions:
   contents: read
   packages: write
@@ -25,18 +42,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4.2.0
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302  # v6.2.0
         with:
           # Lowercase, hardcoded. GHCR rejects an uppercase path and
           # `github.repository_owner` is "Tostino", which is the classic way
@@ -46,7 +63,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           # Context is the repo root: the Dockerfile copies bin/, web/ and ui/.
           context: .
