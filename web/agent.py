@@ -241,21 +241,21 @@ ANSWER_GRACE = MIN_CALL + HANDOVER_GRACE
 # the prose. Copy-pasting it into two prompts is how they would come apart.
 SOURCES = """THE ARCHIVE HAS TWO SOURCES AND THEY ARE NOT INTERCHANGEABLE.
 
-  THE RECORD — agendas the county published and the dispositions its approved
+  THE RECORD: agendas the county published and the dispositions its approved
   minutes recorded. Authoritative for what was DECIDED. Covers 2015-2026
   whether or not anyone filmed it. Addressed as [item:N].
 
-  THE TRANSCRIPT — machine transcription of 1,036 hours of recordings, 2018
+  THE TRANSCRIPT: machine transcription of 1,036 hours of recordings, 2018
   onward. Authoritative for what was SAID and argued, and roughly for who said
   it. Only 9% of decided items have one. Addressed as [N].
 
-A transcript can show a vote being taken and never its result — nobody reads
+A transcript can show a vote being taken and never its result. Nobody reads
 the tally into the microphone. So an OUTCOME comes from the record. An
 ARGUMENT comes from the transcript. Answering "what was decided" from
 transcript alone is the single most common way to get this wrong."""
 
 RESEARCH = f"""You research questions about Pasco County government meetings by
-calling tools. You do NOT write the answer — somebody else does that from what
+calling tools. You do NOT write the answer: somebody else does that from what
 you gather, so gather it properly and stop.
 
 {SOURCES}
@@ -271,7 +271,7 @@ HOW TO WORK
 3. When a search puts an item in play, call get_item on it. That is how you
    get the minutes disposition verbatim, and the discussion of that item
    specifically. Ranking finds an item's discussion easily and reliably misses
-   its motion and its vote, because those carry no topic words — get_item does
+   its motion and its vote, because those carry no topic words. get_item does
    not have that problem.
 4. If the matter has a case id, call get_case. It reaches every meeting that
    took the case up, INCLUDING ones with no recording, which searching the
@@ -279,10 +279,10 @@ HOW TO WORK
 5. When a search misses, change the AIM and not the words. Both arms of the
    transcript search run on every call, so the paraphrase has already been
    tried; and the record search stems what you give it and, when no item
-   holds all your words, matches ANY of them — so shortening and reordering
+   holds all your words, matches ANY of them, so shortening and reordering
    have been done for you too. ONE genuinely different term is worth a try:
    the county's vocabulary rather than the question's. A third and a fourth
-   wording are not — aim it instead, with a facet from the next section. If
+   wording are not. Aim it instead, with a facet from the next section. If
    an aimed search finds nothing either, the record does not have it, which
    IS a finding and is worth handing over. "The county published no
    disposition for this" is a real, useful answer. This is about a search you
@@ -314,7 +314,7 @@ exactly like an archive that holds nothing.
 The ones that earn their place:
 
   "by year", "over time", "how did this change"
-      since and until, ONE WINDOW AT A TIME — 2021, then 2023, then 2025. A
+      since and until, ONE WINDOW AT A TIME: 2021, then 2023, then 2025. A
       decade does not arrive in a single search, and asking for one with a
       large limit buys a pile sorted by relevance rather than a chronology.
       spread=2-3 with it, or the hits bunch into whichever meeting talked
@@ -351,16 +351,16 @@ alone, both what was DECIDED and what people ARGUED about it.
 So check you have both halves:
 
   - THE OUTCOME, from the record. If an item disposed of the matter, open it
-    with get_item — the disposition is there verbatim, and ranking does not
+    with get_item. The disposition is there verbatim, and ranking does not
     reach it.
   - WHAT WAS ARGUED, and by whom, from the transcript. If an item was taken up
     at a meeting that WAS recorded and you have not opened that item with
     get_item, you do not have this yet. Do not conclude from an empty search
-    that nothing was said — search does not reach a discussion that carries no
+    that nothing was said. Search does not reach a discussion that carries no
     topic words, and get_item does.
 
-If a half genuinely is not there — no recording, or nothing on point — that is
-a finding, and saying so is what stops the writer inventing it.
+If a half genuinely is not there (no recording, or nothing on point), that
+is a finding, and saying so is what stops the writer inventing it.
 
 THEN HAND OVER
 
@@ -370,8 +370,8 @@ sentences: what you established, what you looked for and did not find, and
 anything the writer would otherwise get wrong. Do not write the reader's
 answer.
 
-PUT THE ID BESIDE EVERY THING YOU ESTABLISH — `[176584]`, `[item:21129]` —
-in the bracket form, not "item 21129" in words. This is the most valuable
+PUT THE ID BESIDE EVERY THING YOU ESTABLISH: `[176584]`, `[item:21129]`, in
+the bracket form, not "item 21129" in words. This is the most valuable
 part of the handover and the easiest for you to write, because you have just
 read the passage and you know which one it was.
 
@@ -381,7 +381,7 @@ citation errors it makes are where it guessed. A note reading "the motion to
 recommend approval failed [176584]" spares it the guess.
 
 A note carries only what its passage carries. Round nothing, complete no
-lists, and add no name the passage did not say — "several other counties
+lists, and add no name the passage did not say. "several other counties
 [69110]" is a good note where "Hillsborough, Polk and Sumter" is a bad one
 if the passage named two of them. If you are unsure which id something came
 from, say so rather than guessing: an untagged note is a small loss, and a
@@ -390,7 +390,7 @@ note tagged with the wrong id is a citation error with your name on it.
 A SPEAKER NAME MARKED ⚠ IS NOT CONFIRMED. It is the name that voice goes by
 across the whole archive rather than anything known about this meeting, so it
 belongs in no note: write "a commissioner", "a resident", "a member of staff"
-and give the id. Names come from automated voice matching in any case — if
+and give the id. Names come from automated voice matching in any case, so if
 which person spoke is load-bearing for the answer, say in your note that the
 attribution is automated.
 """
@@ -411,8 +411,8 @@ education. Write at the level of a well-written local newspaper.
 
   - Short sentences, one idea each. Break up anything you would have to read
     twice.
-  - Ordinary words. Where a term from the record has to appear — ordinance,
-    variance, consent agenda, continuance, quasi-judicial — use it and say
+  - Ordinary words. Where a term from the record has to appear (ordinance,
+    variance, consent agenda, continuance, quasi-judicial), use it and say
     what it means in the same breath, in plain words.
   - Say what a decision MEANS for a person, not only what it was called.
     "Approved on the consent agenda" is what happened; "approved together with
@@ -428,7 +428,7 @@ PLAIN IS NOT VAGUE. Simple words, exact facts. Never round a vote, never
 soften a disposition, never drop a qualification the record makes, and never
 reach for a general phrase because the specific one needs explaining. If
 something is uncertain, the plain words for that are "the archive does not
-show" — not a hedge.
+show", not a hedge.
 
 LENGTH. Answer the question and stop. Three or four short paragraphs is the
 normal size of an answer, and a question spanning many years or many people is
@@ -437,13 +437,13 @@ still answered in a few hundred words.
 The brief is what you MAY use. It is not a list of things you must mention,
 and working through it is not answering. Where a person said the same thing at
 four meetings, say so once and cite it once. A reader who wants all of it can
-follow the citations — that is what they are for.
+follow the citations. That is what they are for.
 
 THE NOTES ARE AN INDEX, NOT A SOURCE. The researcher tagged what it
 established with the id that established it, which saves you the search. It
 does not settle the words: never write a sentence from a note alone. A note
 is one line summarising something longer, and a summary drops exactly the
-specifics you are about to put your name to — a note about other counties'
+specifics you are about to put your name to. A note about other counties'
 programmes became "Hillsborough, Polk, and Sumter" in an answer whose passage
 named Hillsborough and Manatee. Take the id from the note, read that passage,
 write from the passage.
@@ -451,7 +451,7 @@ write from the passage.
 WHAT YOU MAY CITE
 
 Only the ids in the brief you are given: `[3050]` for something said,
-`[item:22216]` for the published record. Copy the form the brief uses — an id
+`[item:22216]` for the published record. Copy the form the brief uses: an id
 printed there as `[item:22216]` is written `[item:22216]` every time it
 appears, because `[22216]` means a transcript passage, there is no passage
 with that number, and the citation will be struck out of your answer along
@@ -459,17 +459,31 @@ with the support for whatever it was backing. Write `[3050]`, never
 "passage 3050".
 One id per bracket: `[3069] [3070]`, never `[3069, 3070]` and never a range
 like `[3069-3071]`. There is nothing else in front of you and nothing else is
-citable — an id from memory is indistinguishable from a real one to the
+citable. An id from memory is indistinguishable from a real one to the
 reader, which makes inventing one the worst thing you can do here.
 
-Write PLAIN PROSE. No markdown, no `**bold**`, no headings, no bullet lists —
-paragraphs only. Anything else arrives on the page as literal asterisks.
+Write PLAIN PROSE. No markdown, no `**bold**`, no headings, no bullet lists.
+Paragraphs only. Anything else arrives on the page as literal asterisks.
+
+NO EM DASHES. Not the mark itself, not an en dash doing its job, not two
+hyphens standing in for one. It is the surest tell that a machine wrote the
+sentence, and this archive is asking the reader to trust what it says. Every
+aside an em dash sets off is better as one of four plainer things: a full stop
+and a short new sentence, a pair of commas, a colon in front of the part that
+explains, or round brackets around a true aside. Write "approved on the
+consent agenda: dozens of routine items together, with no discussion", not the
+same sentence with a dash in the middle of it.
+A hyphen inside a word is not an em dash and is fine: quasi-judicial,
+mixed-use, license-plate cameras. A span takes the word "to", never a dash:
+"from 2015 to 2026", "four to three".
+Where a passage you are quoting has a dash in it, quote it as the record has
+it. The rule is about the punctuation you choose, not the county's.
 
 DO NOT AUDIT YOURSELF AT THE END. You are not the last step: a checker reads
 this answer afterwards with each sentence beside the full text of its own
 citations, and a separate pass strikes any id that is not real. Spend your
-care as you write each sentence — the passage in front of you, the words
-taken from it — and when the last paragraph is done, stop.
+care as you write each sentence, on the passage in front of you and the
+words taken from it, and when the last paragraph is done, stop.
 
 THE RULES
 
@@ -477,23 +491,23 @@ THE RULES
 - Every factual claim carries a citation: [N] for something said, [item:N] for
   the published record. A claim with no citation will be treated as unsupported.
 - A CLAIM ABOUT WHAT IS NOT THERE IS SUPPORTED BY THE SEARCHING, NOT BY A
-  PASSAGE. No passage can hold one up — a passage is something that WAS said —
+  PASSAGE. No passage can hold one up, because a passage is something that WAS said,
   and putting the nearest id after one makes it look like that passage says a
   thing it could not: measured, "no tally was read into the microphone"
   arrived citing the roll call itself, the one piece of evidence against it.
   What you have instead is LOOKED FOR AND NOT FOUND at the end of the brief,
   which lists every search that came back empty. Say what was looked for and
-  did not turn up — "no agenda item mentioning a casino appears in searches of
-  the record from 2015 to 2026" — and that sentence needs no bracket, because
+  did not turn up ("no agenda item mentioning a casino appears in searches
+  of the record from 2015 to 2026"), and that sentence needs no bracket, because
   the searches are its evidence and they are listed there.
   Claim no more than the looking covered. "The searches run here found none"
   is honest; "the archive contains nothing about X" says you read all of it,
-  and one sentence of that kind — "the closest the word 'gambling' comes is
-  the surname Gamble" — was published beside a passage containing "gambling
+  and one sentence of that kind ("the closest the word 'gambling' comes is
+  the surname Gamble") was published beside a passage containing "gambling
   boat". Never say a WORD does not appear. You saw a few hundred passages of
   an archive of hundreds of thousands.
 - WRITE EACH SENTENCE FROM THE PASSAGES IN FRONT OF YOU, AND CITE ALL OF
-  THEM. Not the clearest one — all of them, because a reader clicks a bracket
+  THEM. Not the clearest one: all of them, because a reader clicks a bracket
   and gets that passage alone. If a sentence needs the company's name from one
   passage, the speed from a second and the penalty from a third, it carries
   three brackets. If it would carry more than three or four, it is doing too
@@ -501,10 +515,10 @@ THE RULES
 - WHAT IS NOT IN THEM DOES NOT GO IN THE SENTENCE, however likely it is. A
   passage reading "to eliminate the opaque wall option" says nothing about
   what replaced the wall, so neither do you. If no passage carries the point,
-  say it plainly with no citation, or leave it out — never move it onto the
+  say it plainly with no citation, or leave it out. Never move it onto the
   nearest bracket.
 - NEVER SAY HOW A NAMED PERSON VOTED from a transcript. Speaker labels come
-  from automated voice matching and votes land on the wrong name — in one roll
+  from automated voice matching and votes land on the wrong name. In one roll
   call the same label carries both the "Nay" and the next member's "Aye". Who
   voted which way is the one thing a garbled roll call cannot tell you.
   The COUNT is different: if the transcript says "four nays, three ayes", that
@@ -523,24 +537,24 @@ THE RULES
 - SPEAKER NAMES ARE NOT ALL THE SAME KIND OF CLAIM, and the passage says
   which kind it is. The archive knows how each name was arrived at and marks
   the two ends:
-    "⚠ NAME NOT CONFIRMED" — DO NOT ATTRIBUTE THIS BY NAME AT ALL. Say "a
+    "⚠ NAME NOT CONFIRMED": DO NOT ATTRIBUTE THIS BY NAME AT ALL. Say "a
       commissioner", "a resident", "a member of staff", and cite the passage
       as normal: the quote is sound, only the name on it is not. Putting a
       real person's name on a vote or an objection they may never have made is
       the worst mistake available here, and it is the one a reader cannot
       check.
-    "✓ NAME CONFIRMED" — a person established this name. Write it plainly and
+    "✓ NAME CONFIRMED": a person established this name. Write it plainly and
       do not hedge it.
-    unmarked — matched to a voice at that meeting. Usable, and the ordinary
+    unmarked: matched to a voice at that meeting. Usable, and the ordinary
       case. If a claim turns on exactly who spoke, say the attribution is
       automated and unverified.
   "Several speakers" or "unidentified" means the archive does not know who
-  spoke — never guess. Never quote an accuracy figure.
+  spoke. Never guess. Never quote an accuracy figure.
 - Distinguish what was SAID from what was DECIDED, in those words.
 - NOTHING FROM OUTSIDE THE BRIEF. Not what you know about Pasco County, not
   what was in the news, not what usually happens at a county commission. An
   answer that reaches past its evidence is making the archive vouch for
-  something the archive never saw — and a reader cannot tell which sentence
+  something the archive never saw, and a reader cannot tell which sentence
   that was. Observed: an otherwise careful answer about a casino added "the
   casino-entertainment complex reported in the news in 2024-2025", which is
   uncitable here and may not even be true. If the archive is silent, the
@@ -559,8 +573,8 @@ THE RULES
 GRACE = (
     "You have used the evidence budget for this question. You are given a "
     "little more, to finish with rather than to carry on: if there is "
-    "something you must have before the answer is written — a disposition you "
-    "have not opened, a discussion you know is there — get it in this round. "
+    "something you must have before the answer is written (a disposition you "
+    "have not opened, a discussion you know is there), get it in this round. "
     "Otherwise hand over now. Nothing after this round will be fetched."
 )
 
@@ -680,8 +694,8 @@ def _name_state(p):
 # ..." inline in its own text, so there are names in front of the writer even
 # though the header says several speakers.
 _NAME_NOTE = {
-    "confirmed": " ✓ NAME CONFIRMED by a person — you may state it plainly",
-    "weak": (" ⚠ NAME NOT CONFIRMED — this is the name the voice goes by "
+    "confirmed": " ✓ NAME CONFIRMED by a person: you may state it plainly",
+    "weak": (" ⚠ NAME NOT CONFIRMED: this is the name the voice goes by "
              "across the archive, not evidence about this meeting. Do not "
              "attribute anything here to them by name."),
 }
@@ -690,7 +704,7 @@ _NAME_NOTE = {
 def _name_mark(p):
     state = _name_state(p)
     if state == "several" and p.get("name_basis") == "cluster":
-        return (" ⚠ NAMES NOT CONFIRMED — the names written into this "
+        return (" ⚠ NAMES NOT CONFIRMED: the names written into this "
                 "exchange are archive-wide voice matches, not evidence about "
                 "this meeting. Do not attribute anything here by name.")
     return _NAME_NOTE.get(state, "")
@@ -879,7 +893,7 @@ def _hit(p, seen):
     if not n:
         return _passage_line(p)
     when = p.get("meeting_date") or p.get("upload_date") or "?"
-    return f"[{p['id']}] {when} · {_who(p)} — shown above (x{n + 1})"
+    return f"[{p['id']}] {when} · {_who(p)} · shown above (x{n + 1})"
 
 
 def _row(i, seen, full=False):
@@ -887,7 +901,7 @@ def _row(i, seen, full=False):
     if not n:
         return _item_block(i, full)
     bits = " ".join(x for x in (i.get("date"), i.get("code")) if x)
-    return f"[item:{i['id']}] {bits} — shown above (x{n + 1})"
+    return f"[item:{i['id']}] {bits} · shown above (x{n + 1})"
 
 
 def _echoes(rows, kind, seen, unit):
@@ -898,7 +912,7 @@ def _echoes(rows, kind, seen, unit):
     out = f"\n\n({again} of {len(rows)} {unit} already shown above."
     # Only when it is most of them: at that point the wording is not the
     # problem and trying another one will not help.
-    return out + (" Rewording is returning what you have — aim the search "
+    return out + (" Rewording is returning what you have. Aim the search "
                   "instead.)" if again * 2 >= len(rows) else ")")
 
 
@@ -972,7 +986,7 @@ def render(name, result, seen, con=None):
                 where.append("WHAT WAS SAID for the transcript")
             if len(item.get("thread") or []) > 1:
                 where.append("SAME CASE for its other appearances")
-            return f"[item:{ident}] is already above — see {'; '.join(where)}."
+            return f"[item:{ident}] is already above: see {'; '.join(where)}."
         if ident is not None:
             seen.opened.add(ident)
         item.setdefault("has_recording", bool(item.get("spans")))
@@ -1028,7 +1042,7 @@ def render(name, result, seen, con=None):
             # whole evidence budget. When it has to be cut, the END is kept:
             # that is where a board decides things, and it is the half that
             # retrieval could not have found by itself.
-            out.append(f"\nWHAT WAS SAID — {len(lines)} lines, in order"
+            out.append(f"\nWHAT WAS SAID, {len(lines)} lines, in order"
                        + (" (item truncated upstream)" if item.get("truncated")
                           else "") + ":")
             if len(lines) > LINES_SHOWN:
@@ -1050,15 +1064,15 @@ def render(name, result, seen, con=None):
                 # truncated render, and the repeat guard above refuses it. The
                 # only real route to the middle is a transcript search for what
                 # was said in it, so that is what it says.
-                out.append(f"  … {len(gap)} lines omitted from the middle — "
+                out.append(f"  … {len(gap)} lines omitted from the middle: "
                            + ", ".join(f"{nm} {n}" for nm, n in names) + more
-                           + " — search_transcript for what they said if it "
+                           + ". search_transcript for what they said if it "
                            "matters …")
                 out.extend(shown(ln) for ln in lines[-tail:])
             else:
                 out.extend(shown(ln) for ln in lines)
         else:
-            out.append("\n(no recording of this item — the published record "
+            out.append("\n(no recording of this item; the published record "
                        "above is the only evidence of it here)")
 
         thread = item.get("thread") or []
@@ -1082,7 +1096,7 @@ def render(name, result, seen, con=None):
         term = result.get("terminal")
         head += (f"\nFinal outcome: {term.get('outcome')} on {term.get('date')} "
                  f"[item:{term.get('id')}]" if term else
-                 "\nNo terminal outcome recorded — it was continued every time, "
+                 "\nNo terminal outcome recorded: it was continued every time, "
                  "or is still open.")
         body = "\n\n".join(_row(s, seen) for s in steps)
         return head + "\n\n" + body + _echoes(steps, "i", seen, "appearances")
@@ -1102,7 +1116,7 @@ def render(name, result, seen, con=None):
         more = ("" if len(shown) == len(items) else
                 f"\n\n(+{len(items) - len(shown)} further items not shown; "
                 f"use search_record with this date to reach them)")
-        return (f"{m.get('date')} {m.get('body')} — {len(items)} agenda items:\n\n"
+        return (f"{m.get('date')} {m.get('body')}, {len(items)} agenda items:\n\n"
                 + "\n\n".join(_row(i, seen) for i in shown)
                 + _echoes(shown, "i", seen, "items") + more)
 
@@ -1261,7 +1275,7 @@ def _said(passages):
                     and end is not None and start is not None
                     and 0 <= start - end <= 1):
                 line += (f"\n  ^ still {_who(p)}, speaking on from "
-                         f"[{prev['id']}] — one person, not two")
+                         f"[{prev['id']}], one person, not two")
             out.append(line)
             prev = p
     return "\n\n".join(out)
@@ -1280,7 +1294,7 @@ def brief(question, seen, trace, notes):
         # record ids as `[39293]` instead of `[item:39293]`, and the check
         # struck all three - so three supported claims about the published
         # record arrived at the reader with no support at all.
-        out.append("THE PUBLISHED RECORD — agendas and minutes. "
+        out.append("THE PUBLISHED RECORD: agendas and minutes. "
                    "Cite anything here as [item:N], exactly as it is written "
                    "below.\n\n"
                    + "\n\n".join(_item_block(i, full=True)
@@ -1289,7 +1303,7 @@ def brief(question, seen, trace, notes):
         out.append("THE PUBLISHED RECORD\n\nNothing from the record was found.")
 
     if seen.passages:
-        out.append("WHAT WAS SAID — transcript passages, grouped by meeting "
+        out.append("WHAT WAS SAID: transcript passages, grouped by meeting "
                    "and in the order they were spoken. Cite anything here as "
                    "[N].\n\n" + _said(seen.passages.values()))
     else:
@@ -1309,20 +1323,20 @@ def brief(question, seen, trace, notes):
     dup = [t for t in trace if t.get("ok") and t.get("found")
            and not t.get("new")]
     if nil:
-        out.append("SEARCHED FOR AND MATCHED NOTHING — this is what supports "
+        out.append("SEARCHED FOR AND MATCHED NOTHING. This is what supports "
                    "a sentence saying the archive does not show something. "
                    "Say what was looked for; it needs no citation.\n\n"
                    + "\n".join(
                        f"  {t['name']}("
                        f"{json.dumps(t['args'], ensure_ascii=False)}) "
-                       f"— 0 matches" for t in nil))
+                       f"-> 0 matches" for t in nil))
     if dup:
-        out.append("SEARCHED AND FOUND ONLY WHAT WAS ALREADY HELD — these "
+        out.append("SEARCHED AND FOUND ONLY WHAT WAS ALREADY HELD. These "
                    "MATCHED. They say nothing about anything being absent."
                    "\n\n" + "\n".join(
                        f"  {t['name']}("
                        f"{json.dumps(t['args'], ensure_ascii=False)}) "
-                       f"— {t['found']} matches, none new" for t in dup))
+                       f"-> {t['found']} matches, none new" for t in dup))
 
     return "\n\n".join(out)
 
@@ -1556,7 +1570,7 @@ def verify_citations(answer, seen, model, timeout, brief_text):
             # this check can flag again, while a deleted one leaves the claim
             # looking unsupported and takes the trail with it. Flagged and
             # left alone.
-            applied.append(f"{bad} flagged, no verified replacement — left")
+            applied.append(f"{bad} flagged, no verified replacement, left in place")
             continue
         answer = answer[:start] + sentence.replace(bad, tok) + answer[end:]
         applied.append(f"{bad} → {tok}")
@@ -1695,7 +1709,7 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
                     # much as the reader's - a rejected call invites a fixed
                     # one, and this one must not.
                     text = ("Not run: the budget for this question is spent. "
-                            "Nothing further will be fetched — hand over what "
+                            "Nothing further will be fetched. Hand over what "
                             "you have.")
                     ok = False
                 else:
