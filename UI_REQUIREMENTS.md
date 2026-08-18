@@ -435,6 +435,17 @@ in `ProvenanceMark`: the primary signal is never a colour. The mark is not
 repeated on the row it resolves to, where the heading above it has already
 said which kind it is.*
 
+**R5.5.2ab** Each number MUST be printed exactly once in the lists, on the row
+it anchors, and that row MUST be what `#ref-N` addresses. A reference covering
+several rows prints a blank gutter on the rest: a numbered list in which 9
+appears three times is a list somebody has to check twice, and it shipped that
+way. *The check that passed it asked whether every anchor id existed and was
+unique — which it was, since only one row per reference carries an id, and the
+numbers a reader sees are printed by rows that mostly have none. Verify what is
+RENDERED, not what is addressable. Putting the anchor on the number's span
+rather than on the row also killed `.recRow:target`, the highlight that shows
+where you landed.*
+
 **R5.5.2b** One number per PLACE in a recording, not per passage. A passage is
 about a minute of one speaker, cut by the indexer, so a sentence resting on
 two minutes of somebody talking cites two passages and would take two numbers

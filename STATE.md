@@ -2575,6 +2575,45 @@ than teaching yourself to read the secret.
     colour of every time on the page; `.citeNamed` sprang the identical trap
     an hour later. **CSS modules scope per FILE, not per component.**
 
+    **THE NUMBERING SHIPPED WRONG, and the check that passed it was looking at
+    the wrong thing.** Reported from production hours later: "why are there
+    multiple 9s, and I don't see 4 in the list at all". Three faults, and the
+    first is the one to remember.
+
+    A folded moment printed its number on EVERY row it covered — `[16]` was
+    Sean Poole's three consecutive passages, so 16 appeared three times, and 10
+    of the 39 references were duplicated that way: 50 numbers printed for 39
+    references. The verification had asked whether every `#ref-N` anchor
+    existed and whether the ids were unique. They were — only one row per
+    moment carries the anchor. **The numbers a reader SEES are printed by rows
+    that mostly have no id at all**, so the check was blind to the only thing
+    that was wrong. Check what is rendered, not what is addressable. The rows a
+    reference covers now print a blank gutter and only the row bearing the
+    number prints it.
+
+    Second, a latent overwrite. Folding is per SENTENCE — it has to be, because
+    a sentence's citations are what say which stretch it rests on — so the same
+    passage can be folded here and standalone there, and reuse keyed on the
+    fold's first passage alone let a later, longer fold mint a fresh number and
+    overwrite what its members already held: a number in the prose with no row
+    showing it, and a row carrying somebody else's. It never fired on the
+    answer this was built against. A passage now keeps the first number it was
+    given, and a moment takes the number of any passage in it that has one.
+    **Folding globally instead was tried and is worse in a way that matters
+    more than either bug** — over the whole answer the 15-second rule merged
+    30:37 through 33:38, three and a half minutes of one speaker, into one
+    reference, so a sentence about its last claim would have dropped the reader
+    three minutes before the claim. A place in a recording is a fact about the
+    recording; which stretch a SENTENCE rests on is not.
+
+    Third, `#ref-N` was put on the number's own `<span>`, inside the row. So
+    `.recRow:target` — the highlight that shows a reader which row they were
+    just sent to — could not match anything, and had silently stopped working.
+    The anchor is the row now, on both lists.
+
+    Verified after: 39 references, 1–39, no gaps, each printed exactly once,
+    every anchor a row, gutters aligned at 320px.
+
     **Left open.** The code-less items are `source = 'transcript'` — stretches
     this archive cut out of the recording, which `RecordView` elsewhere
     separates from the agenda under the words "it is **not** the county's
