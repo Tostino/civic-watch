@@ -132,7 +132,7 @@
    * lanes keep the height they were legible at. Squeezing three into the old
    * 21px box would have made each 6px, which is where a hairline stops being
    * a value and starts being a smudge. */
-  min-height: 3.4rem;
+  min-height: 2.6rem;
 }
 
 /* Not sticky. `.grid` sets overflow-x, which makes it a scroll container on
@@ -160,8 +160,19 @@
 .label {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.05rem;
   padding-inline-end: var(--sp-3);
+  min-width: 0;
+}
+
+/* The name and its control on ONE line. Stacked, the label was three lines -
+ * name, "show 5", the date-and-meeting-count - and set the row at 54px, so
+ * eight rows spent 112px saying nothing the two lines do not. */
+.nameRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
   min-width: 0;
 }
 
@@ -411,7 +422,7 @@
  * subjects and the four under a subject are narrower subjects, and any word
  * that fits one reads wrong on the other. */
 .narrow {
-  align-self: start;
+  flex: none;
   font-size: var(--text-2xs);
   font-weight: 600;
   color: var(--accent);

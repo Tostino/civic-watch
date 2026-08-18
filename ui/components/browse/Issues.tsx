@@ -117,10 +117,6 @@ export function Issues({
         <h2 id="issues-head" className={s.title}>
           What the county keeps coming back to
         </h2>
-        <p className={s.why}>
-          These subjects return year after year. Each row is one subject, and each cell
-          is one year of it, in both sources.
-        </p>
         {/* The scale is stated BEFORE the grid, not in a note under it. The
             tint is the only thing carrying magnitude, and a reader who meets
             it unexplained has already misread the first row by the time the
@@ -142,12 +138,10 @@ export function Issues({
             <span aria-hidden className={s.swNone} />
             no recording, or no outcome recorded
           </span>
-          {/* Two sentences because there are now two grammars, and conflating
-              them is the whole risk of a third lane: the tints may only be
-              read along a row, the bar may be read down the column. */}
+          {/* Both grammars, in one clause each: the tints may only be read
+              along a row, the bar may be read down the column. */}
           <span className={s.scaleNote}>
-            pale &rarr; deep is fewer &rarr; more, within each row. The third lane is a
-            proportion, so it alone compares across rows.
+            shade is within-row; the third lane is a proportion and compares across
           </span>
         </p>
       </header>
@@ -179,33 +173,17 @@ export function Issues({
         ))}
       </div>
 
-      {/* R2.1 applies to the METHOD as much as to the numbers. The old note
-          said "we find each subject by its words" and left a reader to assume
-          the archive had discovered the subjects; a person had written
-          eighteen of them down. Saying who chose them, and how the words were
-          arrived at, is what makes the counts checkable rather than merely
-          stated. */}
+      {/* ONE line. This was three paragraphs - who chose the subjects, how the
+          words were arrived at, what the shading may and may not be compared
+          against, and that the rows overlap - 158px of defending the method to
+          a reader who has not yet doubted it. The claims were all true and
+          none of them were what somebody came here to read. What survives is
+          the part a reader needs to interpret the numbers at all; the rest is
+          in `bin/subjects.py`, where somebody who does doubt it will look. */}
       <p className={s.note}>
-        These subjects were not chosen by hand. A model read a sample of the county&rsquo;s
-        own agenda titles and proposed the ones that recur; for each, it proposed the
-        words this county actually uses &mdash; programme names, acronyms, the spoken
-        wording &mdash; and every one of those was counted against this archive, with a
-        real example, before a person kept or dropped it.
-      </p>
-      <p className={s.note}>
-        Matching itself is literal: an item is counted when its published title contains
-        one of those phrases, so these numbers are exact and repeatable rather than a
-        judgement about each item. The room is matched the same way in the transcript,
-        which is made by machine and can be wrong. An item the county titled in words no
-        phrase covers is still not counted. Each row is shaded against its own busiest
-        year, so a shade compares years within one subject and never one subject against
-        another &mdash; except the third lane, which is a proportion.
-      </p>
-      <p className={s.note}>
-        These rows are not a division of the archive and do not add up to it. One item
-        can be two subjects at once &mdash; a comprehensive plan text amendment is a
-        change to the plan and a land-use amendment both &mdash; and it is counted under
-        each. Nothing on this page sums them.
+        Subjects and the words that find them are derived from the county&rsquo;s own
+        agenda titles. Matching is literal, so these counts are exact. Rows overlap
+        and do not sum.
       </p>
     </section>
   );
@@ -267,9 +245,10 @@ function Row({
             runs a search, which ranks the whole archive and will report its
             own total. Saying which words it searches for keeps the two from
             reading as the same claim. */}
-        <Link href={hrefQ()} className={s.name} title={`Search the archive for “${i.q}”`}>
-          {i.label}
-        </Link>
+        <span className={s.nameRow}>
+          <Link href={hrefQ()} className={s.name} title={`Search the archive for “${i.q}”`}>
+            {i.label}
+          </Link>
         {/* Only on a row that HAS sub-subjects, which is three of them. The
             control says how many rather than drawing a bare chevron, because
             the number is the reason to press it. */}
@@ -291,7 +270,8 @@ function Row({
           >
             {open ? "hide" : `show ${kids}`}
           </a>
-        ) : null}
+          ) : null}
+        </span>
         {/* One line, and it does not wrap. Five facts wrapping to three lines
             gave every row a different height, which is most of what stopped
             the grid reading as a grid. The rest is on the hover and on the
