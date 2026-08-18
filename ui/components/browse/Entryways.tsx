@@ -86,7 +86,7 @@ function DividedSection({ d }: { d: Divided }) {
           <div className={s.lane}>
             <h3 className={s.laneHead}>
               <span className={s.laneWhat}>What the minutes recorded</span>
-              <span className={s.laneWhy}>the official record, posted weeks later</span>
+              <span className={s.laneWhy}>the published record, posted weeks later</span>
             </h3>
             <ul className={s.list}>
               {d.record.map((r) => (

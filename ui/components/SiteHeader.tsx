@@ -23,7 +23,7 @@ import s from "./SiteHeader.module.css";
  * this, and can I trust it" at the foot of the page. It also cost every page
  * 231px of flow below the panes, which on the meeting page is what produced a
  * page scrollbar that the reading panes ate the wheel for. And its blanket
- * claim - "this is not the official record" on every page - is the pattern R3.2
+ * claim - "this is not the published record" on every page - is the pattern R3.2
  * refuses in as many words: a single site-wide disclaimer "trains readers to
  * ignore it". What carries that weight instead is per-object: the transcript
  * states its own limits, an item states whether it has an outcome, a meeting

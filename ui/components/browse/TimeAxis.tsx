@@ -30,9 +30,11 @@ const MONTH_NAMES = [
  *   bar     how many of them we can HEAR
  *
  * Drawn together, the shape that emerges is the honest one: twelve years of
- * published record and seven of recordings. There are 0 recordings before 2018
- * and 3 in it, against 61 meetings; a reader looking at 2016 should be able to
- * see that the video is not missing, it never existed. A count alone would
+ * published record and a fraction of that in recordings. The early years hold
+ * almost none - a reader looking at 2016 should be able to see that the
+ * recording is not missing, it never existed. (The first recorded year is
+ * FOUND, at `firstRecorded`, and it moved from 2018 to 2017 the day a
+ * mis-dated workshop was attached to its meeting.) A count alone would
  * hide that, and a site-wide disclaimer would be ignored (R3.2).
  *
  * Cells are links, not buttons: a month is a filtered view of the archive with
@@ -189,7 +191,7 @@ export function TimeAxis({
           </span>
           <span className={s.key}>
             <span aria-hidden className={s.swRec} />
-            of those, on video
+            of those, recorded
           </span>
           <span className={s.key}>
             <span aria-hidden className={`${s.swatch} ${s.swAhead}`} />
@@ -225,7 +227,7 @@ export function TimeAxis({
             aria-label={
               `${expanded ? "Hide" : "Show"} ${earlier.length} earlier years: ` +
               `${earlier[0]} to ${earlier[earlier.length - 1]}, ` +
-              `${fold.meetings} meetings, ${fold.recorded} on video`
+              `${fold.meetings} meetings, ${fold.recorded} recorded`
             }
           >
             <span className={s.foldYears} role="rowheader">
@@ -233,14 +235,17 @@ export function TimeAxis({
             </span>
             <span className={s.foldSays} role="gridcell" >
               {fold.meetings.toLocaleString()} meetings
-              {fold.recorded ? `, ${fold.recorded} on video` : ""}
+              {fold.recorded ? `, ${fold.recorded} recorded` : ""}
               {/* Explicit: JSX strips the newline between two expressions, so
-                  without it this reads "on video— nothing recorded". */}
+                  without it this reads "recorded· none before". */}
               {firstRecorded && firstRecorded > earlier[0] ? (
                 <>
                   {" "}
+                  {/* "none before 2017" rather than "nothing recorded before
+                      2017": the clause before it already says "recorded", and
+                      saying it twice in one line reads as a stutter. */}
                   <span className={s.foldNone}>
-                    &middot; nothing recorded before {firstRecorded}
+                    &middot; none before {firstRecorded}
                   </span>
                 </>
               ) : null}
@@ -314,8 +319,8 @@ export function TimeAxis({
                     /* A number per cell would be 4px tall at this density, so
                        the count is in the label where a screen reader and a
                        hover both reach it. */
-                    aria-label={`${label}, ${c.meetings} meetings, ${c.recorded} on video${also}`}
-                    title={`${label} — ${c.meetings} meetings, ${c.recorded} on video${also}`}
+                    aria-label={`${label}, ${c.meetings} meetings, ${c.recorded} recorded${also}`}
+                    title={`${label} — ${c.meetings} meetings, ${c.recorded} recorded${also}`}
                     style={{ "--fill": fill(c.meetings).toFixed(3) } as React.CSSProperties}
                   >
                     {c.recorded ? (
@@ -332,7 +337,7 @@ export function TimeAxis({
               <span
                 className={s.rowTotal}
                 title={
-                  `${total} meetings held in ${y}, ${rec} on video` +
+                  `${total} meetings held in ${y}, ${rec} recorded` +
                   (ahead ? ` · ${ahead} scheduled` : "")
                 }
               >

@@ -58,7 +58,7 @@ export function Answer({ r }: { r: AskResult }) {
         </p>
       ) : null}
 
-      {/* R5.5.4: the official record is its own block, above the transcript. */}
+      {/* R5.5.4: the published record is its own block, above the transcript. */}
       {r.record.length ? (
         <section className={s.block} aria-labelledby="ev-record">
           <header className={s.blockHead}>

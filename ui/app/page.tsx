@@ -241,7 +241,7 @@ export default async function BrowsePage({ searchParams }: Props) {
                         <span className={s.missing}>no minutes</span>
                       )}
                       {m.videos ? (
-                        <span className={s.has}>{duration(m.seconds)} on video</span>
+                        <span className={s.has}>{duration(m.seconds)} recorded</span>
                       ) : (
                         <span className={s.missing}>no recording</span>
                       )}

@@ -186,7 +186,7 @@ export default async function AboutPage() {
             the ones most likely to be wrong.
           </li>
           <li>
-            <strong>Nothing here replaces the official record.</strong> For an authoritative copy
+            <strong>Nothing here replaces the published record itself.</strong> For an authoritative copy
             of an agenda or the minutes, go to the county.
           </li>
         </ul>
