@@ -1,10 +1,10 @@
 .page {
   max-width: 68rem;
   margin: 0 auto;
-  padding: var(--sp-5) var(--sp-5) 8rem;
+  padding: var(--sp-4) var(--sp-5) 8rem;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-5);
+  gap: var(--sp-4);
 }
 
 /* PRIOR_ART §1: a resident arrives cold. Councilmatic's masthead says what the
@@ -32,10 +32,10 @@
   text-wrap: pretty;
 }
 
-/* A little air above it so it reads as the next move rather than as part of
- * the lede's paragraph block. */
+/* The hero's own gap is the air it needs; a margin on top of that was the
+ * lede and the search box sitting 16px apart while the title and the lede sat
+ * 8 apart, which reads as a mistake rather than as emphasis. */
 .find {
-  margin-block-start: var(--sp-2);
   max-width: 34rem;
 }
 

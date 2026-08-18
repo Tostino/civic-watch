@@ -236,7 +236,7 @@ export function TimeAxis({
                 <>
                   {" "}
                   <span className={s.foldNone}>
-                    &mdash; nothing recorded before {firstRecorded}
+                    &middot; nothing recorded before {firstRecorded}
                   </span>
                 </>
               ) : null}

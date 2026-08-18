@@ -41,11 +41,16 @@ main {
   transition: padding-inline-end var(--normal) var(--ease);
 }
 
+/* `dl` was missing here, and a browser's default 1em on it was showing up as
+ * 15px above AND below every definition list on the site - 30px of slack in
+ * the collection panel alone, in the two gaps a reader most reads as air. */
 h1,
 h2,
 h3,
 h4,
 p,
+dl,
+dd,
 figure,
 blockquote {
   margin: 0;

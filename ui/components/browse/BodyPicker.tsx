@@ -59,7 +59,7 @@ export function BodyPicker({ bodies, body }: { bodies: Body[]; body?: string }) 
         <option value="">All meetings</option>
         {bodies.map((b) => (
           <option key={b.body} value={b.body}>
-            {b.body} &mdash; {b.meetings.toLocaleString()}
+            {b.body} &middot; {b.meetings.toLocaleString()}
           </option>
         ))}
       </select>
