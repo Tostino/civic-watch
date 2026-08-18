@@ -52,11 +52,29 @@ if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+    /* The font variables go on <html>, NOT on <body>, and the whole site's
+       typography turns on it. next/font declares `--font-sans`,
+       `--font-serif` and `--font-mono-face` on whatever element carries these
+       classes. app/tokens.css then builds `--font-ui`, `--font-record` and
+       `--font-mono` out of them ON `:root`. With the classes on <body>, the
+       three tokens on :root referenced variables that did not exist there,
+       which makes them invalid at computed-value time - not "fall back to the
+       next font in the list", but EMPTY - and every descendant inherited the
+       empty value. Every `font-family: var(--font-record)` in the app
+       resolved to nothing and the browser used its default serif.
+       Symptom: the entire archive rendered in Times New Roman, in both
+       themes, while the colour tokens beside it worked perfectly, because
+       those depend on nothing outside :root. */
+    <html
+      lang="en"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+      className={`${sans.variable} ${serif.variable} ${mono.variable}`}
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
-      <body className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
+      <body>
         <a href="#main" className="sr-only">
           Skip to main content
         </a>

@@ -2727,6 +2727,32 @@ than teaching yourself to read the secret.
     path a reader's assistant actually takes to the address printed on
     /about.
 
+106. **The whole site rendered in Times New Roman, and had been.** Found while
+    checking that the new endpoint block on /about was set in mono. It was
+    not, and neither was anything else: `getComputedStyle(document.body)
+    .fontFamily` came back `"Times New Roman"` on every page, in both themes.
+
+    `next/font` declares `--font-sans`, `--font-serif` and `--font-mono-face`
+    on whichever element carries the classes it returns, and `app/layout.tsx`
+    put them on `<body>`. `app/tokens.css` builds `--font-ui`, `--font-record`
+    and `--font-mono` out of those three ON `:root`. A custom property is
+    substituted at computed-value time per element, so on `:root` the three
+    tokens referenced variables that did not exist there. That does not fall
+    back to the next font in the list. It makes the declaration INVALID, the
+    token computes to the empty string, and every descendant inherits the
+    empty string - so `font-family: var(--font-record)` resolved to nothing
+    and the browser used its default serif.
+
+    **It was invisible because the colour tokens beside it were fine.** They
+    are declared in the same `:root` block and depend on nothing outside it,
+    so the palette, the two registers, the rules and the shadows all worked.
+    The page looked designed. It was simply set in the wrong typeface
+    everywhere at once, which is the hardest kind of wrong to see: there is no
+    correct version on screen to compare it against.
+
+    The classes go on `<html>` now. Verified after: headings in Source Serif
+    4, body in Inter, the endpoint block in JetBrains Mono.
+
 ## Postgres, and what to watch out for
 
 Migrated off SQLite in one cutover. `bin/migrate_to_pg.py` did it, verifying
