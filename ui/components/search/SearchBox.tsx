@@ -1,4 +1,3 @@
-import type { Facts } from "@/lib/types";
 import s from "./SearchBox.module.css";
 
 /**
@@ -17,7 +16,6 @@ export function SearchBox({
   hidden = {},
   compact = false,
   id = "q",
-  facts,
 }: {
   q: string;
   /** Facets to carry through the submit, so searching again keeps them. */
@@ -29,9 +27,6 @@ export function SearchBox({
    * IS the page and the duality it teaches has nothing else to lean on.
    */
   compact?: boolean;
-  /** Measured, for the hint. Only the non-compact box shows it, so the two
-   *  compact boxes in the header and on browse need not carry it. */
-  facts?: Facts | null;
   /**
    * The input's id, because two of these can be in one document.
    *
@@ -90,15 +85,8 @@ export function SearchBox({
       </div>
       {compact ? null : (
         <p id={`${id}-hint`} className={s.hint}>
-          {facts ? (
-            <>
-              Subject words search {facts.items} published agenda items and{" "}
-              {facts.hours} hours of recordings.
-            </>
-          ) : (
-            <>Subject words search the published agenda items and the recordings.</>
-          )}{" "}
-          An item code or case number is matched as an identifier.
+          Subject words search the published agenda items and the recordings. An item
+          code or case number is matched as an identifier.
         </p>
       )}
       {Object.entries(hidden).map(([k, v]) =>

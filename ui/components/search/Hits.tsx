@@ -37,7 +37,7 @@ export function RecordHits({
     <section className={s.block} aria-labelledby="rec-head">
       <header className={s.head}>
         <h2 id="rec-head" className={s.title}>
-          In the record
+          What the county recorded
         </h2>
         <ProvenanceMark kind="agenda" compact />
         <p className={s.count}>
@@ -45,15 +45,15 @@ export function RecordHits({
         </p>
       </header>
       <p className={s.about}>
-        Published agendas and the outcomes the approved minutes recorded.
-        Twelve years, whether or not a camera was running.
+        Published agendas and the outcomes the approved minutes recorded,
+        whether or not a camera was running.
       </p>
 
       {loosened ? (
         /* R3.2: a widened search must say it widened. Silently loosening is
            how a reader ends up believing an exact phrase was found. */
         <p className={s.notice}>
-          No item matched every word, so this matched <b>any</b> of them &mdash; most
+          No item matched every word, so this matched <b>any</b> of them, most
           words first.
         </p>
       ) : null}
@@ -115,7 +115,7 @@ export function TranscriptHits({
     <section className={s.block} aria-labelledby="tr-head">
       <header className={s.head}>
         <h2 id="tr-head" className={s.title}>
-          In the room
+          What was said
         </h2>
         <ProvenanceMark kind="transcript" compact />
         <p className={s.count}>
@@ -125,8 +125,7 @@ export function TranscriptHits({
       <p className={s.about}>
         {facts ? (
           <>
-            Machine transcription of {facts.recorded} recorded meetings &mdash;{" "}
-            {`${facts.pct_transcript}% of decided items have one.`}
+            {`Machine transcription of ${facts.recorded} recorded meetings. ${facts.pct_transcript}% of decided items have one.`}
           </>
         ) : (
           <>Machine transcription of the meetings that were recorded, which is a
