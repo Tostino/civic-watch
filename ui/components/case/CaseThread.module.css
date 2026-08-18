@@ -134,7 +134,7 @@
   }
 
   /* The step reads date · body · what happened, and the last of those can be a
-   * whole sentence: "No disposition in the minutes" sets 142px and the badge
+   * whole sentence: "No outcome in the minutes" sets 153px and the badge
    * is a pill, so it cannot wrap its own text or shrink below it. On a 375px
    * screen it ran 29px past the edge and took the whole document with it,
    * which is a Reflow failure (WCAG 1.4.10) and not only an untidy row. The

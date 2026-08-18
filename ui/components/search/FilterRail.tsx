@@ -99,12 +99,12 @@ export function FilterRail({
           />
         ))}
         {/* Not an outcome — the absence of one. 8,440 items have a published
-            agenda entry and no disposition, which means the minutes are
+            agenda entry and no outcome, which means the minutes are
             missing or unparsed, NOT that the board did nothing (R2.4). */}
         <Row
           on={query.decided === "0"}
           href={href({ decided: query.decided === "0" ? undefined : "0", outcome: undefined })}
-          label="No disposition in the minutes"
+          label="No outcome in the minutes"
         />
       </Group>
 

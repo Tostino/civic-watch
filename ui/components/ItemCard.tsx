@@ -17,7 +17,7 @@ import s from "./ItemCard.module.css";
  * where the official title gets a serif and a readable measure.
  *
  * The anatomy is Councilmatic's and it is the right one: **identifier and
- * disposition first**, then the plain-language title, then metadata. A reader
+ * outcome first**, then the plain-language title, then metadata. A reader
  * scanning for "what happened to C36" should never have to read a 60-word
  * legal title to find out.
  *
@@ -75,7 +75,7 @@ export function ItemCard({
   const span = only !== undefined ? only : (item.spans?.[0] ?? null);
   const title = item.title ?? "(no title published)";
   /* A transcript-derived stretch was never on an agenda, so the minutes had
-   * nothing to dispose of. Showing "no disposition recorded" would report a
+   * nothing to decide. Showing "no outcome recorded" would report a
    * gap in the record where there is no record entry at all (R2.4). */
   const published = item.source === "agenda";
 

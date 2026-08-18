@@ -66,10 +66,10 @@ const OUTCOME_LABEL: Record<Outcome, string> = {
 };
 
 export const outcomeLabel = (o: Outcome | null): string =>
-  o ? (OUTCOME_LABEL[o] ?? o) : "No disposition in the minutes";
+  o ? (OUTCOME_LABEL[o] ?? o) : "No outcome in the minutes";
 
 /** How an outcome reads semantically. `none` is deliberately its own state:
- *  "the minutes do not dispose of this" is not an outcome (R6.3). */
+ *  "the minutes recorded nothing for this" is not an outcome (R6.3). */
 export function outcomeTone(o: Outcome | null): "ok" | "no" | "wait" | "neutral" | "none" {
   switch (o) {
     case "approved":
@@ -104,17 +104,17 @@ export const phaseLabel = (p: string): string =>
   PHASE_LABEL[p] ?? p.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 /**
- * How the minutes disposed of this item, in words rather than in the
+ * Where this item's outcome came from, in words rather than in the
  * pipeline's token. `bulk_consent` is an internal value and printing it is the
  * same mistake as rendering `Group 465` where a name goes (R6.2.1) — it reads
  * as a fact about the record and it is a fact about our parser.
  *
  * It is worth saying at all because these are materially different claims: the
- * minutes named this item and disposed of it, or the minutes approved a block
+ * minutes named this item and its outcome, or the minutes approved a block
  * and this item was in the block.
  */
 const OUTCOME_SOURCE_LABEL: Record<string, string> = {
-  item: "the minutes, which dispose of this item by name",
+  item: "the minutes, which name this item and its outcome",
   bulk_consent: "the consent agenda, which the board approved as one block",
   bulk_included: "a block motion that named this item",
   bulk_exception: "a block motion that removed this item from the block",

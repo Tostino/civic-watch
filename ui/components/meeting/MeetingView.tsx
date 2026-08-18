@@ -355,7 +355,7 @@ export function MeetingView({
             <Fact
               on={coverage.decided > 0}
               yes={`${coverage.decided} with an outcome in the minutes`}
-              no="No dispositions in the minutes"
+              no="No outcomes in the minutes"
               why="From the approved minutes"
             />
             <Fact

@@ -117,7 +117,7 @@ export function CaseView({ data }: { data: CaseDetail }) {
   /* The speech, filed under the appearance it belongs to (R5.4.4, R5.4.7).
    * `heard` arrives as its own chronological list and used to render as one,
    * which meant the same seven meetings were printed twice — once as a step
-   * with its date, body, code and disposition, and again as a transcript
+   * with its date, body, code and outcome, and again as a transcript
    * header carrying the same four things. Keyed on item id; a step can hold
    * more than one hearing because a board does take an item up twice in a day
    * (R5.2.7), and `nth/of` is what says so. */
@@ -194,9 +194,9 @@ export function CaseView({ data }: { data: CaseDetail }) {
                 <span className={s.verdictLabel}>No final outcome</span>
                 <span className={s.verdictWhat}>
                   {data.continuances
-                    ? `Every appearance was continued or left undisposed. Nothing in this
+                    ? `Every appearance was continued or left without an outcome. Nothing in this
                        archive shows it decided.`
-                    : `The minutes show no disposition for any appearance of this case. That is a
+                    : `The minutes record no outcome for any appearance of this case. That is a
                        gap in the record, not a decision.`}
                 </span>
               </>
@@ -489,7 +489,7 @@ function Step({
 /* The `Heard` section that used to live here is gone. It rendered every
  * hearing end to end below the thread, which printed the same seven
  * meetings twice — once as a step carrying date, body, code and
- * disposition, and again as a transcript header carrying the same four.
+ * outcome, and again as a transcript header carrying the same four.
  * The speech is now filed under the appearance it belongs to, in `Step`,
  * which keeps one continuous read down the page (R5.4.4) and drops the
  * duplicate headers. */

@@ -49,10 +49,11 @@ VERSION = "1.0"
 INSTRUCTIONS = """This archive holds Pasco County, Florida government meetings.
 
 TWO SOURCES, NOT INTERCHANGEABLE. The RECORD (agendas the county published,
-dispositions its approved minutes recorded) is authoritative for what was
-DECIDED, and covers 2015-2026 whether or not anyone filmed it. The TRANSCRIPT
-(machine transcription of 1,036 hours of recordings, 2018 onward) is
-authoritative for what was SAID, and exists for only 9% of decided items. An
+outcomes its approved minutes recorded) is authoritative for what was DECIDED,
+and covers {first_year} to {last_year} whether or not anyone filmed it. The
+TRANSCRIPT (machine transcription of {hours} hours of recordings,
+{first_rec_year} onward) is authoritative for what was SAID, and exists for only
+{pct_transcript}% of decided items. An
 outcome comes from the record. An argument comes from the transcript.
 
 THREE THINGS THAT MAKE AN ANSWER WRONG RATHER THAN THIN:
@@ -90,7 +91,7 @@ meeting, and does not follow local government. Short sentences, ordinary
 words, no procedural jargon left unexplained. Say what a decision MEANS for a
 person, not only what it was called. Lead with the answer. No preamble.
 
-Plain is not vague: never round a vote, soften a disposition, or drop a
+Plain is not vague: never round a vote, soften an outcome, or drop a
 qualification the record makes.
 
 No em dashes. Use a full stop, a comma pair, a colon, or brackets instead."""
@@ -152,7 +153,7 @@ search_record, then get_item or get_case for the item itself. Lead your answer
 with what the county decided and the date it decided it.
 
 Only then use search_transcript for what was argued and by whom. Never
-contradict a recorded disposition with an inference from the transcript; if
+contradict a recorded outcome with an inference from the transcript; if
 they disagree, say so and give both. If the record shows no outcome, say the
 published record shows no outcome. Do NOT infer one from a vote being called,
 and do not infer one from the discussion sounding settled.
@@ -174,7 +175,8 @@ THE SUBJECT: {a['subject']}""",
 {_PLAIN}
 
 THIS IS A TRANSCRIPT QUESTION, so state the limit in the same breath as the
-finding. Recordings start in 2018 and cover 9% of decided items, so what you
+finding. Recordings start in {first_rec_year} and cover {pct_transcript}% of
+decided items, so what you
 gather is what was said AT THE MEETINGS THAT WERE FILMED, and that is how to
 describe it.
 
@@ -201,6 +203,7 @@ async def _list_tools(ctx, params):
     re-declared: a tool whose arguments change in web/tools.py changes here in
     the same edit, or it does not change at all.
     """
+    specs = await anyio.to_thread.run_sync(_manifest)
     return mt.ListToolsResult(tools=[
         mt.Tool(name=s["name"], description=s["description"],
                 input_schema=s["parameters"],
@@ -209,7 +212,21 @@ async def _list_tools(ctx, params):
                 annotations=mt.ToolAnnotations(readOnlyHint=True,
                                                idempotentHint=True,
                                                openWorldHint=False))
-        for s in tools.MANIFEST])
+        for s in specs])
+
+
+def _manifest():
+    """The tool specs, with their counts measured. Off the event loop.
+
+    Same connection discipline as `_run` below, and for the same reason: this
+    is a synchronous database call and the handler that wants it is async.
+    `tools.facts` caches for an hour, so a handshake storm costs one query.
+    """
+    con = db.connect(autocommit=True)
+    try:
+        return tools.manifest(con)
+    finally:
+        con.close()
 
 
 def _run(name, args):
@@ -314,11 +331,22 @@ def build():
     `application/json` also sidesteps the whole class of proxy buffering bugs
     that /api/ask spent a week on, because there is no stream to buffer.
     """
+    # Measured at startup. The MCP handshake takes `instructions` as a plain
+    # string on the Server object, so unlike the tool list this one cannot be
+    # re-read per request - it is as fresh as the process. That is a real
+    # bound and a much smaller one than the source file: a redeploy moves it,
+    # where a typed number moved only when somebody remembered.
+    con = db.connect(autocommit=True)
+    try:
+        instructions = tools.reflow(INSTRUCTIONS.format(**tools.facts(con)))
+    finally:
+        con.close()
+
     server = Server(
         NAME,
         version=VERSION,
         title="Pasco County meeting archive",
-        instructions=INSTRUCTIONS,
+        instructions=instructions,
         on_list_tools=_list_tools,
         on_call_tool=_call_tool,
         on_list_prompts=_list_prompts,

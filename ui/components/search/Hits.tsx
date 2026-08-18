@@ -43,7 +43,7 @@ export function RecordHits({
         </p>
       </header>
       <p className={s.about}>
-        Published agendas and the dispositions the approved minutes recorded.
+        Published agendas and the outcomes the approved minutes recorded.
         Twelve years, whether or not a camera was running.
       </p>
 

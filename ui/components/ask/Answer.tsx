@@ -234,7 +234,7 @@ const isRun = (p: Part | undefined): p is Run =>
  * The mistake each time was answering "what should the chip say" instead of
  * "why is a chip in the sentence at all". A reference is a POINTER; the thing
  * it points at is already on the page, under two headings, with the recording
- * named, the speaker named, the time, the quote and the disposition. So the
+ * named, the speaker named, the time, the quote and the outcome. So the
  * prose carries the smallest pointer that can be followed — `[4]` — and the
  * lists carry the answer. Repeat citations reuse their number, which is why
  * "Aug 11, 2026 … Aug 11, 2026" cannot happen again: the second mention of a
@@ -570,7 +570,7 @@ function RecordCite({ item, n }: { item: RecordHit; n: number | undefined }) {
       {item.disposition ? (
         <p className={s.disposition}>{item.disposition}</p>
       ) : (
-        <p className={s.noDisposition}>The minutes show no disposition for this item.</p>
+        <p className={s.noDisposition}>The minutes record no outcome for this item.</p>
       )}
     </div>
   );

@@ -3689,9 +3689,14 @@ archives got right). The pipeline work below is what remains independent of it.
    rather than a benchmark.
 4. **Retire `segments`** once binding is trusted; two sources of truth for
    "what item is this" will drift.
-5. **Rejoin the 17 orphan recordings** (39 hours of workshops, `meeting_id IS
-   NULL`, `upload_date` NULL). Indexed and findable, but no meeting page
-   reaches them — see Honest limits.
+5. **Rejoin the last 10 orphan recordings** (23 hours of workshops,
+   `meeting_id IS NULL`, `upload_date` NULL). Indexed and findable, but no
+   meeting page reaches them — see Honest limits. Was 17; the seven whose
+   titles carried a date anywhere in them rejoined on 2026-08-18 when
+   `catalog.parse_date` stopped anchoring to the front of the string. These ten
+   have no date in the title, so the only way in is a per-video `yt-dlp`
+   metadata fetch for the real upload date — `catalog.fetch` uses
+   `--flat-playlist`, which does not expose it.
 6. **Rejoin the remaining split meeting-days** that put a day's agenda on one
    `meetings` row and its minutes on another. **88 stranded outcomes as of
    2026-08-13**, down from 964: making the portal-event link prefer the meeting
@@ -3956,20 +3961,55 @@ here, not claims about the archive as it stands.*
   Board reports have no agenda code at all and never will.
 - 24% of agenda items have no disposition — mostly regular-agenda and board
   reports the minutes simply do not dispose of in writing.
-- **17 transcribed recordings belong to no meeting, and that is the difference
-  between the two hour figures.** The archive holds **1,036 hours** of
-  transcribed video; `/` reports **997h**, because it counts only recordings
-  attached to a meeting that has been held. The 39-hour gap is 17 videos with
-  `meeting_id IS NULL` — almost all workshops ("Planning Commission Workshop:
-  2050 Comprehensive Plan", BCC budget workshops) plus one emergency meeting.
-  Every one has `upload_date` NULL, which is why `segment.day_groups()` could
-  not place them: there is no date to group a meeting-day by.
+- **Numbers quoted to a model are measured, never typed** (2026-08-18).
+  `tools.facts()` measures every count the tool descriptions and the two system
+  prompts quote — hours, agenda items, recurring cases, the 9% of decided items
+  the transcript reaches, the 67% of passages with no usable name, the year
+  span — in one query cached for an hour, and `tools.fill()` / `tools.reflow()`
+  substitute and rewrap them. `tools.MANIFEST` is gone; it is `manifest(con)`,
+  because a constant built at import is exactly how the old numbers froze. They
+  had drifted: "23,122 agenda items" was 23,130, "1,377 cases" was 1,378, and
+  "recordings start in 2018" became 2017 the same afternoon the catalog parser
+  fix attached a 2017 workshop to its meeting. **If you add a number to a
+  prompt, add it to `_measure()` — or do not state it.** Two definitions are
+  not the obvious query and are commented where they are used: `pct_transcript`
+  counts decided items with a BOUND span (9%), not items whose meeting was
+  filmed (65%); `pct_no_name` counts `(exchange)` passages as nameless
+  alongside NULL, which is what makes it 67% rather than 10%. The MCP
+  handshake's `instructions` is the one exception to the hourly refresh — the
+  SDK takes it as a plain string on the Server object, so it is as fresh as the
+  process.
 
-  They are not lost. Their **11,381 utterances and 5,853 passages are indexed**,
-  so the agent finds them and search will; they simply have no meeting page and
-  no agenda. Both numbers are correct — they measure different sets — and the
-  reason to keep both is that a reader comparing them should find this note
-  rather than a discrepancy.
+- **10 transcribed recordings belong to no meeting, and that is the difference
+  between the two hour figures.** The archive holds **1,036 hours** of
+  transcribed video; `/` reports **1,013h**, because it counts only recordings
+  attached to a meeting that has been held. The 23-hour gap is 10 videos with
+  `meeting_id IS NULL` — all workshops, and all of them titled with no date at
+  all ("Planning Commission Workshop: 2050 Comprehensive Plan" × 6, three BCC
+  workshops named only by subject). `upload_date` is NULL for every one, which
+  is why `segment.day_groups()` cannot place them: there is no date to group a
+  meeting-day by.
+
+  **This was 17 recordings and 39 hours until 2026-08-18.** `catalog.parse_date`
+  read the date only at the START of a title, so the county's freehand workshop
+  titles — "Pasco BCC Legislative Workshop (8.24.23)", "Board of County
+  Commissioners Emergency Mtg 09-24-2024", "Pasco County BCC Workshop, October
+  17, 2017" — all read as undated, and `upload_date` is the only thing
+  land_agenda.py joins a recording to its meeting on. The parser now scans the
+  whole title, accepts a spelled-out month, and takes the first VALID date
+  rather than the first thing shaped like one (`0.7.08.2021` parses as
+  2021-07-08). `bin/catalog.py --redate` re-parses catalogued titles without
+  touching the channel, which is what the ON CONFLICT DO NOTHING insert cannot
+  do. Seven recordings rejoined, one of them onto a meeting row upsert_meetings
+  created for it. The remaining 10 carry no date in the title at all and need a
+  real upload date from a per-video yt-dlp fetch — nothing in the title will
+  reach them.
+
+  The 10 are not lost. Their **6,930 utterances and 3,482 passages are
+  indexed**, so the agent finds them and search will; they simply have no
+  meeting page and no agenda. Both hour figures are correct — they measure
+  different sets — and the reason to keep both is that a reader comparing them
+  should find this note rather than a discrepancy.
 - **88 items hold an outcome the pipeline can no longer see** — measured
   2026-08-13; it was 964 before the portal-event linkage was made to prefer the
   meeting an event names (gotcha 79), and that fix is what accounts for the

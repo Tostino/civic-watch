@@ -241,20 +241,21 @@ ANSWER_GRACE = MIN_CALL + HANDOVER_GRACE
 # the prose. Copy-pasting it into two prompts is how they would come apart.
 SOURCES = """THE ARCHIVE HAS TWO SOURCES AND THEY ARE NOT INTERCHANGEABLE.
 
-  THE RECORD: agendas the county published and the dispositions its approved
-  minutes recorded. Authoritative for what was DECIDED. Covers 2015-2026
-  whether or not anyone filmed it. Addressed as [item:N].
+  THE RECORD: agendas the county published and the outcomes its approved
+  minutes recorded. Authoritative for what was DECIDED. Covers {first_year} to
+  {last_year} whether or not anyone filmed it. Addressed as [item:N].
 
-  THE TRANSCRIPT: machine transcription of 1,036 hours of recordings, 2018
-  onward. Authoritative for what was SAID and argued, and roughly for who said
-  it. Only 9% of decided items have one. Addressed as [N].
+  THE TRANSCRIPT: machine transcription of {hours} hours of recordings,
+  {first_rec_year} onward. Authoritative for what was SAID and argued, and
+  roughly for who said it. Only {pct_transcript}% of decided items have one.
+  Addressed as [N].
 
 A transcript can show a vote being taken and never its result. Nobody reads
 the tally into the microphone. So an OUTCOME comes from the record. An
 ARGUMENT comes from the transcript. Answering "what was decided" from
 transcript alone is the single most common way to get this wrong."""
 
-RESEARCH = f"""You research questions about Pasco County government meetings by
+RESEARCH = """You research questions about Pasco County government meetings by
 calling tools. You do NOT write the answer: somebody else does that from what
 you gather, so gather it properly and stop.
 
@@ -269,7 +270,7 @@ HOW TO WORK
    wrong thing, search again with the words the speakers themselves would use,
    not the words in the question.
 3. When a search puts an item in play, call get_item on it. That is how you
-   get the minutes disposition verbatim, and the discussion of that item
+   get the minutes' own sentence verbatim, and the discussion of that item
    specifically. Ranking finds an item's discussion easily and reliably misses
    its motion and its vote, because those carry no topic words. get_item does
    not have that problem.
@@ -285,7 +286,7 @@ HOW TO WORK
    wording are not. Aim it instead, with a facet from the next section. If
    an aimed search finds nothing either, the record does not have it, which
    IS a finding and is worth handing over. "The county published no
-   disposition for this" is a real, useful answer. This is about a search you
+   outcome for this" is a real, useful answer. This is about a search you
    have already run; it is not a reason to stop before you have both halves.
 
 AIM THE SEARCH
@@ -301,7 +302,7 @@ answer instead, and they are the two that sound most useful:
       loses the Sheriff's Office reply completely. Residents speak inside
       public hearings, and the board answers them somewhere else again.
 
-  NOT speaker= for "how has X argued". 67% of passages carry no usable
+  NOT speaker= for "how has X argued". {pct_no_name}% of passages carry no usable
       speaker key - every cross-speaker exchange is '(exchange)', and an
       exchange is where an argument actually happens - so it drops two thirds
       of the corpus, keyed on a name this archive infers rather than knows.
@@ -350,9 +351,9 @@ alone, both what was DECIDED and what people ARGUED about it.
 
 So check you have both halves:
 
-  - THE OUTCOME, from the record. If an item disposed of the matter, open it
-    with get_item. The disposition is there verbatim, and ranking does not
-    reach it.
+  - THE OUTCOME, from the record. If an item decided the matter, open it
+    with get_item. The minutes' own sentence is there verbatim, and ranking
+    does not reach it.
   - WHAT WAS ARGUED, and by whom, from the transcript. If an item was taken up
     at a meeting that WAS recorded and you have not opened that item with
     get_item, you do not have this yet. Do not conclude from an empty search
@@ -396,7 +397,7 @@ attribution is automated.
 """
 
 # Written by the half that has no tools, from the brief and nothing else.
-COMPOSE = f"""You write the final answer for a public archive of Pasco County
+COMPOSE = """You write the final answer for a public archive of Pasco County
 government meetings. Somebody else did the looking; you are given everything
 they found, and you write what the reader gets.
 
@@ -425,7 +426,7 @@ education. Write at the level of a well-written local newspaper.
     about to say.
 
 PLAIN IS NOT VAGUE. Simple words, exact facts. Never round a vote, never
-soften a disposition, never drop a qualification the record makes, and never
+soften an outcome, never drop a qualification the record makes, and never
 reach for a general phrase because the specific one needs explaining. If
 something is uncertain, the plain words for that are "the archive does not
 show", not a hedge.
@@ -525,11 +526,11 @@ THE RULES
   is the transcript speaking and you may report it as such and cite it, even
   where the labels around it are plainly scrambled. What you may not do is
   add up individual votes yourself to reach a number nobody said.
-- If the record disposes of the matter, lead with that and give the meeting
+- If the record decides the matter, lead with that and give the meeting
   date. Then use the transcript for what was argued and by whom.
-- Never contradict a recorded disposition with an inference from the
+- Never contradict a recorded outcome with an inference from the
   transcript. If they disagree, say so and give both.
-- If an item has no recorded disposition, say the published record shows no
+- If an item has no recorded outcome, say the published record shows no
   outcome. Do NOT infer one from a vote being called.
 - If the brief does not settle the question, say so plainly and say what IS
   established. Never fill a gap with plausible inference. "The archive does not
@@ -561,6 +562,26 @@ THE RULES
   finding is the silence.
 """
 
+# The two system prompts are TEMPLATES, and stay templates until a run fills
+# them. `{SOURCES}` is spliced with str.replace rather than str.format so the
+# measured placeholders inside it - {hours}, {pct_transcript} and the rest -
+# survive to be filled from the database in prompts(). An f-string here would
+# have evaluated them at import, which is exactly how a count gets frozen.
+RESEARCH = RESEARCH.replace("{SOURCES}", SOURCES)
+COMPOSE = COMPOSE.replace("{SOURCES}", SOURCES)
+
+
+def prompts(con):
+    """The system prompts with every quoted number measured (tools.facts).
+
+    Reflowed after filling: the templates are wrapped for this file, and a
+    substituted value is nothing like the width of its placeholder.
+    """
+    f = toolkit.facts(con)
+    return (toolkit.reflow(RESEARCH.format(**f)),
+            toolkit.reflow(COMPOSE.format(**f)))
+
+
 # There is no STOP nudge any more. It existed to make the model write an answer
 # after the budget ran out; the writer does that now from `seen`, so a run that
 # has run out of room stops calling tools and hands over what it has instead of
@@ -573,7 +594,7 @@ THE RULES
 GRACE = (
     "You have used the evidence budget for this question. You are given a "
     "little more, to finish with rather than to carry on: if there is "
-    "something you must have before the answer is written (a disposition you "
+    "something you must have before the answer is written (an outcome you "
     "have not opened, a discussion you know is there), get it in this round. "
     "Otherwise hand over now. Nothing after this round will be fetched."
 )
@@ -594,7 +615,7 @@ class Seen:
         self.items = {}
         # Items whose get_item output has actually been RENDERED, which is not
         # the same question as whether the id is in `items`: a search puts an
-        # item there as a summary row with no verbatim disposition and no
+        # item there as a summary row with no verbatim outcome and no
         # transcript, and opening that one is the traversal the whole design
         # asks for. This is only about opening the same item twice.
         self.opened = set()
@@ -788,7 +809,7 @@ def _item_block(i, full=False):
         out.append(f"  MINUTES: {_clip(i['disposition'], 320)}"
                    f"  (recorded outcome: {i.get('outcome')})")
     else:
-        out.append("  MINUTES: no disposition recorded for this item")
+        out.append("  MINUTES: no outcome recorded for this item")
     # Said plainly, or the model reads "no transcript quotes" as "this did not
     # happen". The meeting that finally decides a case is frequently one this
     # archive holds no video of.
@@ -961,7 +982,7 @@ def render(name, result, seen, con=None):
         # Observed rather than imagined: on "how have commissioners argued
         # about growth and impact fees", the researcher opened item 11578 in a
         # batch of seven, then opened it again the next turn reasoning "I have
-        # the argument from search but not its disposition" - which get_item
+        # the argument from search but not its outcome" - which get_item
         # had already given it. The completeness check was right; it just paid
         # twice for the answer.
         #
@@ -972,8 +993,8 @@ def render(name, result, seen, con=None):
         if ident in seen.opened:
             # Name the SECTIONS of the earlier output rather than explain what
             # this tool does. The re-fetch that prompted this reasoned "I have
-            # the argument from search but not its disposition" - and the
-            # disposition was under a MINUTES: heading in the result it already
+            # the argument from search but not its outcome" - and the
+            # outcome was under a MINUTES: heading in the result it already
             # held. A pointer to that heading is the whole useful content of
             # this reply; the rest was the tool describing itself back to the
             # model that had just called it.
@@ -981,7 +1002,7 @@ def render(name, result, seen, con=None):
             # Built from what this item actually has, so it can never send the
             # model looking for a WHAT WAS SAID that an unrecorded meeting
             # never produced.
-            where = ["MINUTES: for the disposition"]
+            where = ["MINUTES: for the outcome"]
             if item.get("lines"):
                 where.append("WHAT WAS SAID for the transcript")
             if len(item.get("thread") or []) > 1:
@@ -1312,7 +1333,7 @@ def brief(question, seen, trace, notes):
                    "rather than absence.")
 
     # What was tried and came back empty, because "the county published no
-    # disposition for this" is a real answer and the writer can only give it
+    # outcome for this" is a real answer and the writer can only give it
     # if it knows the looking was done.
     # Two different facts, and they used to be one line. A search that matched
     # NOTHING is the evidence behind "the archive does not show this" - the
@@ -1593,7 +1614,11 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
         return max(MIN_CALL, ends_at - time.monotonic() - grace)
 
     seen = Seen()
-    msgs = [{"role": "system", "content": RESEARCH},
+    # Filled once per run, not once per import: the counts these two prompts
+    # quote are measured (tools.facts), so a rebuilt archive reaches the model
+    # on the next question rather than the next deploy.
+    research_sys, compose_sys = prompts(con)
+    msgs = [{"role": "system", "content": research_sys},
             {"role": "user", "content": question}]
     # `stopped` is the page's "this may not be everything" flag and stays None
     # for a run that finished because it was finished; `why` is what the stream
@@ -1649,7 +1674,7 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
                              timeout=left(ANSWER_GRACE), retries=2,
                              effort=EFFORT_RESEARCH,
                              tools=[{"type": "function", "function": t}
-                                    for t in toolkit.MANIFEST])
+                                    for t in toolkit.manifest(con)])
         meter("think", t0, snap)
         spend["rounds"] += 1
         calls = reply.get("tool_calls") or []
@@ -1800,7 +1825,7 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
     spend["brief"] = round(time.monotonic() - t0, 2)
     t0, snap = time.monotonic(), dict(llm.USAGE)
     answer = llm.chat_raw(
-        [{"role": "system", "content": COMPOSE},
+        [{"role": "system", "content": compose_sys},
          {"role": "user", "content": written}],
         model=model, temperature=0.3, timeout=left(), retries=1,
         effort=EFFORT_COMPOSE,

@@ -16,7 +16,7 @@ the whole design and it is worth being explicit about what it buys:
 
     a redaction applied since  is already in `passages.text`
     a corrected speaker name   is already on the row
-    a re-parsed disposition    is already on the item
+    a re-parsed outcome        is already on the item
 
 None of it needs anything to go back and find old copies, because there are no
 old copies. The archive is the record; a saved answer is a reading of it, and a

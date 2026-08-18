@@ -102,7 +102,7 @@
   --surface-2: light-dark(#f7f5f0, #22262d);
   --rule: light-dark(#e3ded3, #2b3037);
   /* Borders that carry meaning rather than decorate - the dashed edge on
-   * "no disposition recorded", the two register rules - clear 3:1 for
+   * "no outcome in the minutes", the two register rules - clear 3:1 for
    * non-text contrast (WCAG 1.4.11). They started at 2.0:1 and were the
    * quietest part of the design doing the loudest job. */
   --rule-strong: light-dark(#948b7a, #606974);

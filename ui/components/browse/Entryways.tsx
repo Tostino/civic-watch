@@ -58,7 +58,7 @@ export function Entryways({ h }: { h: Highlights }) {
  * The two sources, side by side and never blurred (UI_PLAN §2). Each lane is
  * blind where the other sees: the minutes name dissent formally but are
  * published weeks late, and a debate that produced no motion leaves no
- * disposition to name at all. Reading only the minutes is how the August 2026
+ * outcome to name at all. Reading only the minutes is how the August 2026
  * argument over licence-plate cameras came to be missing from this page.
  */
 function DividedSection({ d }: { d: Divided }) {

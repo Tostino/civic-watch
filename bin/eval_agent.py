@@ -176,7 +176,7 @@ ANSWERS = [
         # THREE TRAPS, and an agent can fall in each one separately:
         #
         # 1. `no_action` on 21 October reads as a rejection. It is not: the
-        #    disposition says in as many words that this was the first of two
+        #    minutes say in as many words that this was the first of two
         #    public hearings and that adoption was set for 12 November.
         # 2. The obvious search misses half the answer. `search_record
         #    ("backyard chickens")` returns exactly three items and NOT
@@ -291,7 +291,7 @@ Four things are NOT outside claims, and flagging them is a mistake:
     speaker names come from automated voice matching and are unverified, that
     a meeting has no recording. The archive is required to say these and they
     are true of every answer, not claims about the county.
-  - that a meeting's minutes record no disposition.
+  - that a meeting's minutes record no outcome.
 
 JARGON - a term of art used without being put in plain words in the same
 breath: ordinance, variance, consent agenda, quasi-judicial, MPUD,

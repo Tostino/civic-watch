@@ -490,7 +490,7 @@ export interface IssueYear {
   decided: number;
   /**
    * Of `decided`, how many the board did not simply pass — continued, denied,
-   * no action, or a disposition naming a nay vote.
+   * no action, or an outcome naming a nay vote.
    *
    * From the approved minutes, so it covers all twelve years whether or not a
    * camera ran. That is what makes it worth drawing beside two lanes that are

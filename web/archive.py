@@ -801,7 +801,7 @@ def issues(con, live=False):
                -- The denominator the `pushed` lane needs. Without it a year
                -- with no approved minutes and a year the board passed
                -- everything both read as zero pushed back, and R6.3 refuses
-               -- exactly that: "no disposition recorded" is not "no outcome".
+               -- exactly that: no outcome RECORDED is not `no_action`.
                COUNT(*) FILTER (WHERE ai.outcome IS NOT NULL)    AS decided,
                COUNT(*) FILTER (WHERE ai.outcome = 'continued')  AS continued,
                COUNT(*) FILTER (WHERE ai.outcome

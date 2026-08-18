@@ -56,7 +56,7 @@ button.point:hover {
 .neutral { background: var(--neutral); }
 .live { background: var(--live); }
 
-/* No disposition recorded: present in the record, undisposed in the minutes.
+/* No outcome recorded: present in the record, but the minutes decide nothing.
  * This was a 45° hatch, which at band height reads as a barber pole and drowns
  * the handful of decided items it sits between - the opposite of the point. A
  * flat, receding fill says "here, but nothing was decided" without shouting. */

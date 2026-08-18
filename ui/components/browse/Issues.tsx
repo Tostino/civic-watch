@@ -403,7 +403,7 @@ function activeSpan(i: Issue): { label: string; whole: boolean } | null {
   return { label: from === to ? from : `${from}–${to}`, whole: !outside };
 }
 
-/** The one line that fits beside the strip. The dispositions are real detail
+/** The one line that fits beside the strip. The outcomes are real detail
  *  but they are five facts deep in an eleven-pixel line and they cost the
  *  grid its rhythm; `summary()` still supplies them, and the full extent, to
  *  the hover. */

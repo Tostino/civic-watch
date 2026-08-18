@@ -94,7 +94,7 @@ record page MUST be complete and useful with no video at all, and MUST say
 plainly when no recording exists rather than rendering an empty player.
 
 **R3.2 Coverage is uneven per object, not globally.** A meeting may have any
-combination of agenda, minutes and recording. An item may have a disposition,
+combination of agenda, minutes and recording. An item may have an outcome,
 a recording, both or neither. **Each object MUST carry its own coverage state.**
 A single site-wide disclaimer is not acceptable — it trains readers to ignore it.
 
@@ -288,7 +288,7 @@ decision has to be able to tell that the answer comes later in the day.
 ### 5.3 Agenda item (`/item/:id`)
 
 **R5.3.1** MUST lead with the official record: code, official title, case
-number, department, staff recommendation, and the **minutes disposition
+number, department, staff recommendation, and the **minutes' own sentence
 verbatim** with its classified outcome.
 
 **R5.3.2** MUST show the recording span with a play control where one exists,
@@ -350,7 +350,7 @@ continuous transcript is right — it is the only place a year-long argument rea
 as one argument, and it MUST remain readable straight through in one scroll.
 Filing it under each step is what makes that compatible with the record: the
 separate section printed the same seven meetings twice, once as a step carrying
-date, body, code and disposition and again as a transcript header carrying the
+date, body, code and outcome and again as a transcript header carrying the
 same four.
 
 Measured on `PDE-25-7738`: same 1,261 lines, page height 84,083px → 83,908px, so
@@ -422,7 +422,7 @@ the recording's name inside it; then the item's own title. Each answered "what
 should the chip say" when the question was "why is a chip in the sentence at
 all" — everything a chip could carry is already on the page, under two
 headings, with the recording named, the speaker, the time, the quote and the
-disposition. *Built HN-style: `[4]` in the prose, the same `4` on its row
+outcome. *Built HN-style: `[4]` in the prose, the same `4` on its row
 below, numbered in the order a reader meets them. A repeat citation reuses its
 number, which is what makes "Aug 11, 2026 … Aug 11, 2026" impossible rather
 than merely fixed. R5.5.2 still holds inside this, and NOT by
@@ -779,9 +779,13 @@ pending correction.
 
 **R6.3 OutcomeBadge.** One consistent vocabulary and colour semantics across
 every surface: `approved`, `adopted`, `denied`, `withdrawn`, `continued`,
-`received`, `no_action`, `tabled`, `other`, and the distinct state *no
-disposition recorded* — which is **not** the same as "no outcome" and MUST NOT
-be styled as one.
+`received`, `no_action`, `tabled`, `other`, and the distinct state *no outcome
+in the minutes* — an ABSENCE OF RECORD, which is **not** the same as the
+`no_action` value (the board considered it and did nothing) and MUST NOT be
+styled as one. The wording was "no disposition recorded" until 2026-08-18; the
+word was dropped because the county uses "disposition" to mean disposal of
+records and property. The distinction this rule protects is unchanged, and
+`outcomeTone(null)` still returns its own `none` tone.
 
 **R6.4 ProvenanceBadge.** Marks a block as published record / minutes /
 transcript / AI-generated. Used everywhere R2.1 applies.
@@ -846,7 +850,7 @@ small-screen designs, not a squeezed desktop layout.
 override.
 
 **R8.5 Resilience.** Every surface has designed empty, loading, partial and
-error states. "No recording", "no disposition recorded" and "no speaker
+error states. "No recording", "no outcome in the minutes" and "no speaker
 identified" are *expected* states and must look intentional.
 
 **R8.6 Shareability.** Record pages should render meaningful titles and
@@ -911,7 +915,7 @@ merge into an existing identity. Accepting writes a human label.
   app never rewrites them.
 - No login to read.
 - No inventing structure the pipeline does not produce. If an item has no
-  disposition, the UI says so; it does not infer one from a vote being called.
+  outcome, the UI says so; it does not infer one from a vote being called.
 - Not a video editor or clipping tool (for now).
 
 ---

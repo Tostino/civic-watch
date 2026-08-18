@@ -161,12 +161,12 @@ export function RecordView({
             <span className={s.sectionCount}>{routine.length}</span>
           </h2>
           <p className={s.sectionNote}>
-            The consent agenda and other items disposed of in a single motion, without
+            The consent agenda and other items decided in a single motion, without
             discussion. They were approved without discussion, so there is nothing said about them to find.
           </p>
           <table className={s.table}>
             <caption className="sr-only">
-              Items disposed of together at the {meeting.body} meeting
+              Items decided together at the {meeting.body} meeting
             </caption>
             <thead>
               <tr>

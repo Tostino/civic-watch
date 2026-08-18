@@ -25,7 +25,10 @@ Nothing here decides how a result LOOKS. Tools return the archive's own
 structure - ids, codes, outcomes, offsets - and one component decides how to
 render each kind (D3, and the same rule as web/archive.py).
 """
+import re
 import sys
+import textwrap
+import threading
 import time
 
 import archive
@@ -105,7 +108,7 @@ PHASE = {"type": "string",
 OUTCOME = {"type": "string",
            "enum": ["approved", "adopted", "denied", "withdrawn", "continued",
                     "no_action"],
-           "description": "The disposition the approved minutes recorded."}
+           "description": "The outcome the approved minutes recorded."}
 
 
 def _clean(d):
@@ -381,16 +384,155 @@ def search_record(con, query, limit=12, offset=0, body=None, outcome=None,
 # says what the tool reaches, what it cannot reach, and when to prefer another
 # - because the failure this whole design exists to prevent is a caller that
 # searched the wrong source and concluded the archive holds nothing.
+# ------------------------------------------------------------------- facts
+# THE NUMBERS IN THESE DESCRIPTIONS ARE MEASURED, NEVER TYPED.
+#
+# They were typed once. By the time anyone looked again "23,122 agenda items"
+# was 23,130, "1,377 cases" was 1,378, and "recordings start in 2018" was 2017
+# - that last one went stale the same afternoon a parser fix attached a 2017
+# workshop to its meeting. A model reads every one of these as a fact about the
+# archive and has no way to tell a stale one from a true one, so a number here
+# is either measured or it is not stated.
+#
+# One query, cached for an hour. The tool list goes out on every MCP handshake
+# and none of these move more than once a day.
+#
+# Each definition is the one that reproduces what the sentence around it
+# CLAIMS, which is not always the obvious query. `pct_transcript` is decided
+# items with a span BOUND to them, not items whose meeting was filmed - 9%
+# against 65%, and the sentence means the first: whether the model can actually
+# reach that item's discussion. `pct_no_name` counts '(exchange)' passages as
+# nameless alongside NULL, because a cross-speaker exchange carries no single
+# speaker to filter on, and those are two thirds of the archive on their own.
+FACTS_TTL = 3600
+
+_FACTS = None
+_FACTS_AT = 0.0
+_FACTS_LOCK = threading.Lock()
+
+
+def _measure(con):
+    """Every number the tool surface quotes, in one round trip."""
+    r = con.execute("""
+        SELECT (SELECT round((sum(duration) / 3600)::numeric)
+                  FROM videos WHERE transcribed)                    AS hours,
+               (SELECT count(*) FROM agenda_items
+                 WHERE source = 'agenda')                           AS items,
+               (SELECT count(*) FROM cases WHERE meetings > 1)      AS recurring,
+               (SELECT round(100.0 * count(*) FILTER (
+                          WHERE EXISTS (SELECT 1 FROM item_spans s
+                                         WHERE s.agenda_item_id = ai.id))
+                        / nullif(count(*), 0))
+                  FROM agenda_items ai
+                 WHERE ai.outcome IS NOT NULL)                      AS pct_transcript,
+               (SELECT round(100.0 * count(*) FILTER (
+                          WHERE speaker IS NULL OR speaker = '(exchange)')
+                        / nullif(count(*), 0))
+                  FROM passages)                                    AS pct_no_name,
+               (SELECT min(left(date, 4)) FROM meetings
+                 WHERE date <= to_char(now(), 'YYYY-MM-DD'))        AS first_year,
+               (SELECT max(left(date, 4)) FROM meetings
+                 WHERE date <= to_char(now(), 'YYYY-MM-DD'))        AS last_year,
+               (SELECT min(left(m.date, 4)) FROM meetings m
+                 WHERE EXISTS (SELECT 1 FROM videos v
+                                WHERE v.meeting_id = m.id
+                                  AND v.transcribed))               AS first_rec_year
+        """).fetchone()
+    f = {k: r[k] for k in r.keys()}
+    # The deepest case in the archive, named rather than remembered. A worked
+    # example teaches the id format and the scale in one clause, and picking it
+    # by measurement means it is always a real case and always the extreme one.
+    d = con.execute("""SELECT id, meetings FROM cases
+                        ORDER BY meetings DESC, id LIMIT 1""").fetchone()
+    f["deep_case"] = d["id"] if d else "PDE-25-7738"
+    f["deep_case_meetings"] = f"{d['meetings']:,}" if d else "several"
+    # Thousands separators here rather than in every template, so a placeholder
+    # is only ever a name.
+    for k in ("hours", "items", "recurring"):
+        f[k] = f"{int(f[k] or 0):,}"
+    for k in ("pct_transcript", "pct_no_name"):
+        f[k] = str(int(f[k] or 0))
+    return f
+
+
+def facts(con):
+    """The measured counts, at most an hour old.
+
+    Locked across the query so a cold cache under a burst of handshakes runs
+    it once and the rest wait, rather than each opening its own.
+    """
+    global _FACTS, _FACTS_AT
+    with _FACTS_LOCK:
+        if _FACTS is None or time.monotonic() - _FACTS_AT > FACTS_TTL:
+            _FACTS = _measure(con)
+            _FACTS_AT = time.monotonic()
+        return _FACTS
+
+
+# A line that carries its own structure and must not be joined to its
+# neighbours: a bullet, a numbered step, or a heading that ends in a colon.
+_STRUCTURED = re.compile(r"^\s*(?:[-*\u2022]\s|\d+[.)]\s)|:\s*$")
+
+
+def reflow(text, width=79):
+    """Rewrap prose paragraphs after substitution.
+
+    A template is wrapped for the SOURCE file, and once `{first_rec_year}`
+    becomes `2017` those line breaks are in the wrong places - the paragraph
+    renders a third short and reads as ragged. Hand-wrapping the template
+    cannot fix it, because a placeholder is four times the width of its value.
+
+    Only genuine prose is touched. A paragraph containing a bullet, a numbered
+    step or a heading is passed through exactly as written, because in these
+    prompts that layout is meaning, not formatting. Blank lines and each
+    paragraph's own indent survive.
+    """
+    out = []
+    for para in text.split("\n\n"):
+        lines = para.split("\n")
+        indent = lines[0][:len(lines[0]) - len(lines[0].lstrip())]
+        if (any(_STRUCTURED.search(ln) for ln in lines)
+                or any(ln[:len(ln) - len(ln.lstrip())] != indent
+                       for ln in lines if ln.strip())):
+            out.append(para)
+            continue
+        out.append(textwrap.fill(" ".join(ln.strip() for ln in lines),
+                                 width=width, initial_indent=indent,
+                                 subsequent_indent=indent) if para.strip()
+                   else para)
+    return "\n\n".join(out)
+
+
+def fill(node, f):
+    """Substitute measured facts into every template string in `node`.
+
+    Recursive because the numbers are not only in tool descriptions - the
+    `speaker` argument's own description is where the 67% lives, and that is
+    the number that should stop a model reaching for the filter.
+
+    Only strings that actually carry a placeholder are formatted, so a literal
+    brace anywhere else in the surface cannot raise.
+    """
+    if isinstance(node, str):
+        return node.format(**f) if "{" in node else node
+    if isinstance(node, dict):
+        return {k: fill(v, f) for k, v in node.items()}
+    if isinstance(node, list):
+        return [fill(v, f) for v in node]
+    return node
+
+
 SPECS = [
     {
         "name": "search_transcript",
         "description":
-            "Search what people SAID, across 1,036 hours of recorded meetings. "
+            "Search what people SAID, across {hours} hours of recorded meetings. "
             "Hybrid: exact terms, semantic similarity, and curated case "
             "threads. Use it for argument, reasoning, objection and public "
             "comment.\n"
             "It CANNOT reach any meeting with no recording, which is most of "
-            "them: only 9% of decided items have one. It also under-serves "
+            "them: only {pct_transcript}% of decided items have one. It also "
+            "under-serves "
             "votes - the moment a board decides something contains no topic "
             "words ('all in favor say aye'), so it ranks far below the "
             "discussion of the same item. If you want the DECISION, use "
@@ -447,7 +589,7 @@ SPECS = [
                                            "e.g. 'Jack Mariano' or 'Mariano' "
                                            "- board members match on either. "
                                            "RARELY worth it, and never for "
-                                           "'how has X argued': 67% of "
+                                           "'how has X argued': {pct_no_name}% of "
                                            "passages carry no usable name - "
                                            "every cross-speaker exchange is "
                                            "one of them, and an exchange is "
@@ -462,10 +604,11 @@ SPECS = [
     {
         "name": "search_record",
         "description":
-            "Search what the county PUBLISHED: 23,122 agenda items and the "
-            "dispositions its approved minutes recorded for them. This is the "
+            "Search what the county PUBLISHED: {items} agenda items and the "
+            "outcomes its approved minutes recorded for them. This is the "
             "authoritative source for whether something passed, and it covers "
-            "twelve years regardless of whether a camera was running.\n"
+            "{first_year}-{last_year} regardless of whether a camera was "
+            "running.\n"
             "It holds no speech at all - it will never tell you why anyone "
             "voted as they did. An identifier ('R-58', 'PDE-25-7738') is "
             "matched as an identifier rather than as words, so pass it "
@@ -516,7 +659,8 @@ SPECS = [
                                           "for a second attempt at one."},
                 "decided": {"type": "boolean",
                             "description": "true for items the minutes "
-                                           "disposed of; false for items with "
+                                           "recorded an outcome for; false for "
+                                           "items with "
                                            "no recorded outcome - which means "
                                            "the minutes are missing, not that "
                                            "nothing happened. It FILTERS, so "
@@ -531,7 +675,8 @@ SPECS = [
         "name": "get_item",
         "description":
             "Everything about one agenda item: its official title, department, "
-            "staff recommendation, the minutes disposition VERBATIM, the "
+            "staff recommendation, the outcome and the minutes' own "
+            "sentence recording it VERBATIM, the "
             "county's own PDF, its place in a case thread, and - if the "
             "meeting was recorded - the transcript of the item itself. "
             "Call this after a search puts an item in play; it is how you get "
@@ -548,9 +693,9 @@ SPECS = [
         "name": "get_case",
         "description":
             "One matter followed through every meeting that took it up, in "
-            "order, with what each one decided. 1,377 cases span more than "
-            "one meeting; PDE-25-7738 was heard twelve times over ten months "
-            "and continued five times. Use this instead of searching again "
+            "order, with what each one decided. {recurring} cases span more "
+            "than one meeting; {deep_case} was heard at {deep_case_meetings} "
+            "of them. Use this instead of searching again "
             "when you already have a case id - it reaches meetings with no "
             "recording, which searching the transcript cannot.",
         "run": lambda con, case_id: archive.case(con, case_id),
@@ -577,7 +722,14 @@ SPECS = [
 BY_NAME = {s["name"]: s for s in SPECS}
 
 # What a model gets handed. `run` is ours, not theirs.
-MANIFEST = [{k: v for k, v in s.items() if k != "run"} for s in SPECS]
+def manifest(con):
+    """The specs a model is handed: no callable, and every number measured.
+
+    A function and not a constant, because a constant is exactly how the old
+    counts went stale - it was built at import and nothing could ever move it.
+    """
+    f = facts(con)
+    return [fill({k: v for k, v in s.items() if k != "run"}, f) for s in SPECS]
 
 
 class ToolError(Exception):

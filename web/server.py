@@ -426,10 +426,13 @@ def api_issues(request, con):
 # somebody else is driving (web/mcp_server.py). /api/find is the page's call,
 # and it is nothing but two of these tools - the page and the agent share one
 # surface on purpose, so what a reader can find by hand the agent can too.
-def api_tools(request):
+@reads
+def api_tools(request, con):
     # `mcp` is here so /about can tell a reader what the tool endpoint will
-    # refuse without that number being typed into the copy twice.
-    return _json(request, {"tools": tools.MANIFEST,
+    # refuse without that number being typed into the copy twice. The manifest
+    # needs a connection for the same reason: the counts inside those
+    # descriptions are measured, not typed (tools.facts).
+    return _json(request, {"tools": tools.manifest(con),
                            "dense": tools._dense_error,
                            "mcp": {"path": "/mcp", **limits.mcp_public()}})
 

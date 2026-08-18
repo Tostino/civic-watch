@@ -103,8 +103,8 @@ export function CaseThread({
 
       {decided.length === 0 && steps.length > 1 ? (
         <p className={s.open}>
-          No appearance of this case has a final disposition in the minutes. It was continued,
-          or the minutes do not dispose of it in writing — which is true for 24% of items.
+          No appearance of this case has a final outcome in the minutes. It was continued,
+          or the minutes do not record one in writing — which is true for 24% of items.
         </p>
       ) : null}
     </section>

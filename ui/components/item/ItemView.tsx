@@ -29,7 +29,7 @@ import s from "./ItemView.module.css";
  *
  * The order of this page is an argument, not a layout preference. The record
  * leads — code, official title, staff recommendation, and the minutes
- * disposition verbatim — because it is authoritative and because for 91% of
+ * outcome verbatim — because it is authoritative and because for 91% of
  * decided items in this archive it is *all there is*. Then the county's own
  * PDF. Then the case thread, because an item is rarely the whole story. Only
  * then what was said, marked as the weaker source it is.
@@ -174,7 +174,7 @@ export function ItemView({ data }: { data: ItemDetail }) {
                   <div className={s.record}>
                     <ProvenanceMark kind="minutes" />
                     <h3 className={s.recordLabel}>
-                      Disposition
+                      Outcome
                       <OutcomeBadge outcome={item.outcome} size="sm" />
                     </h3>
                     {/* Verbatim, and the authoritative answer to "what was
@@ -185,12 +185,12 @@ export function ItemView({ data }: { data: ItemDetail }) {
                   </div>
                 ) : (
                   <div className={s.gap}>
-                    <h3 className={s.gapTitle}>No disposition in the minutes</h3>
+                    <h3 className={s.gapTitle}>No outcome in the minutes</h3>
                     <p>
                       The approved minutes do not say what became of this item. That is a gap
                       in the record, not a decision. It is the normal state for 24% of items.
                       Most of those are regular business and board reports that the minutes do
-                      not dispose of in writing. This archive never infers an outcome from the
+                      not record in writing. This archive never infers an outcome from the
                       fact that someone called a vote.
                     </p>
                   </div>
@@ -203,7 +203,7 @@ export function ItemView({ data }: { data: ItemDetail }) {
                   It is a stretch of the recording that this archive identified as a separate
                   matter — a call to order, a recess, or something taken up that the agenda does
                   not list. There is no official title, no staff recommendation and no
-                  disposition, because the county never recorded one. Everything below is
+                  outcome, because the county never recorded one. Everything below is
                   inferred.
                 </p>
               </div>

@@ -26,7 +26,7 @@ import s from "./SiteHeader.module.css";
  * claim - "this is not the official record" on every page - is the pattern R3.2
  * refuses in as many words: a single site-wide disclaimer "trains readers to
  * ignore it". What carries that weight instead is per-object: the transcript
- * states its own limits, an item states whether it has a disposition, a meeting
+ * states its own limits, an item states whether it has an outcome, a meeting
  * states whether it was recorded. /about still says all of it in full.
  */
 const NAV = [

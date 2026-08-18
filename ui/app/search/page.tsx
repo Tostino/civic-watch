@@ -198,7 +198,7 @@ function Empty() {
       <h1 className={s.emptyHead}>Two sources, one search</h1>
       <p className={s.emptyWhy}>
         The <b>record</b> is what the county published &mdash; every agenda item and the
-        disposition its approved minutes recorded, twelve years deep. The{" "}
+        outcome its approved minutes recorded, twelve years deep. The{" "}
         <b>room</b> is what people said &mdash; 1,036 hours of recordings, beginning in
         2018. Searching only one of them is how you conclude the archive holds nothing.
       </p>
