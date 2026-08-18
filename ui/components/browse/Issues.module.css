@@ -357,6 +357,14 @@
   background: color-mix(in srgb, var(--no) 78%, var(--surface));
 }
 
+/* Reads as "there is more here" without spending a line on it. */
+.how {
+  margin-inline-start: 0.5em;
+  color: var(--ink-3);
+  border-block-end: 1px dotted var(--rule-strong);
+  cursor: help;
+}
+
 .note {
   font-size: var(--text-2xs);
   line-height: var(--leading-normal);

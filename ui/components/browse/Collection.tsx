@@ -1,4 +1,4 @@
-import { duration, meetingDate } from "@/lib/format";
+import { duration } from "@/lib/format";
 import type { Overview } from "@/lib/types";
 import s from "./Collection.module.css";
 
@@ -102,10 +102,9 @@ export function Collection({
           stops a computer; saying the county posted a picture instead of text
           says the same thing to anybody. */}
       <p className={s.note}>
-        {o.meetings.toLocaleString()} meetings, {meetingDate(o.first, "short")} to{" "}
-        {meetingDate(o.last, "short")}. When an agenda is missing, it is usually because
-        the county posted a picture of it instead of text we can read. Nothing was
-        recorded on video before 2018.
+        {o.meetings.toLocaleString()} meetings, {o.first.slice(0, 4)} to{" "}
+        {o.last.slice(0, 4)}. A missing agenda usually means the county posted a picture,
+        not text. No video before 2018.
       </p>
     </section>
   );

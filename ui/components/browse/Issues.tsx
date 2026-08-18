@@ -125,8 +125,10 @@ export function Issues({
             of three encodings; one encoding costs the single thing height
             cannot say for itself, which is what it is measured against. */}
         <p className={s.legend}>
-          Each bar is one year. Taller means the county handled more of it that year.
-          Every row is measured against its own busiest year.
+          Each bar is a year. Taller means more, against that row&rsquo;s busiest year.
+          <span className={s.how} tabIndex={0} title={HOW}>
+            how these are counted
+          </span>
         </p>
       </header>
 
@@ -168,11 +170,6 @@ export function Issues({
           none of them were what somebody came here to read. What survives is
           the part a reader needs to interpret the numbers at all; the rest is
           in `bin/subjects.py`, where somebody who does doubt it will look. */}
-      <p className={s.note}>
-        We find each subject by looking for its words in the county&rsquo;s own agenda
-        titles. The counts are exact. One item can be about two subjects at once, so
-        the rows overlap. They do not add up to a total.
-      </p>
     </section>
   );
 }
@@ -288,6 +285,16 @@ function Row({
     </div>
   );
 }
+
+/* Was three lines of body copy under the grid. It is the provenance R2.1 asks
+ * for and it is not what anybody came to read, so it moved onto a marker
+ * beside the legend: one hover or one Tab away, in the place a reader looks
+ * when they want to know where a number came from. `tabIndex` because a
+ * `title` a mouse can reach and a keyboard cannot is not an affordance. */
+const HOW =
+  "We find each subject by looking for its words in the county's own agenda "
+  + "titles, so the counts are exact. One item can be about two subjects at "
+  + "once, so the rows overlap and do not add up to a total.";
 
 const pushed = (i: Issue) => i.continued + i.refused + i.divided;
 const decided = (i: Issue) => i.years.reduce((n, y) => n + y.decided, 0);

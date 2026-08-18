@@ -69,10 +69,10 @@ function DividedSection({ d }: { d: Divided }) {
         <h2 id="divided-head" className={s.dividedTitle}>
           Where the board disagreed
         </h2>
+        {/* The third sentence explained why there are two lanes. The two lane
+            headings say it where a reader is actually looking. */}
         <p className={s.why}>
-          Almost everything the board votes on passes without an argument. These are the
-          times it did not. We look in the minutes and in the recordings, because each one
-          misses things the other catches.
+          Almost everything passes without an argument. These are the times it did not.
         </p>
       </header>
 
