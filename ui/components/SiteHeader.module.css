@@ -57,7 +57,7 @@
  * wordmark it reads as one group, and it gives its width back first as the
  * window narrows. */
 .find {
-  flex: 0 1 22rem;
+  flex: 0 1 26rem;
   min-width: 0;
 }
 
