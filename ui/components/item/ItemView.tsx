@@ -209,11 +209,11 @@ export function ItemView({
               <div className={s.gap}>
                 <h3 className={s.gapTitle}>This item is not from the published agenda</h3>
                 <p>
-                  It is a stretch of the recording that this archive identified as a separate
-                  matter: a call to order, a recess, or something taken up that the agenda does
-                  not list. There is no official title, no staff recommendation and no
-                  outcome, because the county never recorded one. Everything below is
-                  inferred.
+                  This archive found it in the recording, not on the agenda. It may be a
+                  call to order, a recess, or something the board took up without listing
+                  it. There is no official title, no staff recommendation and no outcome,
+                  because the county never recorded one. Everything below is our reading
+                  of the recording.
                 </p>
               </div>
             )}
