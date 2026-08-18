@@ -138,7 +138,11 @@ export function Issues({
               key={y}
               className={`${s.colHead} ${y === d.heard_from ? s.gate : ""}`}
             >
-              {y.slice(2)}
+              {/* The whole year. "15 16 17" is a row of small numbers that
+                  could be anything, and the calendar directly above this one
+                  labels its rows 2022, 2023 - so the two grids on one page
+                  were writing the same thing two ways. */}
+              {y}
             </span>
           ))}
           <span className={s.colHead}>totals</span>

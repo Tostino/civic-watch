@@ -26,9 +26,8 @@ export function Entryways({ h }: { h: Highlights }) {
           <header className={s.head}>
             <h2 className={s.title}>Cases the board continued again and again</h2>
             <p className={s.why}>
-              Projects the board put off three times or more. One rezoning came back
-              twelve times in ten months. The county&rsquo;s own website lists that as
-              twelve separate events.
+              Projects the board put off three or more times. One rezoning came back
+              twelve times in ten months.
             </p>
           </header>
           <ul className={s.list}>

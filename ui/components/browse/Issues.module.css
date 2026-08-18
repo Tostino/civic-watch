@@ -121,11 +121,11 @@
   display: grid;
   grid-template-columns:
     minmax(12.5rem, 1.7fr)
-    repeat(var(--years), minmax(1.15rem, 1fr))
+    repeat(var(--years), minmax(2rem, 1fr))
     4.9rem;
   gap: 2px;
   align-items: center;
-  min-width: 34rem;
+  min-width: 38rem;
   /* Three lanes and three totals rows, not two. 0.6rem x3 + two 2px gaps is
    * 33px of cell, and the totals column is now the taller of the pair at
    * ~45px - so the row grows by the one line the third measure costs and the
@@ -369,9 +369,9 @@
   .row {
     grid-template-columns:
       minmax(9.5rem, 1.4fr)
-      repeat(var(--years), minmax(0.9rem, 1fr))
+      repeat(var(--years), minmax(1.9rem, 1fr))
       4.1rem;
-    min-width: 28rem;
+    min-width: 34rem;
   }
 
   .lane {
