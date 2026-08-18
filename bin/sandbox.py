@@ -127,6 +127,14 @@ def build():
         ("portal_events", "WHERE id = ANY(%(e)s)"),
         ("portal_files", "WHERE event_id = ANY(%(e)s)"),
     ]
+    # The curated subject vocabulary is KEEP too, and it is NOT scoped to the
+    # fixtures - it is archive-wide wording that a person kept. It is copied
+    # below rather than here because `subject.parent` references `subject`,
+    # so the rows have to arrive parents-first and this loop has no way to
+    # say that. `speaker_method` needs no copy at all: schema.sql seeds it,
+    # which is exactly why KEEP protects a tuned rank rather than the table.
+    # `answers` is deliberately not copied - the sandbox rebuilds agenda item
+    # ids from nothing, which is the very hazard rebuild.sh now refuses on.
     args = {"v": vids, "e": events}
     print()
     for table, where in COPY:
@@ -164,6 +172,35 @@ def build():
         print(f"  {table:20s}{len(rows):>10,d}"
               + ("   (meeting_id cleared - land_agenda re-derives it)"
                  if table in ("videos", "portal_events") else ""))
+
+    # ---- the subject vocabulary, parents before children ----------------
+    # Two passes rather than a topological sort: insert every row with no
+    # parent, then restore the parents once every slug exists. Three levels
+    # today, any number tomorrow, and no ordering to get wrong.
+    srows = src.execute(
+        "SELECT slug, label, q, blurb, status, proposer, sort, created_at, parent"
+        "  FROM subject").fetchall()
+    with dst.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO subject (slug,label,q,blurb,status,proposer,sort,"
+            "created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+            [tuple(r[i] for i in range(8)) for r in srows])
+        cur.executemany("UPDATE subject SET parent=%s WHERE slug=%s",
+                        [(r[8], r[0]) for r in srows if r[8]])
+    tcols = [r[0] for r in src.execute(
+        "SELECT column_name FROM information_schema.columns"
+        " WHERE table_schema='public' AND table_name='subject_term'"
+        " AND is_generated='NEVER' ORDER BY ordinal_position")]
+    tq = ", ".join(f'"{c}"' for c in tcols)
+    trows = src.execute(f"SELECT {tq} FROM subject_term").fetchall()
+    with dst.cursor() as cur:
+        cur.executemany(
+            f"INSERT INTO subject_term ({tq}) VALUES "
+            f"({', '.join(['%s']*len(tcols))}) ON CONFLICT DO NOTHING",
+            [tuple(r[i] for i in range(len(tcols))) for r in trows])
+    print(f"  {'subject':20s}{len(srows):>10,d}   (parents restored in a second pass)")
+    print(f"  {'subject_term':20s}{len(trows):>10,d}")
+    dst.commit()
 
     print(f"\nReady. Run the pipeline against it with:\n\n"
           f'    PASCO_DSN="$(bin/sandbox.py --dsn)" bash bin/rebuild.sh --yes\n')

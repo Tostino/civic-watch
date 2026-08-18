@@ -664,121 +664,6 @@ WHERE name_supported(o.video_id, cp.name);
 -- disagree with itself - which is the exact defect the level-3-before-level-4
 -- paragraph above is about.
 
--- WHO SAID THIS, resolved from speaker_claim by way of speaker_resolved.
---
--- Cut over on 2026-08-17. It was built alongside the old read-time resolver
--- and named _next for as long as that one served, so the two could be diffed
--- against each other over the whole archive: 1,215 names gained, 9 lost, 389
--- changed, and a 50-case hand check of those (SPEAKER_PLAN 4a) that found
--- three extraction bugs and no regressions. The old view is gone; git has it.
---
--- IT KEPT THE CONTRACT, which is why the swap was a rename and not a
--- migration. Same columns, same meanings, so the twelve files that
--- read only the view do not change and neither does bin/index_passages, which
--- builds passages.speaker and the embedded text from exactly these columns.
---
---   name          THE KEY, and it must not change form or the `speaker` facet
---                 and every stored citation stop matching. A board member is
---                 keyed by surname; everybody else by the name they gave.
---   basis         now the METHOD, which is strictly more informative than the
---                 four values it carried. ui/components/SpeakerChip.tsx maps
---                 method to how sure the page looks, in one place, as it does
---                 today.
---   confidence    NULL, always. Three producers wrote three incomparable
---                 scales into one column (0.5 self-ID, 0.88 chair, 0.95 LLM)
---                 and R5.5.6 forbids showing a number anyway. The column
---                 survives so nothing breaks reading it; it no longer claims
---                 anything.
---   contested     two unvetoed methods asserting different names for one span,
---                 OR a correction pending - which is all it used to mean.
-CREATE OR REPLACE VIEW utterance_speaker AS
-SELECT u.video_id,
-       u.idx,
-       u.local_label,
-       u.cluster,
-       -- The key keeps its form: surname for a BOARD member, because that is
-       -- what the roster, the facet and every filter are written against, and
-       -- the person's own full name for everybody else.
-       --
-       -- THE kind TEST IS LOAD-BEARING and was missing. This read
-       -- COALESCE(pe.surname, sr.name_text), which was right only for as long
-       -- as members of the public had no surname stored. Keeping their
-       -- surnames - which is what the record deserves and what the old
-       -- UNIQUE(surname) was preventing - silently turned every public
-       -- speaker's key into a bare surname: `Beverly Camp` became `Camp`,
-       -- `Yolanda Hodges` became `Hodges`. passages.speaker IS THE FACET KEY
-       -- and /search filters on equality against it, so every Camp in the
-       -- archive would have collapsed into one speaker. display_name was
-       -- correct throughout, so nothing on the page would have looked wrong.
-       -- Caught by rebuilding ONE meeting and reading the diff.
-       CASE WHEN pe.kind = 'board' THEN COALESCE(pe.surname, sr.name_text)
-            ELSE COALESCE(pe.full_name, sr.name_text) END AS name,
-       sr.method AS basis,
-       -- COALESCE, because the old view's `human` is never NULL and 63,559
-       -- utterances resolve to no name at all. Without it every unnamed line
-       -- returns NULL where it used to return false, and `WHERE NOT human`
-       -- silently stops matching them.
-       COALESCE(sr.method IN ('override', 'label'), false) AS human,
-       NULL::double precision AS confidence,
-       (COALESCE(sr.contested, false) OR EXISTS (
-            SELECT 1 FROM speaker_override p
-             WHERE p.video_id = u.video_id AND p.status = 'pending'
-               AND u.idx BETWEEN p.start_idx AND p.end_idx)) AS contested,
-       -- Resolved through the person where there is one, so a display name is
-       -- corrected in a single row rather than per utterance.
-       COALESCE(pe.full_name, display_name(sr.name_text)) AS display_name
-  FROM utterances u
-  LEFT JOIN speaker_resolved sr
-         ON sr.video_id = u.video_id AND sr.idx = u.idx
-  LEFT JOIN people pe ON pe.id = sr.person_id;
-
--- How well a PASSAGE's speaker name is known, in the two fields every surface
--- already draws it from: `human` and `basis`.
---
--- A passage is many utterances and the view above answers for one, so
--- something has to reduce them - and every reader of this, the page and the
--- agent alike, wants the same reduction: the WORST case. One shaky line is
--- enough to make an attribution shaky, and a passage that is 'human' for four
--- utterances and 'cluster' for the fifth is a passage whose name may be wrong.
---
--- It is a function and not two aggregates in each caller's query because both
--- ways of writing those aggregates were wrong, and wrong quietly:
---
---   BOOL_OR(human) with MIN(basis) reads the two fields off DIFFERENT
---   utterances, so one passage came back saying a person confirmed it AND that
---   it was an archive-wide cluster guess. Whichever the caller checked first
---   decided the answer.
---
---   MIN(basis) is alphabetical, and alphabetical is not strength: it puts
---   'cluster' first, which is right by luck, and then 'human' ahead of
---   'voice', which is backwards. A passage mixing a confirmed name with a
---   voice match reported the confirmed one.
---
--- ORDER BY ... LIMIT 1 over a real strength ranking returns ONE row, so the
--- fields cannot disagree, and returns the weakest, which is what the question
--- means. The ranking is the precedence in the view above, read from the bottom
--- up; it is stated here and nowhere else for the reason the view's own header
--- gives.
-CREATE OR REPLACE FUNCTION passage_speaker(vid text, lo integer, hi integer)
-RETURNS TABLE (name_human boolean, name_basis text)
-LANGUAGE sql STABLE AS $$
-    SELECT us.human, us.basis
-      FROM utterance_speaker us
-      LEFT JOIN speaker_method m ON m.method = us.basis
-     WHERE us.video_id = vid AND us.idx BETWEEN lo AND hi
-       -- Unnamed utterances say nothing about how sure a NAME is. A passage
-       -- of nothing but unnamed voices returns no row at all, which the
-       -- callers read as "no name to be unsure about".
-       AND us.name IS NOT NULL
-     -- WEAKEST FIRST, off the one table that ranks methods. This was a CASE
-     -- over the four values `basis` used to carry, and `basis` is the METHOD
-     -- now: self, chair, llm, label, read_aloud and self_weak all fell to
-     -- ELSE 0 and became indistinguishable from `cluster`, the weakest thing
-     -- there is. A passage whose name the speaker gave themselves would have
-     -- been reduced exactly like one named by an archive-wide majority.
-     ORDER BY COALESCE(m.rank, 99) DESC
-     LIMIT 1;
-$$;
 
 -- ------------------------------------------------------------- redaction
 --
@@ -992,6 +877,134 @@ CREATE TABLE IF NOT EXISTS speaker_resolved (
     contested boolean NOT NULL DEFAULT false,
     PRIMARY KEY (video_id, idx)
 );
+
+-- MOVED HERE FROM ABOVE THE REDACTION SECTION, and the order is the whole
+-- point. This view and the function under it read `speaker_resolved` and
+-- `speaker_method`, both defined further up this file only since the
+-- 2026-08-17 cutover - so on an EXISTING database CREATE OR REPLACE found
+-- them and nothing looked wrong, while applying this file to a FRESH one
+-- failed outright on `relation "speaker_resolved" does not exist`.
+--
+-- Nothing in production revealed it: db.init() is only ever run against a
+-- database that already has the objects. bin/sandbox.py --build is the one
+-- caller that starts from empty, and it is what found this.
+
+-- WHO SAID THIS, resolved from speaker_claim by way of speaker_resolved.
+--
+-- Cut over on 2026-08-17. It was built alongside the old read-time resolver
+-- and named _next for as long as that one served, so the two could be diffed
+-- against each other over the whole archive: 1,215 names gained, 9 lost, 389
+-- changed, and a 50-case hand check of those (SPEAKER_PLAN 4a) that found
+-- three extraction bugs and no regressions. The old view is gone; git has it.
+--
+-- IT KEPT THE CONTRACT, which is why the swap was a rename and not a
+-- migration. Same columns, same meanings, so the twelve files that
+-- read only the view do not change and neither does bin/index_passages, which
+-- builds passages.speaker and the embedded text from exactly these columns.
+--
+--   name          THE KEY, and it must not change form or the `speaker` facet
+--                 and every stored citation stop matching. A board member is
+--                 keyed by surname; everybody else by the name they gave.
+--   basis         now the METHOD, which is strictly more informative than the
+--                 four values it carried. ui/components/SpeakerChip.tsx maps
+--                 method to how sure the page looks, in one place, as it does
+--                 today.
+--   confidence    NULL, always. Three producers wrote three incomparable
+--                 scales into one column (0.5 self-ID, 0.88 chair, 0.95 LLM)
+--                 and R5.5.6 forbids showing a number anyway. The column
+--                 survives so nothing breaks reading it; it no longer claims
+--                 anything.
+--   contested     two unvetoed methods asserting different names for one span,
+--                 OR a correction pending - which is all it used to mean.
+CREATE OR REPLACE VIEW utterance_speaker AS
+SELECT u.video_id,
+       u.idx,
+       u.local_label,
+       u.cluster,
+       -- The key keeps its form: surname for a BOARD member, because that is
+       -- what the roster, the facet and every filter are written against, and
+       -- the person's own full name for everybody else.
+       --
+       -- THE kind TEST IS LOAD-BEARING and was missing. This read
+       -- COALESCE(pe.surname, sr.name_text), which was right only for as long
+       -- as members of the public had no surname stored. Keeping their
+       -- surnames - which is what the record deserves and what the old
+       -- UNIQUE(surname) was preventing - silently turned every public
+       -- speaker's key into a bare surname: `Beverly Camp` became `Camp`,
+       -- `Yolanda Hodges` became `Hodges`. passages.speaker IS THE FACET KEY
+       -- and /search filters on equality against it, so every Camp in the
+       -- archive would have collapsed into one speaker. display_name was
+       -- correct throughout, so nothing on the page would have looked wrong.
+       -- Caught by rebuilding ONE meeting and reading the diff.
+       CASE WHEN pe.kind = 'board' THEN COALESCE(pe.surname, sr.name_text)
+            ELSE COALESCE(pe.full_name, sr.name_text) END AS name,
+       sr.method AS basis,
+       -- COALESCE, because the old view's `human` is never NULL and 63,559
+       -- utterances resolve to no name at all. Without it every unnamed line
+       -- returns NULL where it used to return false, and `WHERE NOT human`
+       -- silently stops matching them.
+       COALESCE(sr.method IN ('override', 'label'), false) AS human,
+       NULL::double precision AS confidence,
+       (COALESCE(sr.contested, false) OR EXISTS (
+            SELECT 1 FROM speaker_override p
+             WHERE p.video_id = u.video_id AND p.status = 'pending'
+               AND u.idx BETWEEN p.start_idx AND p.end_idx)) AS contested,
+       -- Resolved through the person where there is one, so a display name is
+       -- corrected in a single row rather than per utterance.
+       COALESCE(pe.full_name, display_name(sr.name_text)) AS display_name
+  FROM utterances u
+  LEFT JOIN speaker_resolved sr
+         ON sr.video_id = u.video_id AND sr.idx = u.idx
+  LEFT JOIN people pe ON pe.id = sr.person_id;
+
+-- How well a PASSAGE's speaker name is known, in the two fields every surface
+-- already draws it from: `human` and `basis`.
+--
+-- A passage is many utterances and the view above answers for one, so
+-- something has to reduce them - and every reader of this, the page and the
+-- agent alike, wants the same reduction: the WORST case. One shaky line is
+-- enough to make an attribution shaky, and a passage that is 'human' for four
+-- utterances and 'cluster' for the fifth is a passage whose name may be wrong.
+--
+-- It is a function and not two aggregates in each caller's query because both
+-- ways of writing those aggregates were wrong, and wrong quietly:
+--
+--   BOOL_OR(human) with MIN(basis) reads the two fields off DIFFERENT
+--   utterances, so one passage came back saying a person confirmed it AND that
+--   it was an archive-wide cluster guess. Whichever the caller checked first
+--   decided the answer.
+--
+--   MIN(basis) is alphabetical, and alphabetical is not strength: it puts
+--   'cluster' first, which is right by luck, and then 'human' ahead of
+--   'voice', which is backwards. A passage mixing a confirmed name with a
+--   voice match reported the confirmed one.
+--
+-- ORDER BY ... LIMIT 1 over a real strength ranking returns ONE row, so the
+-- fields cannot disagree, and returns the weakest, which is what the question
+-- means. The ranking is the precedence in the view above, read from the bottom
+-- up; it is stated here and nowhere else for the reason the view's own header
+-- gives.
+CREATE OR REPLACE FUNCTION passage_speaker(vid text, lo integer, hi integer)
+RETURNS TABLE (name_human boolean, name_basis text)
+LANGUAGE sql STABLE AS $$
+    SELECT us.human, us.basis
+      FROM utterance_speaker us
+      LEFT JOIN speaker_method m ON m.method = us.basis
+     WHERE us.video_id = vid AND us.idx BETWEEN lo AND hi
+       -- Unnamed utterances say nothing about how sure a NAME is. A passage
+       -- of nothing but unnamed voices returns no row at all, which the
+       -- callers read as "no name to be unsure about".
+       AND us.name IS NOT NULL
+     -- WEAKEST FIRST, off the one table that ranks methods. This was a CASE
+     -- over the four values `basis` used to carry, and `basis` is the METHOD
+     -- now: self, chair, llm, label, read_aloud and self_weak all fell to
+     -- ELSE 0 and became indistinguishable from `cluster`, the weakest thing
+     -- there is. A passage whose name the speaker gave themselves would have
+     -- been reduced exactly like one named by an archive-wide majority.
+     ORDER BY COALESCE(m.rank, 99) DESC
+     LIMIT 1;
+$$;
+
 
 -- ================================================================ answers
 -- One completed run of the agent, kept so that the answer has a URL.
