@@ -355,9 +355,6 @@ function number(
   const said = new Map<number, number>();
   const anchor = new Set<number>();
   let next = 1;
-  /* Which recording the last reference was on. A number needs no context in
-     the sentence, but the row it points at is one of several under the same
-     meeting, so the list still says which recording — see `Evidence`. */
   for (const p of parts) {
     if (!isRun(p)) continue;
     const marks: Mark[] = [];
@@ -388,16 +385,30 @@ function number(
        moment first. */
     hits.sort((a, b) => a.start - b.start);
     for (const mo of moments(hits)) {
-      const seen = said.get(mo.at.id);
+      /* A PASSAGE KEEPS THE FIRST NUMBER IT WAS GIVEN, and a moment takes the
+         number of any passage in it that already has one. Folding happens per
+         sentence — it has to, because a sentence's citations are what tell us
+         which stretch that sentence rests on — so the same passage can be
+         folded here and standalone there, and keying reuse on the fold's
+         first passage alone let a later, longer fold mint a fresh number and
+         overwrite what its members already carried: one number in the prose
+         with no row left showing it, and a row carrying somebody else's.
+         Doing it globally instead was worse in a way that matters more than
+         either — it merged a three-and-a-half-minute stretch of one speaker
+         into one reference, so a sentence about its last claim dropped the
+         reader three minutes before the claim. */
+      const seen =
+        said.get(mo.at.id) ?? mo.of.map((h) => said.get(h.id)).find((x) => x !== undefined);
       const n = seen ?? next;
       if (seen === undefined) {
         next += 1;
-        // Every passage of the moment answers to the moment's number, so the
-        // rows the fold covers all carry it in the list below; the moment's
-        // first passage is the one that answers to the anchor.
-        for (const h of mo.of) said.set(h.id, n);
+        // The moment's first passage is the row that bears the number and the
+        // anchor; the rest are that reference's other quotes and print none of
+        // their own. A numbered list in which 9 appears three times is a list
+        // somebody has to check twice.
         anchor.add(mo.at.id);
       }
+      for (const h of mo.of) if (!said.has(h.id)) said.set(h.id, n);
       marks.push({ n, kind: "said", moment: mo, where: recordingName(mo.at) });
     }
     for (const id of dead) marks.push({ n: 0, kind: "dead", id });
@@ -513,7 +524,11 @@ function Refs({ plan }: { plan: Plan }) {
   );
 }
 
-/** The number, where the thing it points at actually is. */
+/** The number, printed where the thing it points at actually is.
+ *
+ *  The ANCHOR is the row, not this: `#ref-4` used to land on the number span
+ *  inside the row, which meant `.recRow:target` — the highlight that shows a
+ *  reader which row they were just sent to — could never match again. */
 function RefNo({
   n,
   said = false,
@@ -525,22 +540,21 @@ function RefNo({
 }) {
   if (n === undefined) return null;
   return (
-    <span
-      id={anchor ? `ref-${n}` : undefined}
-      className={`${s.refNo} ${said ? s.refNoSaid : ""}`}
-    >
+    <span className={`${s.refNo} ${said ? s.refNoSaid : ""}`}>
       {/* No ▸ here, unlike the marker in the prose. The mark is there to say
           which of two kinds a reference is where they are mixed mid-sentence;
           in the list the heading above the row has already said it, and the
-          row's own play button carries a ▸ two words later. */}
-      {n}
+          row's own play button carries a ▸ two words later.
+          Blank on a row that CONTINUES a reference: one number, one row that
+          bears it, and the quotes under it are that reference's own. */}
+      {anchor ? n : null}
     </span>
   );
 }
 
 function RecordCite({ item, n }: { item: RecordHit; n: number | undefined }) {
   return (
-    <div className={s.recRow} id={`item-${item.id}`}>
+    <div className={s.recRow} id={n === undefined ? undefined : `ref-${n}`}>
       <div className={s.recTop}>
         <RefNo n={n} />
         <Link href={`/meeting/${item.meeting_id}`} className={s.when}>
@@ -621,7 +635,13 @@ function Evidence({
               )}
               <ul className={s.quotes}>
                 {group.map((h) => (
-                  <li key={h.id} className={s.quote}>
+                  <li
+                    key={h.id}
+                    className={s.quote}
+                    /* Same rule as a record row: the anchor is the row a
+                       reference resolves to, so landing on it can be seen. */
+                    id={anchor.has(h.id) ? `ref-${said.get(h.id)}` : undefined}
+                  >
                     <Quote hit={h} n={said.get(h.id)} anchor={anchor.has(h.id)} />
                   </li>
                 ))}
