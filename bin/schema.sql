@@ -1025,6 +1025,20 @@ LANGUAGE sql STABLE AS $$
 $$;
 
 
+-- The read-time resolver `utterance_speaker` replaced on 2026-08-17. The
+-- cutover renamed it aside rather than dropping it so that
+-- `bin/cutover_speaker.py --rollback` had something to rename back, and it sat
+-- there afterwards - referenced by nothing, dependent on nothing, and drift by
+-- any other name.
+--
+-- Retired at the maintainer's direction. Stated here rather than only run by
+-- hand because the view is inside every dump taken before tonight, so a
+-- restore would quietly bring it back and the drift would return with it.
+--
+-- The definition is not lost: `git show e9b9451^:bin/schema.sql` has it, and
+-- so does any dump from before 2026-08-18.
+DROP VIEW IF EXISTS utterance_speaker_old;
+
 -- ================================================================ answers
 -- One completed run of the agent, kept so that the answer has a URL.
 --

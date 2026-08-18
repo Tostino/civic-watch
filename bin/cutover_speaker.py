@@ -13,8 +13,12 @@ passages, it RE-SEGMENTS them. Passage ids change. Anything holding a passage
 id - the `[123456]` citations in saved answers - goes stale, which is why
 --apply drops them; they are cached agent runs and reproduce by asking again.
 
-WHY IT IS REVERSIBLE. Nothing is dropped except the saved answers. The old
-view is renamed aside, not deleted, and --rollback puts it back and rebuilds.
+WHY IT WAS REVERSIBLE, past tense. Nothing was dropped except the saved
+answers; the old view was renamed aside rather than deleted so --rollback
+could rename it back. `utterance_speaker_old` was retired on 2026-08-18,
+so that way back is closed and --rollback now refuses instead of failing
+somewhere less obvious. `git show e9b9451^:bin/schema.sql` has the
+definition if it is ever wanted again.
 Both resolutions are computed from `speaker_claim` and `speaker_override`,
 neither of which this touches.
 
@@ -59,6 +63,9 @@ def status(con):
         state = "CUT OVER - utterance_speaker is the claims resolver"
     elif NEW in v and OLD not in v:
         state = "shadow - utterance_speaker is the old read-time resolver"
+    elif LIVE in v and OLD not in v and NEW not in v:
+        state = ("CUT OVER - utterance_speaker is the claims resolver, and the "
+                 "old one is retired")
     else:
         state = f"UNEXPECTED: views present = {sorted(v)}"
     print(f"  {state}")
@@ -168,6 +175,14 @@ def main():
         return status(con)
 
     if args.rollback:
+        # utterance_speaker_old is gone (2026-08-18), so there is nothing to
+        # rename back. Said here rather than discovered inside unswap(), which
+        # would half-do it.
+        if OLD not in _views(con):
+            sys.exit("  utterance_speaker_old was retired - there is no view to\n"
+                     "  rename back. Recreate it from\n"
+                     "      git show e9b9451^:bin/schema.sql\n"
+                     "  before running this.")
         unswap(con)
         vids = [r["id"] for r in con.execute(
             "SELECT DISTINCT video_id AS id FROM passages ORDER BY 1")]
