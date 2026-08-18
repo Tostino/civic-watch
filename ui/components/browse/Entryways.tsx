@@ -26,9 +26,9 @@ export function Entryways({ h }: { h: Highlights }) {
           <header className={s.head}>
             <h2 className={s.title}>Cases the board continued again and again</h2>
             <p className={s.why}>
-              Cases continued three times or more. A rezoning heard twelve times over
-              ten months is one matter. The county&rsquo;s portal shows it as twelve
-              unrelated events.
+              Projects the board put off three times or more. One rezoning came back
+              twelve times in ten months. The county&rsquo;s own website lists that as
+              twelve separate events.
             </p>
           </header>
           <ul className={s.list}>
@@ -71,8 +71,9 @@ function DividedSection({ d }: { d: Divided }) {
           Where the board disagreed
         </h2>
         <p className={s.why}>
-          Nearly all county business passes unopposed, so the exceptions are the ones worth
-          reading. Both sources are searched, because each misses what the other catches.
+          Almost everything the board votes on passes without an argument. These are the
+          times it did not. We look in the minutes and in the recordings, because each one
+          misses things the other catches.
         </p>
       </header>
 
@@ -83,7 +84,7 @@ function DividedSection({ d }: { d: Divided }) {
           <div className={s.lane}>
             <h3 className={s.laneHead}>
               <span className={s.laneWhat}>In the minutes</span>
-              <span className={s.laneWhy}>the county&rsquo;s own words, weeks later</span>
+              <span className={s.laneWhy}>the official record, posted weeks later</span>
             </h3>
             <ul className={s.list}>
               {d.record.map((r) => (
@@ -121,7 +122,7 @@ function DividedSection({ d }: { d: Divided }) {
                   reading of it, so it says so where the claim is made rather
                   than in a footnote nobody reaches. */}
               <span className={`${s.laneWhy} ${s.inferred}`}>
-                from the recording, transcribed automatically
+                from the video, typed up by a computer
               </span>
             </h3>
             <ul className={s.list}>
@@ -180,8 +181,8 @@ function DecidedCard({ days }: { days: DecidedDay[] }) {
       <header className={s.head}>
         <h2 className={s.title}>What the board has been deciding</h2>
         <p className={s.why}>
-          Each meeting&rsquo;s business, most recent first. The bar is how much was disposed
-          of, to the same scale across days. Most of it is consent, passed in one motion.
+          What the board settled at each meeting, newest first. The bar shows how much.
+          Most of it passes in a single vote, with no discussion.
         </p>
       </header>
       <ul className={s.list}>

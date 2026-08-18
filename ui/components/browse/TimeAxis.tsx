@@ -6,7 +6,11 @@ import { useState } from "react";
 import type { MonthCell } from "@/lib/types";
 import s from "./TimeAxis.module.css";
 
-const MONTHS = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+/* Numbers, not initials. "J F M A M J J A S O N D" has J three times and M
+ * twice, so half the columns could not be told apart without counting along
+ * the row - and the row underneath is what a reader is trying to read. The
+ * full name is still on every cell's label for a screen reader and a hover. */
+const MONTHS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",

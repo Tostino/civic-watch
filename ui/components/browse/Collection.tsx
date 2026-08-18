@@ -97,13 +97,15 @@ export function Collection({
         ))}
       </ul>
 
-      {/* One sentence. The old note explained image-only scans, counted them,
-          and said there is nothing before 2018 - three facts to justify three
-          bars that already state themselves. */}
+      {/* Plain words. "A missing agenda is usually a scan this archive cannot
+          read" asks a reader to know what an image-only scan is and why that
+          stops a computer; saying the county posted a picture instead of text
+          says the same thing to anybody. */}
       <p className={s.note}>
-        Of {o.meetings.toLocaleString()} meetings, {meetingDate(o.first, "short")} to{" "}
-        {meetingDate(o.last, "short")}. A missing agenda is usually a scan this archive
-        cannot read; there are no recordings before 2018.
+        {o.meetings.toLocaleString()} meetings, {meetingDate(o.first, "short")} to{" "}
+        {meetingDate(o.last, "short")}. When an agenda is missing, it is usually because
+        the county posted a picture of it instead of text we can read. Nothing was
+        recorded on video before 2018.
       </p>
     </section>
   );

@@ -146,8 +146,8 @@ export default async function BrowsePage({ searchParams }: Props) {
             to do is say what this is; the panel underneath says how much of
             it there is, which the prose was also doing. */}
         <p className={s.lede}>
-          The county&rsquo;s agendas, minutes and recordings, joined up so a decision
-          can be read, heard and cited.
+          Agendas, minutes and video from county meetings, all in one place. See
+          what was decided, hear it said, and share the link.
         </p>
         {/* The front page had no input on it at all: the one verb a reader
             arrives holding was a nav link, and the first door into an actual

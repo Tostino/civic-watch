@@ -125,7 +125,8 @@ export function Issues({
             of three encodings; one encoding costs the single thing height
             cannot say for itself, which is what it is measured against. */}
         <p className={s.legend}>
-          Bars are published items per year, each row against its own busiest year.
+          Each bar is one year. Taller means the county handled more of it that year.
+          Every row is measured against its own busiest year.
         </p>
       </header>
 
@@ -164,9 +165,9 @@ export function Issues({
           the part a reader needs to interpret the numbers at all; the rest is
           in `bin/subjects.py`, where somebody who does doubt it will look. */}
       <p className={s.note}>
-        Subjects and the words that find them are derived from the county&rsquo;s own
-        agenda titles. Matching is literal, so these counts are exact. Rows overlap
-        and do not sum.
+        We find each subject by looking for its words in the county&rsquo;s own agenda
+        titles. The counts are exact. One item can be about two subjects at once, so
+        the rows overlap. They do not add up to a total.
       </p>
     </section>
   );
