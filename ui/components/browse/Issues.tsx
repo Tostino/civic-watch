@@ -302,9 +302,14 @@ function pushedSays(i: Issue): string {
 }
 
 /* LOW keeps a year with one item visible: the quietest year a subject
- * appeared in must never look like a year it did not appear at all. At a 22px
- * cell that floor is about 4px, which reads as a mark rather than as dust. */
-const LOW = 0.18;
+ * appeared in must never look like a year it did not appear at all.
+ *
+ * 0.18 was too generous and it cost the chart its shape. A year at a fifth of
+ * peak rendered at 0.34 of the cell, so eight of eight rows read as a solid
+ * band with a wobble on top - which is exactly the failure the tints had, in
+ * a new channel. 0.08 is about 2px at this cell height: still unmistakably a
+ * mark, and it gives the scale back the bottom half of its range. */
+const LOW = 0.08;
 const height = (n: number, peak: number) =>
   n <= 0 ? "0" : (LOW + (1 - LOW) * (n / peak)).toFixed(3);
 
@@ -322,6 +327,10 @@ function contested(i: Issue): string {
   const p = pushed(i);
   if (!p) return "none contested";
   const n = Math.round(d / p);
+  // Past about one in twenty-five the ratio stops being a quantity anyone
+  // holds and starts being noise dressed as precision: "1 in 586 contested"
+  // is a sentence nobody reads as "almost never", which is all it means.
+  if (n > 25) return "rarely contested";
   return n <= 1 ? "nearly all contested" : `1 in ${n} contested`;
 }
 
@@ -387,19 +396,15 @@ function activeSpan(i: Issue): { label: string; whole: boolean } | null {
  *  grid its rhythm; `summary()` still supplies them, and the full extent, to
  *  the hover. */
 function shortSummary(i: Issue): string {
-  const active = activeSpan(i);
-  // "mostly", because this is where the subject lives and not where it
-  // begins and ends. Dropped when the run covers every year the archive
-  // holds, since then there is no "mostly" about it.
-  const when = active
-    ? `${active.whole ? "" : "mostly "}${active.label}`
-    : `${i.first.slice(0, 4)}–${i.last.slice(0, 4)}`;
   if (!i.items) {
+    const active = activeSpan(i);
+    // Nothing published, so the bars are empty and there is no shape to read
+    // the years off. Only here does the line still have to say when.
+    const when = active ? active.label : `${i.first.slice(0, 4)}–${i.last.slice(0, 4)}`;
     return `${when} · heard in ${i.heard} recorded `
       + `${i.heard === 1 ? "meeting" : "meetings"}, never in a published title`;
   }
-  return `${when} · ${i.meetings} ${i.meetings === 1 ? "meeting" : "meetings"}`
-    + ` · ${contested(i)}`;
+  return `${i.meetings} ${i.meetings === 1 ? "meeting" : "meetings"} · ${contested(i)}`;
 }
 
 /** The row's own line, for the hover. This one keeps the FULL extent — the
