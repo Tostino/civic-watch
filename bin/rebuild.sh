@@ -381,16 +381,30 @@ $PY bin/land_agenda.py --redo
 stage parse_minutes
 $PY bin/parse_minutes.py --write
 
+# BEFORE THE INDEX, for the reason refresh.sh gives about affinity: the index
+# bakes the resolved speaker name into every passage it embeds. It reads that
+# name from `utterance_speaker`, and that view is
+#
+#     utterances LEFT JOIN speaker_resolved LEFT JOIN people
+#
+# which this script truncates. Run after index_passages - where this stage
+# first sat - it rebuilt the names into a table nothing would read again, and
+# all 167,061 passages would carry no speaker at all. Nothing downstream
+# fails: search returns, the page renders, and every quotation is anonymous.
+#
+# `speaker_resolved` is NOT the shadow table its schema comment still calls
+# it. The cutover happened - utterance_speaker is built on it, so it is the
+# live naming path for the whole archive, and both tables here are load
+# bearing rather than an experiment kept alongside.
+#
+# Deterministic and model-free: --backfill restates speaker_override and
+# speaker_label, which are KEEP, and the rest is derived from speaker_identity
+# and the transcript.
+stage "speaker_claims (evidence, links and the resolved name)"
+$PY bin/speaker_claims.py --all
+
 stage index_passages
 $PY bin/index_passages.py
-
-# THE TWO DERIVED TABLES NOTHING ABOVE PUTS BACK. Neither is on the ingest
-# path, so both would sit empty after a rebuild - and an empty `subject_year`
-# is not a blank section, it is the front page falling through to the live
-# join at 163 seconds a request. Both are deterministic and call no model, so
-# they cost nothing to be sure about.
-stage "speaker_claims (shadow: evidence, links and resolution)"
-$PY bin/speaker_claims.py --all
 
 stage "subjects --rollup"
 $PY bin/subjects.py --rollup
