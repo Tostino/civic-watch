@@ -165,17 +165,40 @@
   gap: var(--sp-2);
 }
 
-/* The other way in, offered once the examples have said what this page does.
- * Quieter than a `.try`, because it is not the thing a reader came here for. */
-.own {
-  margin: var(--sp-4) 0 0;
+/* The other way in. Beside the form and always on screen, where it used to be
+ * a sentence under the examples that vanished the moment anyone asked
+ * anything.
+ *
+ * Quiet on purpose. It is not what a reader came here for, so it reads as a
+ * marginal note rather than a call to action: accent ground at the softest
+ * step, one rule down the left in the accent line, and body text at --ink-3.
+ * The tag carries the only word that matters at a glance. */
+.connect {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent-line);
+  border-radius: var(--radius);
+}
+.connectTag {
+  flex: none;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.connectText {
+  margin: 0;
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   color: var(--ink-3);
   max-width: 66ch;
   text-wrap: pretty;
 }
-.own a {
+.connectText a {
   color: var(--accent);
 }
 

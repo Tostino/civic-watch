@@ -57,7 +57,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: var(--sp-3);
-  margin: 0;
+  margin: 0 0 var(--sp-3);
   padding: var(--sp-4);
   background: var(--surface);
   border: 1px solid var(--rule);
@@ -104,14 +104,30 @@
   font-family: var(--font-ui);
 }
 
-.gaps {
-  margin: 0;
+/* Every list on the page: what is missing, what can be wrong, and what the
+ * tool endpoint reaches. Three identical rulesets became one when the copy
+ * stopped explaining in paragraphs what a list already shows. */
+.list {
+  margin: 0 0 var(--sp-3);
   padding-left: var(--sp-5);
   display: grid;
   gap: var(--sp-2);
   font-size: var(--text-base);
   line-height: var(--leading-record);
   color: var(--ink-2);
+}
+/* Same rhythm as a paragraph, and the same exception at the end of a
+ * section - a list is a block of prose here, not an aside. */
+.figures:last-child,
+.list:last-child {
+  margin-bottom: 0;
+}
+/* A tool name is a string a reader types into another program, like the
+ * endpoint above it, and is set the same way. */
+.list code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ink);
 }
 
 /* The tool endpoint. A reader is going to copy this string into another
@@ -130,17 +146,6 @@
   user-select: all;
 }
 
-/* What the endpoint reaches. A plain list, because it is one. */
-.reach {
-  margin: 0 0 var(--sp-3);
-  padding-left: var(--sp-5);
-  display: grid;
-  gap: var(--sp-2);
-  font-size: var(--text-base);
-  line-height: var(--leading-record);
-  color: var(--ink-2);
-}
-
 .foot {
   display: flex;
   gap: var(--sp-4);
@@ -148,4 +153,21 @@
   padding-top: var(--sp-4);
   border-top: 1px solid var(--rule);
   font-size: var(--text-sm);
+}
+
+/* The one bounded block on the page. Everything else here makes a claim about
+ * the archive; this hands over an address to paste into another program, and
+ * as six more paragraphs in the same measure it read as more of the essay. A
+ * border and a ground are enough to make it a different kind of thing —
+ * `--surface-2` rather than `--surface`, so the endpoint inside it still has a
+ * lighter card to sit on and the two do not flatten into one panel. */
+.connect {
+  padding: var(--sp-4);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  scroll-margin-top: var(--sp-5);
+}
+.connect h2 {
+  margin-bottom: var(--sp-2);
 }

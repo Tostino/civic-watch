@@ -145,6 +145,8 @@ export function AskView({ q }: { q: string }) {
         </p>
       </form>
 
+      <Connect />
+
       {stages.length ? <Trace stages={stages} running={running} /> : null}
 
       {error ? (
@@ -218,6 +220,30 @@ function currently(x: AskStage | undefined): string {
   }
 }
 
+/* The other way in, and it must not be conditional on the page being idle.
+ * This was one sentence at the foot of <Examples>, which renders only before
+ * the first question - so the reader most likely to want it never saw it. A
+ * reader who has just watched an answer take minutes, or been told to come
+ * back in ten, is exactly who should be told the archive is also a tool
+ * endpoint, and by then the sentence had been replaced by a trace.
+ *
+ * Beside the form instead, and always. Small enough not to compete with the
+ * question: a tag, one line, one link into /about#connect, where the address
+ * and the tools are. The address itself is NOT here - it is a string to paste
+ * into another program, and a reader who wants it wants the instructions with
+ * it. */
+function Connect() {
+  return (
+    <aside className={s.connect}>
+      <span className={s.connectTag}>MCP</span>
+      <p className={s.connectText}>
+        An assistant that supports MCP can search this archive itself, through the same
+        tools this page uses. <Link href="/about#connect">How to connect one</Link>.
+      </p>
+    </aside>
+  );
+}
+
 function Examples() {
   const qs = [
     "What was decided about the school zone speed cameras?",
@@ -244,14 +270,6 @@ function Examples() {
           </li>
         ))}
       </ul>
-      {/* Offered here because this is the page where a reader is already
-          asking the archive a question, and the answer to "can I do this from
-          my own tools" is yes. The instructions live on /about with the rest
-          of what this archive is; one sentence is what belongs on this page. */}
-      <p className={s.own}>
-        You can also point your own assistant at this archive and search it from
-        there. <Link href="/about">How to connect one</Link>.
-      </p>
     </div>
   );
 }
