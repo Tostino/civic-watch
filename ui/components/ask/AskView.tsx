@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Answer, Lookups, TOOL_LABEL, type Lookup } from "./Answer";
+import { CopyButton } from "@/components/CopyButton";
+import { installs, mcpUrl } from "@/lib/mcp";
 import type { AskResult, AskStage } from "@/lib/types";
 import s from "./AskView.module.css";
 
@@ -36,7 +38,7 @@ const fresh = (running: boolean): Run => ({
   stages: [], result: null, error: null, running,
 });
 
-export function AskView({ q }: { q: string }) {
+export function AskView({ q, origin }: { q: string; origin: string }) {
   const [question, setQuestion] = useState(q);
   const [run, setRun] = useState<Run>(() => fresh(Boolean(q.trim())));
   const es = useRef<EventSource | null>(null);
@@ -145,7 +147,7 @@ export function AskView({ q }: { q: string }) {
         </p>
       </form>
 
-      <Connect />
+      <Connect origin={origin} />
 
       {stages.length ? <Trace stages={stages} running={running} /> : null}
 
@@ -227,19 +229,64 @@ function currently(x: AskStage | undefined): string {
  * back in ten, is exactly who should be told the archive is also a tool
  * endpoint, and by then the sentence had been replaced by a trace.
  *
- * Beside the form instead, and always. Small enough not to compete with the
- * question: a tag, one line, one link into /about#connect, where the address
- * and the tools are. The address itself is NOT here - it is a string to paste
- * into another program, and a reader who wants it wants the instructions with
- * it. */
-function Connect() {
+ * WHY IT IS NOW A ROW OF CONTROLS AND NOT A LINK. It said "how to connect
+ * one" and sent the reader to /about#connect, on the reasoning that the
+ * address is a string to paste into another program and whoever wants it
+ * wants the instructions with it. That reasoning was about the address. Two
+ * of these clients take a URL scheme instead: the browser hands the server to
+ * the app, the app shows the reader what it is about to add and waits to be
+ * told yes. There is nothing left to read first, so the thing to put here is
+ * the act, not a pointer to a page describing the act.
+ *
+ * THE ADDRESS ITSELF IS STILL NOT ON SCREEN. It is on the clipboard button,
+ * which is the same judgement as before and survives the change: a reader who
+ * can act on a bare URL has somewhere to paste it, and one who cannot should
+ * be reading /about#connect rather than a URL beside a search box. What the
+ * link now offers is what the tools DO, which is the part of that page a
+ * reader still has a reason to want.
+ *
+ * Small enough not to compete with the question: one sentence, and controls
+ * at the size of the hint under the form. It carries no tool list and no
+ * limits - those are on /about, stated once. */
+function Connect({ origin }: { origin: string }) {
+  const targets = installs(origin).filter((x) => x.kind !== "manual");
   return (
-    <aside className={s.connect}>
-      <span className={s.connectTag}>MCP</span>
-      <p className={s.connectText}>
-        An assistant that supports MCP can search this archive itself, through the same
-        tools this page uses. <Link href="/about#connect">How to connect one</Link>.
-      </p>
+    <aside className={s.connect} aria-label="Connecting your own assistant">
+      <div className={s.connectHead}>
+        <span className={s.connectTag}>MCP</span>
+        <p className={s.connectText}>
+          Every question here runs a model this archive pays for, so Ask is limited. An
+          assistant of your own reads the archive through the same tools, and is not.
+        </p>
+      </div>
+      <div className={s.connectRow}>
+        <span className={s.connectLead}>Add it to</span>
+        {targets.map((x) =>
+          x.kind === "link" ? (
+            <a key={x.id} className={s.install} href={x.href} title={x.note}>
+              {x.client}
+            </a>
+          ) : (
+            <CopyButton
+              key={x.id}
+              className={s.install}
+              value={x.value!}
+              label={x.client}
+              done="Command copied"
+            />
+          ),
+        )}
+        <span className={s.connectSep} aria-hidden />
+        <CopyButton
+          className={s.install}
+          value={mcpUrl(origin)}
+          label="Any other client"
+          done="Address copied"
+        />
+        <Link className={s.connectMore} href="/about#connect">
+          What it can read
+        </Link>
+      </div>
     </aside>
   );
 }

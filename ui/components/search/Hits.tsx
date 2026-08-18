@@ -168,7 +168,7 @@ export function TranscriptHits({
                   <span className={s.underTitle}>{h.item ?? "(untitled item)"}</span>
                 </Link>
               ) : (
-                <span className={s.underNone}>Not matched to an agenda item</span>
+                <span className={s.underNone}>Not located in an agenda item</span>
               )}
 
               <p className={s.said}>

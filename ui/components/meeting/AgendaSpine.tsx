@@ -177,8 +177,8 @@ export function AgendaSpine({
               />
               <p className={s.trackNote}>
                 {bands.length
-                  ? `${bands.length} items located in this recording — click a band to play it`
-                  : "No agenda items are bound to this recording"}
+                  ? `${bands.length} items located in this recording. Click a band to play it.`
+                  : "No agenda items are located in this recording"}
               </p>
             </>
           ) : null}
@@ -192,7 +192,7 @@ export function AgendaSpine({
             type="search"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter this agenda — sidewalks, PDE-25-7738…"
+            placeholder="Filter this agenda: sidewalks, PDE-25-7738…"
           />
         </label>
         <span className={s.count}>

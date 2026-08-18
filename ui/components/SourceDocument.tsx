@@ -47,8 +47,9 @@ export function SourceDocument({ file, meetingLabel }: { file: SourceFile; meeti
           <p className={s.note}>
             {file.extracted
               ? `The published PDF, as served by the county. This item is one entry in it.`
-              : `The published PDF. Its text could not be extracted — it is an image-only
-                 scan — so nothing in it is searchable here, but it reads normally.`}
+              : `The published PDF. Its text could not be extracted, because it is an
+                 image-only scan, so nothing in it is searchable here. It still
+                 reads normally.`}
           </p>
         </div>
         <div className={s.actions}>
@@ -80,7 +81,7 @@ export function SourceDocument({ file, meetingLabel }: { file: SourceFile; meeti
             title={`${file.kind ?? "Document"} published by Pasco County for ${meetingLabel}`}
           />
           <p className={s.fallback}>
-            If the document does not appear, your browser may not render PDFs inline —{" "}
+            If the document does not appear, your browser may not render PDFs inline.{" "}
             <a href={file.inline} target="_blank" rel="noreferrer">
               open it in a new tab
             </a>

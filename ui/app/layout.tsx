@@ -20,7 +20,7 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono-face", 
 
 const TITLE = "Pasco County meeting record";
 const DESCRIPTION =
-  "A searchable, citable record of Pasco County government meetings — the county's published " +
+  "A searchable, citable record of Pasco County government meetings: the county's published " +
   "agendas and minutes, joined to the recordings and to who spoke.";
 
 /* `metadataBase` is what turns every relative URL below - and in every page's

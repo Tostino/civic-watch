@@ -96,7 +96,7 @@ export function Answer({ r }: { r: AskResult }) {
             <b className={s.struck}>
               {r.struck.length} citation{r.struck.length === 1 ? "" : "s"} removed
             </b>{" "}
-            — the answer referred to {r.struck.join(", ")}, which this search never
+            : the answer referred to {r.struck.join(", ")}, which this search never
             returned.
           </>
         ) : null}
@@ -111,7 +111,7 @@ export function Answer({ r }: { r: AskResult }) {
               {missing} citation{missing === 1 ? "" : "s"} no longer resolve
               {missing === 1 ? "s" : ""}
             </b>{" "}
-            — what {missing === 1 ? "it pointed" : "they pointed"} at has changed in
+            : what {missing === 1 ? "it pointed" : "they pointed"} at has changed in
             the archive since this was answered, which most often means a redaction
             was applied to it.
           </>
@@ -444,7 +444,7 @@ function Refs({ plan }: { plan: Plan }) {
           key={`i${mk.item.id}`}
           href={`#ref-${mk.n}`}
           className={s.mark}
-          title={`${mk.n}. ${shortTitle(mk.item.title, 90) || "the published record"} — the county's record`}
+          title={`${mk.n}. ${shortTitle(mk.item.title, 90) || "the published record"}: the county's record`}
         >
           [{mk.n}]
         </a>,
@@ -466,7 +466,7 @@ function Refs({ plan }: { plan: Plan }) {
         : `${who[0]} and ${who.length - 1} others`;
       const ran = mk.moment.of[mk.moment.of.length - 1].end - hit.start;
       const long = ran >= 90 ? `, ${Math.round(ran / 60)} min` : "";
-      const what = `${mk.n}. ${said} · ${mk.where ? `${mk.where}, ` : ""}${clock(hit.start)}${long} — play`;
+      const what = `${mk.n}. ${said} · ${mk.where ? `${mk.where}, ` : ""}${clock(hit.start)}${long} · play`;
       els.push(
         <button
           key={`s${hit.id}`}
@@ -631,7 +631,7 @@ function Evidence({
                   {shortTitle(group[0].item, 90) || "(untitled item)"}
                 </Link>
               ) : (
-                <span className={s.itemNone}>Not matched to an agenda item</span>
+                <span className={s.itemNone}>Not located in an agenda item</span>
               )}
               <ul className={s.quotes}>
                 {group.map((h) => (

@@ -289,7 +289,7 @@ export function TimeAxis({
                       key={key}
                       role="gridcell"
                       className={`${s.cell} ${s.ahead}`}
-                      title={`${label} — ${c.scheduled} scheduled, not yet held`}
+                      title={`${label}: ${c.scheduled} scheduled, not yet held`}
                       aria-label={`${label}, ${c.scheduled} meetings scheduled, not yet held`}
                     />
                   );
@@ -300,7 +300,7 @@ export function TimeAxis({
                       key={key}
                       role="gridcell"
                       className={`${s.cell} ${s.empty}`}
-                      title={`${label} — no meetings`}
+                      title={`${label}: no meetings`}
                       aria-label={`${label}, no meetings`}
                     />
                   );
@@ -320,7 +320,7 @@ export function TimeAxis({
                        the count is in the label where a screen reader and a
                        hover both reach it. */
                     aria-label={`${label}, ${c.meetings} meetings, ${c.recorded} recorded${also}`}
-                    title={`${label} — ${c.meetings} meetings, ${c.recorded} recorded${also}`}
+                    title={`${label}: ${c.meetings} meetings, ${c.recorded} recorded${also}`}
                     style={{ "--fill": fill(c.meetings).toFixed(3) } as React.CSSProperties}
                   >
                     {c.recorded ? (

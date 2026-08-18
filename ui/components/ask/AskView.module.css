@@ -175,12 +175,20 @@
  * The tag carries the only word that matters at a glance. */
 .connect {
   display: flex;
-  align-items: baseline;
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-3);
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
   background: var(--accent-soft);
   border-left: 3px solid var(--accent-line);
   border-radius: var(--radius);
+}
+
+/* The sentence, unchanged in shape: a tag that names the thing and one line
+ * that says why a reader would want it. */
+.connectHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
 }
 .connectTag {
   flex: none;
@@ -201,6 +209,81 @@
 .connectText a {
   color: var(--accent);
 }
+
+/* The controls. Indented to the sentence above rather than to the panel edge,
+ * so the row reads as the second half of that sentence and not as a toolbar
+ * the aside happens to contain. Wraps early and often: four controls and a
+ * link do not fit a phone, and every one of them has to survive being on its
+ * own line. */
+.connectRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  /* Held to the measure of the sentence above it, so the trailing link ends
+   * where the paragraph ends rather than at the far edge of a panel half again
+   * as wide as the text it contains. */
+  max-width: 68ch;
+  padding-left: calc(var(--sp-3) + 2.1rem);
+}
+
+@media (max-width: 34rem) {
+  .connectRow {
+    padding-left: 0;
+  }
+}
+
+.connectLead {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+/* One control, whether it navigates or copies. They are the same size and the
+ * same weight on purpose: the reader is choosing a program, not choosing
+ * between two kinds of mechanism, and which of the two it turns out to be is
+ * carried by the glyph and by the label it flips to. */
+.install {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0.2rem var(--sp-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.install:hover {
+  border-color: var(--accent);
+}
+
+/* Copied is a state worth seeing at a glance, because the reader's next move
+ * is in another window and they will not come back to check. */
+.install[data-copied] {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.connectSep {
+  align-self: stretch;
+  width: 1px;
+  min-height: 1.2em;
+  margin: 0 var(--sp-1);
+  background: var(--accent-line);
+}
+
+.connectMore {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--accent);
+}
+
 
 .try {
   font-family: var(--font-record);

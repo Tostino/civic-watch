@@ -37,7 +37,7 @@ export default function RouteError({
       <h1>This page did not load</h1>
       <p className={s.lead}>
         The archive is here, but this page failed. The fault is ours, not the county&apos;s
-        record. Try again — a page that failed once often loads on a second attempt.
+        record. Try again. A page that failed once often loads on a second attempt.
       </p>
       <div className={s.actions}>
         <button type="button" className={s.primary} onClick={() => retry()}>

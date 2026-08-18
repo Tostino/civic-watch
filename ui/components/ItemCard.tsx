@@ -93,12 +93,12 @@ export function ItemCard({
       <>
         <span className={`${s.rowTime} ${elsewhere ? s.otherSession : ""}`}>
           {span ? (
-            <span title={elsewhere ? "In the other session of this meeting — playing it switches session" : undefined}>
+            <span title={elsewhere ? "In the other session of this meeting. Playing it switches session." : undefined}>
               {clock(span.start)}
             </span>
           ) : (
             <span className={s.unbound} title="In the published record; not located in any recording">
-              —
+              ·
             </span>
           )}
         </span>
@@ -118,7 +118,7 @@ export function ItemCard({
     const why = !span
       ? "Show this item in the record"
       : again
-        ? `Play from ${clock(span.start)} — taken up ${of} times, also at ${others.join(" and ")}`
+        ? `Play from ${clock(span.start)}. Taken up ${of} times, also at ${others.join(" and ")}.`
         : `Play from ${clock(span.start)}`;
     return onSelect ? (
       <button

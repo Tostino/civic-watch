@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const c = await load(id);
     return {
-      title: `${c.case_id} — ${c.steps.length} appearance${c.steps.length === 1 ? "" : "s"}`,
+      title: `${c.case_id} · ${c.steps.length} appearance${c.steps.length === 1 ? "" : "s"}`,
       description: [
         c.terminal ? outcomeLabel(c.terminal.outcome) : "No final outcome recorded",
         `${meetingDate(c.first, "short")} – ${meetingDate(c.last, "short")}`,

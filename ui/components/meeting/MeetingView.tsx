@@ -364,7 +364,7 @@ export function MeetingView({
               no="No recording"
               why={
                 hasRecording
-                  ? `${coverage.bound} items are bound to a point in it`
+                  ? `${coverage.bound} items are located in it`
                   : "This meeting was not recorded, or the recording is not in this archive"
               }
             />

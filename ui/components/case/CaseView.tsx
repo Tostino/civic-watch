@@ -167,7 +167,7 @@ export function CaseView({ data }: { data: CaseDetail }) {
                 {meetingDate(data.first, "short")} and {meetingDate(data.last, "short")}
                 {data.bodies.length > 1 ? `, at ${data.bodies.length} boards` : ""}
                 {data.continuances
-                  ? ` — continued ${data.continuances} ${data.continuances === 1 ? "time" : "times"}`
+                  ? `, continued ${data.continuances} ${data.continuances === 1 ? "time" : "times"}`
                   : ""}
                 .
               </>

@@ -168,15 +168,15 @@ export function SpeakerChip({
 
   const label =
     state === "confirmed"
-      ? `${shown} — ${basis === "override" ? "corrected by a person for this passage" : "confirmed by a person"}`
+      ? `${shown}: ${basis === "override" ? "corrected by a person for this passage" : "confirmed by a person"}`
       : state === "read"
-        ? `${shown} — their letter, read aloud by somebody else. These are their written words; they did not speak at this meeting.`
+        ? `${shown}: their letter, read aloud by somebody else. These are their written words; they did not speak at this meeting.`
         : state === "stated"
-          ? `${shown} — they gave this name themselves at the meeting.`
+          ? `${shown}: they gave this name themselves at the meeting.`
           : state === "inferred"
-            ? `${shown} — matched by voice at this meeting. Inferred, and it can be wrong.`
+            ? `${shown}: matched by voice at this meeting. Inferred, and it can be wrong.`
             : state === "weak"
-              ? `${shown} — the name this voice goes by across the archive, not evidence about this meeting. It is the most likely to be wrong.`
+              ? `${shown}: the name this voice goes by across the archive, not evidence about this meeting. It is the most likely to be wrong.`
               : undefined;
 
   const className = [s.chip, STATE_CLASS[state], size === "sm" ? s.sm : "",

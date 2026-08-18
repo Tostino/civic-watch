@@ -128,7 +128,7 @@ export function RecordView({
             <span className={s.sectionCount}>{heard.length}</span>
           </h2>
           <p className={s.sectionNote}>
-            Public hearings, regular business, and presentations — the items the board took
+            Public hearings, regular business, and presentations: the items the board took
             up one at a time.
           </p>
           <div className={s.cards}>
@@ -182,7 +182,7 @@ export function RecordView({
                   ref={i.id === activeItem ? activeRowRef : undefined}
                   className={i.id === activeItem ? s.activeRow : undefined}
                 >
-                  <td className={s.tCode}>{i.code ?? "—"}</td>
+                  <td className={s.tCode}>{i.code ?? "·"}</td>
                   <td className={s.tTitle}>
                     {/* A consent item is still an item with a URL. These are
                         most of the record — 150 of a 200-item agenda — and
@@ -223,7 +223,7 @@ export function RecordView({
             <span className={s.sectionCount}>{derived.length}</span>
           </h2>
           <p className={s.sectionNote}>
-            Stretches of the recording this archive identified — the call to order, recesses,
+            Stretches of the recording this archive identified: the call to order, recesses,
             adjournment, and anything taken up that the agenda does not list. Inferred, not
             published.
           </p>

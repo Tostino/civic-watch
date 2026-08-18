@@ -258,7 +258,7 @@ function Row({
             <span
               key={y.year}
               className={s.cell}
-              title={`${i.label} — ${y.year}: nothing published`}
+              title={`${i.label}, ${y.year}: nothing published`}
             />
           );
         }
@@ -305,12 +305,12 @@ function pushedSays(i: Issue): string {
   const d = decided(i);
   if (!d) return "The minutes record no outcome for any of these items";
   const p = pushed(i);
-  if (!p) return `All ${d.toLocaleString()} decided items passed — none continued, denied or split`;
+  if (!p) return `All ${d.toLocaleString()} decided items passed. None continued, denied or split.`;
   const bits = [];
   if (i.continued) bits.push(`${i.continued} continued`);
   if (i.refused) bits.push(`${i.refused} denied or no action`);
   if (i.divided) bits.push(`${i.divided} on a divided vote`);
-  return `${p} of ${d.toLocaleString()} decided items — ${bits.join(", ")}`;
+  return `${p} of ${d.toLocaleString()} decided items: ${bits.join(", ")}`;
 }
 
 /* LOW keeps a year with one item visible: the quietest year a subject
@@ -442,7 +442,7 @@ function summary(i: Issue): string {
 
 /** One cell, in a sentence, for a screen reader and for a hover. */
 function cell(i: Issue, y: IssueYear, heardFrom: string): string {
-  const bits = [`${i.label} — ${y.year}: ${y.items} published `
+  const bits = [`${i.label}, ${y.year}: ${y.items} published `
     + `${y.items === 1 ? "item" : "items"} in ${y.meetings} `
     + `${y.meetings === 1 ? "meeting" : "meetings"}`];
   if (y.lines) {

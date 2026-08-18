@@ -61,7 +61,7 @@ export function CaseThread({
             <strong>{steps.length} times</strong> between {meetingDate(steps[0].date, "short")} and{" "}
             {meetingDate(steps[steps.length - 1].date, "short")}
             {continuances ? `, continued ${continuances} ${continuances === 1 ? "time" : "times"}` : ""}
-            {here >= 0 ? <> — this is appearance {here + 1}.</> : "."}
+            {here >= 0 ? <>. This is appearance {here + 1}.</> : "."}
           </>
         )}
       </p>
@@ -109,7 +109,7 @@ export function CaseThread({
         <p className={s.open}>
           No appearance of this case has a final outcome in the minutes. It was continued,
           or the minutes do not record one in
-          writing{facts ? ` — which is true for ${facts.pct_no_outcome}% of items.` : "."}
+          writing{facts ? `, which is true for ${facts.pct_no_outcome}% of items.` : "."}
         </p>
       ) : null}
     </section>

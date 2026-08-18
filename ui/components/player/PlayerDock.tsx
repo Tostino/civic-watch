@@ -247,7 +247,7 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
             aria-label={`Move the player to the ${place.nextCorner}`}
             /* The button walks the corners; the bar itself drags anywhere.
                Said here because this is where someone looks for it. */
-            title="Move to the next corner — or drag the bar anywhere"
+            title="Move to the next corner, or drag the bar anywhere"
           >
             <GripIcon />
           </button>

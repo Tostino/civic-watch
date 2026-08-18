@@ -1,0 +1,21 @@
+/* The default look, for a copy control with no opinion of its own. Both
+ * callers pass their own class today; this keeps the component usable without
+ * one and gives the glyph a size that does not depend on who styled it. */
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.icon {
+  font-size: 0.9em;
+  line-height: 1;
+}

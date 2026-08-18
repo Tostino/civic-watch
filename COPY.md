@@ -44,10 +44,22 @@ things.
 | the video of a meeting | **recording** | "video". Was 29 uses against 7 before it was settled. |
 | what the county published | **the published record** | "the official record". Published states what the county did; official is an assessment of it. |
 | the two sources, as headings | **What the county recorded** and **What was said** | "In the record" / "In the room". Browse's disagreement lanes say "What the minutes recorded", because that lane really is minutes-only: the shared thing is the form, not the string. |
-| an item's place in a recording | **located in the recording** | "bound to", "matched to". `bound` is the pipeline's word for an `item_spans` row and is an internal token by the last rule below. **NOT YET DONE: six sites still say "bound" or "matched"** (TranscriptView, MeetingView, AgendaSpine, ItemView, Hits). |
+| an item's place in a recording | **located in the recording** | "bound to", "matched to". `bound` is the pipeline's word for an `item_spans` row and is an internal token by the last rule below. Settled 2026-08-18: eight sites moved off "bound"/"matched". |
 
 
 ## Derived conventions, observable in the shipped copy
+
+**Read this heading literally before you obey anything under it.** These were
+not supplied by the owner. They were reverse-engineered by an assistant from
+copy an assistant had written, and then read by the next session as if they
+were instructions. That is how "em dash for the aside" came to be house style
+against the owner's stated preference, and how "never 'many' or 'most' where a
+count is available" produced seven hard-coded counts, four of them wrong.
+
+Only the numbered list above is the owner's. Anything here that contradicts
+him loses, and should be corrected in this file the same day rather than
+worked around.
+
 
 - **Say what is missing, not just what is present.** "In the published record;
   not located in any recording." Absence is information.
@@ -75,22 +87,18 @@ things.
 - **First person plural for our own limits** ("we could not place these"),
   never for the county's record.
 - **Sentence case** for notes and labels. Title Case only for proper names.
-- **No em dash in reader-facing copy.** This said "em dash for the aside,
-  spaced or unspaced consistently per component" until 2026-08-18, when the
-  owner said he disliked them. A comma, a colon or a full stop does the same
-  work. Code comments, commit messages and this file keep theirs: the rule is
-  about what a reader sees. That carve-out is an inference, not something the
-  owner said; ask if it matters.
-  **PARTLY DONE: /search and browse are clean; 40 remain in 19 other files**,
-  and most are in `title` and `aria-label` attributes rather than in body
-  text, which is why a first sweep of the rendered pages missed them
-  (SpeakerChip 5, Issues 4, Answer 4, SourceDocument 3, ItemCard 3, TimeAxis
-  3, RecordView 3). Two of those are a lone "—" standing for "no value" in a
-  table cell, which is a typographic convention rather than an aside, and
-  wants a decision rather than a substitution.
+- **No em dash in reader-facing copy. Anywhere.** This file said the opposite
+  ("em dash for the aside, spaced or unspaced consistently per component")
+  from the initial commit until 2026-08-18, and sessions followed it. A comma,
+  a colon or a full stop does the work. Done: 45 removed across 20 files, most
+  of them in `title` and `aria-label` attributes, which is why sweeping the
+  rendered body text found nothing and reported the site clean. Check
+  attribute values, not just what you can read on screen.
+  Code comments, commit messages and this file keep theirs; that carve-out is
+  an inference and has not been confirmed.
   The county's own agenda titles are full of them ("PVAS No. 3354 (Regular)
   ... Board of County Commissioners"). Those are quoted verbatim and stay, so
-  a page can show one that is not ours.
+  browse still shows some that are not ours.
 - **American spelling.** "license plate cameras", "cataloged". (British
   spellings crept in from Claude and were corrected.)
 - **No marketing register.** No "powerful", "seamless", "simply". The archive

@@ -361,7 +361,7 @@ export function TranscriptView({
                      both can be wrong, and what to check instead. */
                   <p className={s.caveat}>
                     <ProvenanceMark kind="transcript" /> Machine transcription; names
-                    inferred from voice — {Math.round((named / lines.length) * 100)}% of{" "}
+                    inferred from voice. {Math.round((named / lines.length) * 100)}% of{" "}
                     {lines.length.toLocaleString()} lines carry one. Both can be wrong; the
                     recording is the source.
                   </p>
@@ -406,7 +406,7 @@ function ItemBreak({
   if (!item) {
     return (
       <div className={`${s.break} ${s.breakNone}`}>
-        <span className={s.breakLabel}>Not bound to an agenda item</span>
+        <span className={s.breakLabel}>Not located in an agenda item</span>
       </div>
     );
   }

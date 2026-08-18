@@ -210,7 +210,7 @@ export function ItemView({
                 <h3 className={s.gapTitle}>This item is not from the published agenda</h3>
                 <p>
                   It is a stretch of the recording that this archive identified as a separate
-                  matter — a call to order, a recess, or something taken up that the agenda does
+                  matter: a call to order, a recess, or something taken up that the agenda does
                   not list. There is no official title, no staff recommendation and no
                   outcome, because the county never recorded one. Everything below is
                   inferred.
@@ -265,7 +265,7 @@ export function ItemView({
                 <p>
                   {item.videos.length ? (
                     <>
-                      The meeting was recorded, but this item could not be bound to a point in
+                      The meeting was recorded, but this item could not be located in
                       it. Binding is complete on public hearings and resolutions, 80% on consent
                       and 58% on regular business; board reports carry no agenda code at all.
                       The{" "}
@@ -275,8 +275,8 @@ export function ItemView({
                   ) : (
                     <>
                       {facts
-                        ? `Only ${facts.recorded} of the ${facts.meetings} meetings in this archive have a recording, and only ${facts.pct_transcript}% of decided items are bound to one.`
-                        : "Most meetings in this archive have no recording, and only a minority of decided items are bound to one."}{" "}
+                        ? `Only ${facts.recorded} of the ${facts.meetings} meetings in this archive have a recording, and only ${facts.pct_transcript}% of decided items are located in one.`
+                        : "Most meetings in this archive have no recording, and only a minority of decided items are located in one."}{" "}
                       The record above is the whole record for this item.
                     </>
                   )}
@@ -317,7 +317,7 @@ export function ItemView({
                       (R5.2.7). */}
                   {item.runs.length > 1 ? (
                     <p className={s.parts}>
-                      Taken up {item.runs.length} times, not once through — set aside and
+                      Taken up {item.runs.length} times, not once through. It was set aside and
                       returned to. Each stretch is below, in the order it happened.
                     </p>
                   ) : null}

@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const a = await load(id);
     return {
-      title: `${a.question} — an answer from the archive`,
+      title: `${a.question} · an answer from the archive`,
       description: preview(a.answer),
       robots: { index: false, follow: true },
     };
