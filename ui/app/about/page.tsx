@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { getOverview } from "@/lib/api";
+import { getOverview, getTools } from "@/lib/api";
 import { meetingDate } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 import s from "./about.module.css";
 
 /**
@@ -32,12 +33,27 @@ export const metadata: Metadata = {
  *  the section then states the promise without offering a dead link. */
 const CONTACT = process.env.SITE_CONTACT?.trim() || null;
 
+/** A window in words. The server sends seconds, and "every 60 seconds" is not
+ *  how anyone says a minute. */
+function seconds(n: number): string {
+  if (n === 60) return "minute";
+  if (n % 60 === 0) return `${n / 60} minutes`;
+  return `${n.toLocaleString()} seconds`;
+}
+
 export default async function AboutPage() {
   let o = null;
   try {
     o = await getOverview();
   } catch {
     // The page is worth showing without its counts. It is not worth failing.
+  }
+  // Separately, so a failure on either one costs only its own section.
+  let t = null;
+  try {
+    t = await getTools();
+  } catch {
+    // Then the connect section states the address and not the ceilings.
   }
   const noRecording = o ? o.meetings - o.recorded : null;
   const noDisposition =
@@ -157,6 +173,52 @@ export default async function AboutPage() {
         <p>
           <strong>Nothing here replaces the official record.</strong> For an authoritative copy
           of an agenda or the minutes, go to the county.
+        </p>
+      </section>
+
+      <section aria-label="Connecting your own assistant">
+        <h2>Connect your own assistant</h2>
+        <p>
+          <Link href="/ask">Ask</Link> answers with one model, and each question costs money to
+          answer, so it is limited. If you use an assistant that supports MCP, you can point it
+          at this archive instead. It then searches the same record, through the same tools this
+          site uses.
+        </p>
+        <p className={s.endpoint}>{`${siteUrl()}/mcp`}</p>
+        <p>
+          Add that address as an MCP server in your assistant&apos;s settings. There is no
+          sign-in and no key.
+        </p>
+
+        <h3>What it reaches</h3>
+        <ul className={s.reach}>
+          <li>What people said, across the meetings that were recorded.</li>
+          <li>The agendas and minutes the county published.</li>
+          <li>One agenda item, with its disposition where the minutes recorded one.</li>
+          <li>One case, across every meeting that took it up.</li>
+          <li>One meeting, with its agenda in order.</li>
+        </ul>
+        <p>It reads the archive. It cannot change anything here.</p>
+
+        <h3>What it will refuse</h3>
+        {t ? (
+          <p>
+            One address may make <strong>{t.mcp.per_ip.toLocaleString()}</strong> tool calls
+            every {seconds(t.mcp.window)}, and <strong>{t.mcp.heavy_per_ip.toLocaleString()}</strong>{" "}
+            of those may be searches of the transcript, which is the slowest thing to run. Past
+            that it refuses the call and says so.
+          </p>
+        ) : (
+          <p>
+            The endpoint is limited per address, and searches of the transcript have a lower
+            limit than the rest. Past either one it refuses the call and says so.
+          </p>
+        )}
+        <p>
+          <strong>What your assistant writes is written by your assistant.</strong> This archive
+          gives it passages and published items. It does not check what is written from them, and
+          everything above still holds: an outcome comes from the county&apos;s record, the
+          transcript can be wrong, and a speaker name is usually our inference.
         </p>
       </section>
 

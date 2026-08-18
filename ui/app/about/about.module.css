@@ -114,6 +114,33 @@
   color: var(--ink-2);
 }
 
+/* The tool endpoint. A reader is going to copy this string into another
+ * program, so it is set as a string and not as prose: mono, on its own line,
+ * selectable in one gesture and wrapping rather than overflowing at 320px. */
+.endpoint {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* What the endpoint reaches. A plain list, because it is one. */
+.reach {
+  margin: 0 0 var(--sp-3);
+  padding-left: var(--sp-5);
+  display: grid;
+  gap: var(--sp-2);
+  font-size: var(--text-base);
+  line-height: var(--leading-record);
+  color: var(--ink-2);
+}
+
 .foot {
   display: flex;
   gap: var(--sp-4);

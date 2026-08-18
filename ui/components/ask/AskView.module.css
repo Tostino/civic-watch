@@ -165,6 +165,20 @@
   gap: var(--sp-2);
 }
 
+/* The other way in, offered once the examples have said what this page does.
+ * Quieter than a `.try`, because it is not the thing a reader came here for. */
+.own {
+  margin: var(--sp-4) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-3);
+  max-width: 66ch;
+  text-wrap: pretty;
+}
+.own a {
+  color: var(--accent);
+}
+
 .try {
   font-family: var(--font-record);
   font-size: var(--text-sm);

@@ -45,7 +45,8 @@ MAX_CHARS = int(os.environ.get("ASK_MAX_CHARS") or 1000)
 # Off by default: with no proxy in front, X-Forwarded-For is entirely
 # attacker-supplied and trusting it hands out a fresh quota per request.
 # Turn it on ONLY when a reverse proxy terminates connections for this server.
-TRUST_PROXY = os.environ.get("ASK_TRUST_PROXY") or "".lower() in ("1", "true", "yes")
+TRUST_PROXY = (os.environ.get("ASK_TRUST_PROXY") or "").lower() \
+    in ("1", "true", "yes")
 # A public endpoint is also a way to make a server allocate memory. One entry
 # per IP is small, but "one per source address" is unbounded by definition.
 MAX_TRACKED_IPS = 4096
@@ -68,7 +69,7 @@ class Throttled(Exception):
         self.kind = kind
 
 
-def client_ip(handler):
+def client_ip(request):
     """The address to hold responsible.
 
     Behind a reverse proxy every peer is 127.0.0.1, so the limit would apply
@@ -77,10 +78,15 @@ def client_ip(handler):
     operator has said a proxy is there - and then the LAST hop is taken, not
     the first: our proxy appends the address it actually saw, and everything
     to its left was supplied by the client and can say anything.
+
+    `request` is a Starlette Request. `request.client` is None for a scope
+    with no peer at all, which ASGI permits and a test client produces; an
+    address that cannot be read is not one that can be excused, so it falls
+    back to a constant that shares one quota rather than to no limit.
     """
-    peer = handler.client_address[0]
+    peer = request.client.host if request.client else "unknown"
     if TRUST_PROXY and (peer == "::1" or peer.startswith("127.")):
-        xff = handler.headers.get("X-Forwarded-For", "")
+        xff = request.headers.get("X-Forwarded-For", "")
         if xff.strip():
             return xff.split(",")[-1].strip()
     return peer
@@ -169,6 +175,119 @@ def reserve(ip, question):
     return release
 
 
+# ------------------------------------------------------------- MCP tools
+# A different bill, so a different budget.
+#
+# An MCP tool call spends no model tokens at all. It is one indexed query,
+# and for search_transcript one pass of the 0.6B query encoder on the CPU.
+# Metering it out of ASK_DAILY_MAX would let an MCP client close the endpoint
+# a reader pays for, and letting it through the door unmetered would hand
+# anyone a way to make this server encode queries all day.
+#
+# So: a rate and a concurrency ceiling, and deliberately NO daily cap. The
+# daily one exists over there because model calls cost money that runs out.
+# Nothing here does. What it protects is the CPU and the connection pool.
+MCP_WINDOW = int(os.environ.get("MCP_WINDOW") or 60)          # seconds
+MCP_PER_IP = int(os.environ.get("MCP_PER_IP") or 60)          # calls per window
+# search_transcript gets its own, lower ceiling. It is the expensive tool -
+# it encodes the query before it can rank anything - and it is the one worth
+# pulling in bulk, because what it returns is passage text rather than a
+# count. The other four are indexed reads of the published record, which is a
+# document the county publishes anyway.
+MCP_SEARCH_PER_IP = int(os.environ.get("MCP_SEARCH_PER_IP") or 20)
+MCP_MAX_CONCURRENT = int(os.environ.get("MCP_MAX_CONCURRENT") or 8)
+
+# Tools metered against the tighter ceiling as well as the general one.
+MCP_HEAVY = {"search_transcript"}
+
+_mcp_lock = threading.Lock()
+_mcp_hits = {}        # ip -> deque[monotonic seconds], every tool call
+_mcp_heavy = {}       # ip -> deque[monotonic seconds], the heavy ones only
+_mcp_running = 0
+
+
+def _window(book, ip, now, limit, one, many):
+    """One sliding window. Caller holds `_mcp_lock`.
+
+    Appends nothing: the caller commits only once every window has passed,
+    so a call refused by the second limit does not count against the first.
+
+    `one` and `many` are the noun, both ways. A limit of 1 is a real setting -
+    it is how an operator throttles the expensive tool down to almost nothing
+    without closing it - and "1 transcript searches" is the sentence a reader
+    would then be shown.
+    """
+    seen = book.setdefault(ip, deque())
+    while seen and now - seen[0] > MCP_WINDOW:
+        seen.popleft()
+    if len(seen) >= limit:
+        wait = int(MCP_WINDOW - (now - seen[0])) + 1
+        raise Throttled(
+            f"That is {limit} {one if limit == 1 else many} in "
+            f"{_plain(MCP_WINDOW)} from this address, which is the limit. "
+            f"Try again in {_plain(wait)}.",
+            retry_after=wait, kind="rate")
+    return seen
+
+
+def mcp_reserve(ip, tool):
+    """Claim a slot for one MCP tool call, or raise Throttled.
+
+    Returns a release() for the caller's `finally`, on the same contract as
+    `reserve`: the concurrency count is only meaningful if it always comes
+    back down.
+    """
+    now = time.monotonic()
+    with _mcp_lock:
+        global _mcp_running
+        for book in (_mcp_hits, _mcp_heavy):
+            for dead in [i for i, q in book.items()
+                         if not q or now - q[-1] > MCP_WINDOW]:
+                del book[dead]
+            if len(book) > MAX_TRACKED_IPS:
+                for i in sorted(book, key=lambda i: book[i][-1])[
+                        :len(book) - MAX_TRACKED_IPS]:
+                    del book[i]
+
+        # Zero is the off switch here too: it closes the MCP surface without a
+        # deploy, and every reading endpoint carries on.
+        if MCP_PER_IP <= 0:
+            raise Throttled(
+                "This archive is not serving tool calls at the moment.",
+                kind="closed")
+
+        # BOTH windows are checked before EITHER is written to. Committing the
+        # general one first and then refusing on the heavy one would charge a
+        # caller for a call that never ran.
+        general = _window(_mcp_hits, ip, now, MCP_PER_IP,
+                          "tool call", "tool calls")
+        heavy = (_window(_mcp_heavy, ip, now, MCP_SEARCH_PER_IP,
+                         "transcript search", "transcript searches")
+                 if tool in MCP_HEAVY else None)
+
+        if _mcp_running >= MCP_MAX_CONCURRENT:
+            raise Throttled(
+                "This archive is running as many tool calls as it can at "
+                "once. Try again in a moment.", retry_after=5, kind="busy")
+
+        general.append(now)
+        if heavy is not None:
+            heavy.append(now)
+        _mcp_running += 1
+
+    done = False
+
+    def release():
+        nonlocal done
+        with _mcp_lock:
+            global _mcp_running
+            if not done:
+                done = True
+                _mcp_running = max(0, _mcp_running - 1)
+
+    return release
+
+
 def _plain(seconds):
     """The wait, in words. A reader is being told to come back, so this says
     minutes rather than 247."""
@@ -190,4 +309,26 @@ def state():
                 "today": len(_day), "daily_max": DAILY_MAX,
                 "tracked_ips": len(_hits), "per_ip": PER_IP,
                 "window": WINDOW, "max_chars": MAX_CHARS,
-                "trust_proxy": TRUST_PROXY}
+                "trust_proxy": TRUST_PROXY,
+                "mcp": _mcp_state()}
+
+
+def mcp_public():
+    """The MCP ceilings, for the page that tells a reader how to connect.
+
+    The CEILINGS only, not the counters. What is currently running is an
+    operator's number; what a reader needs before pointing a client at this
+    archive is what it will refuse. Served rather than written into the copy
+    so the sentence on /about cannot drift from the setting behind it, which
+    is the one way a stated number goes quietly wrong.
+    """
+    return {"per_ip": MCP_PER_IP, "heavy_per_ip": MCP_SEARCH_PER_IP,
+            "window": MCP_WINDOW, "heavy": sorted(MCP_HEAVY)}
+
+
+def _mcp_state():
+    """The tool surface's own counters, which share none of Ask's budget."""
+    with _mcp_lock:
+        return {"running": _mcp_running, "max_concurrent": MCP_MAX_CONCURRENT,
+                "tracked_ips": len(_mcp_hits), "per_ip": MCP_PER_IP,
+                "heavy_per_ip": MCP_SEARCH_PER_IP, "window": MCP_WINDOW}

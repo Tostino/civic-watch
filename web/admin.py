@@ -94,15 +94,18 @@ def init(root):
 # image does not set. Out there the route does not exist. The peer check below
 # stays as depth - it is free, and it still rules out anyone reaching the port
 # directly across a network.
-def loopback(handler):
-    """Is this request from this machine? Asked of a port the edge cannot reach."""
-    ip = handler.client_address[0]
+def loopback(request):
+    """Is this request from this machine? Asked of a port the edge cannot reach.
+
+    `request` is a Starlette Request. No peer at all is not this machine.
+    """
+    ip = request.client.host if request.client else ""
     return ip == "::1" or ip.startswith("127.")
 
 
-def session_of(handler):
+def session_of(request):
     c = SimpleCookie()
-    c.load(handler.headers.get("Cookie", ""))
+    c.load(request.headers.get("Cookie", ""))
     m = c.get(COOKIE)
     return m.value if m and m.value in _sessions else None
 

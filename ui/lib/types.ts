@@ -722,3 +722,25 @@ export interface Body {
   recorded: number;
   with_agenda: number;
 }
+
+/**
+ * The machine surface, as /api/tools describes it.
+ *
+ * `mcp` carries the ceilings rather than the counters: /about tells a reader
+ * what the tool endpoint will refuse before they point a client at it, and
+ * the number comes from the server so the sentence cannot drift from the
+ * setting behind it.
+ */
+export interface ToolsManifest {
+  tools: { name: string; description: string }[];
+  dense: string | null;
+  mcp: {
+    path: string;
+    /** Tool calls allowed from one address per `window` seconds. */
+    per_ip: number;
+    /** The lower ceiling, for the tools named in `heavy`. */
+    heavy_per_ip: number;
+    window: number;
+    heavy: string[];
+  };
+}

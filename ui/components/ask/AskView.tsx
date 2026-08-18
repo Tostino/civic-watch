@@ -244,6 +244,14 @@ function Examples() {
           </li>
         ))}
       </ul>
+      {/* Offered here because this is the page where a reader is already
+          asking the archive a question, and the answer to "can I do this from
+          my own tools" is yes. The instructions live on /about with the rest
+          of what this archive is; one sentence is what belongs on this page. */}
+      <p className={s.own}>
+        You can also point your own assistant at this archive and search it from
+        there. <Link href="/about">How to connect one</Link>.
+      </p>
     </div>
   );
 }

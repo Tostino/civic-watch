@@ -15,3 +15,18 @@ safetensors==0.8.0
 tokenizers==0.22.2
 scikit-learn==1.9.0
 scipy==1.18.0
+
+# The HTTP layer. web/server.py is an ASGI app now rather than a
+# BaseHTTPRequestHandler, which is what lets the MCP transport be mounted at
+# /mcp in the same process instead of proxied to on a second port.
+#
+# `mcp` and `mcp-types` ship as two distributions of the same version; pin
+# both, because an mcp that outruns its types is an import error at boot and
+# not a degraded feature. pydantic is pinned for the same reason: mcp_types is
+# nothing but pydantic models, and it is the one transitive dependency here
+# whose major version has moved under a project before.
+starlette==1.6.0
+uvicorn==0.52.3
+mcp==2.0.0
+mcp-types==2.0.0
+pydantic==2.13.4

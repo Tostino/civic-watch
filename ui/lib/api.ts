@@ -10,6 +10,7 @@ import type {
   MeetingDetail,
   MeetingRow,
   Overview,
+  ToolsManifest,
   Transcript,
 } from "./types";
 
@@ -44,6 +45,10 @@ export const getCase = (id: string) =>
   get<CaseDetail>(`/api/case/${encodeURIComponent(id)}`);
 
 export const getBodies = () => get<Body[]>(`/api/bodies`);
+
+/** The tool surface and what the MCP endpoint will refuse. Costs no database
+ *  work, so /about can ask for it alongside the counts. */
+export const getTools = () => get<ToolsManifest>(`/api/tools`);
 
 /**
  * A run of the agent the server kept, which is what a shared `/ask/<id>` link

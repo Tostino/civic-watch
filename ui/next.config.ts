@@ -63,6 +63,18 @@ const nextConfig: NextConfig = {
              destination: `${ADMIN_API}/api/admin/:path*` }]
         : []),
       { source: "/api/:path*", destination: `${API}/api/:path*` },
+      // The tool surface (web/mcp_server.py), which is public on purpose:
+      // an MCP client asks the archive its own questions, and the answer it
+      // composes is composed from the same five tools /search and the agent
+      // use. It lives OUTSIDE /api because that is the path an MCP client is
+      // given, and it needs no separate timeout note: the transport answers
+      // in JSON rather than SSE, so a tool call is one short request and
+      // never the minutes-long silence /api/ask taught this proxy about.
+      //
+      // Metered by MCP_* in web/limits.py, which is deliberately not Ask's
+      // budget: a tool call spends CPU and the two must not be able to close
+      // each other.
+      { source: "/mcp", destination: `${API}/mcp` },
       // The `/legacy/:path*` rewrite is deleted, not commented out. It existed
       // because "the surfaces this rebuild has not reached yet (search, ask)
       // still serve from the old pages" - both shipped, as slices 3 and 4, so

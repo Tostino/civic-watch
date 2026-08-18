@@ -1,0 +1,404 @@
+"""The archive's tool surface, served over MCP at /mcp.
+
+Same five tools the agent calls and the search page runs, reached by a model
+somebody else is driving. Nothing here is a sixth code path: `tools.call` is
+the single entry point, it already validates and clamps every argument, and
+this file adds a protocol, a budget and a set of prompts on top of it.
+
+WHAT IT IS FOR. A reader with an MCP client can ask questions of this archive
+in their own words and get the passages and published items behind the answer,
+without going through /ask - which is a paid, bounded endpoint with a model
+this project pays for. The trade is that the answer is composed by THEIR
+model, which means the rules web/agent.py enforces on our own composer have to
+travel with the tools. That is what the prompts below are, and why the
+non-negotiable half is repeated in `INSTRUCTIONS`, which every client gets at
+the handshake whether it asks for a prompt or not.
+
+PUBLIC AND METERED. The data is a public record and the tools only read it, so
+there is no authentication. There is a budget: see MCP_* in web/limits.py.
+It is not Ask's budget - a tool call spends CPU rather than tokens, and the
+two must not be able to close each other.
+"""
+import json
+import os
+import sys
+
+import anyio
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "bin"))
+
+import mcp_types as mt
+from mcp.server.lowlevel.server import Server
+from mcp.shared.exceptions import MCPError
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+from mcp.server.transport_security import TransportSecuritySettings
+
+import db                                            # noqa: E402
+import limits                                        # noqa: E402
+import tools                                         # noqa: E402
+from wire import jsonable                            # noqa: E402
+
+NAME = "pasco-meeting-archive"
+VERSION = "1.0"
+
+# Handed to every client at initialize, so it is in front of the model whether
+# or not anyone asked for a prompt. Deliberately SHORT: this is the part that
+# cannot be skipped, so it holds only the mistakes that make an answer wrong
+# rather than thin, and the long form lives in the prompts.
+INSTRUCTIONS = """This archive holds Pasco County, Florida government meetings.
+
+TWO SOURCES, NOT INTERCHANGEABLE. The RECORD (agendas the county published,
+dispositions its approved minutes recorded) is authoritative for what was
+DECIDED, and covers 2015-2026 whether or not anyone filmed it. The TRANSCRIPT
+(machine transcription of 1,036 hours of recordings, 2018 onward) is
+authoritative for what was SAID, and exists for only 9% of decided items. An
+outcome comes from the record. An argument comes from the transcript.
+
+THREE THINGS THAT MAKE AN ANSWER WRONG RATHER THAN THIN:
+
+1. A passage marked "NAME NOT CONFIRMED" has a sound quote and an unsound
+   name. Say "a commissioner" or "a resident". Never put the name on it.
+2. Never report how a NAMED person voted from a transcript. Speaker labels
+   come from automated voice matching and roll calls land on the wrong name.
+   A COUNT the transcript states ("four nays, three ayes") is reportable.
+3. Never say a word or a subject does not appear in the archive. A search that
+   came back empty is evidence about that search, not about the archive: it
+   holds hundreds of thousands of passages and you have seen a few hundred.
+
+Where the tools do not settle a question, say so. "The archive does not show
+this" is a complete answer here."""
+
+# ------------------------------------------------------------------ prompts
+# Written from the same rules web/agent.py gives its own composer, because the
+# job is the same job. SOURCES is imported from there rather than restated,
+# so the two cannot drift; the rest is the composer's ruleset reduced to what
+# survives being handed to a model this project does not control.
+
+_CITE = """CITING WHAT YOU USED. Every tool result carries ids. A transcript
+passage is [N] and a published item is [item:N], and the two are different
+namespaces: [22216] and [item:22216] are not the same object. Put the id of
+every result a sentence rests on next to that sentence. If a sentence needs a
+name from one passage and a figure from another, it carries both.
+
+Never cite an id you did not receive from a tool in this conversation. Do not
+cite anything for a claim about what is NOT there; say what you searched for
+and what came back empty, and let that sentence stand on the searching."""
+
+_PLAIN = """HOW TO WRITE IT. Somebody who lives in the county, was not at the
+meeting, and does not follow local government. Short sentences, ordinary
+words, no procedural jargon left unexplained. Say what a decision MEANS for a
+person, not only what it was called. Lead with the answer. No preamble.
+
+Plain is not vague: never round a vote, soften a disposition, or drop a
+qualification the record makes.
+
+No em dashes. Use a full stop, a comma pair, a colon, or brackets instead."""
+
+
+def _sources():
+    """The two-source rule, in the composer's own words.
+
+    Imported late. web/agent.py pulls in the chat client and the retrieval
+    stack at import, and this server starts whether or not there is an API
+    key; only a client that actually asks for a prompt pays for that.
+    """
+    import agent
+    return agent.SOURCES
+
+
+PROMPTS = [
+    {
+        "name": "answer_from_archive",
+        "description":
+            "Answer a question about Pasco County government from this "
+            "archive alone, with the record and the transcript kept apart "
+            "and every claim carrying the id that supports it.",
+        "arguments": [("question", "The question to answer.", True)],
+        "render": lambda a: f"""{_sources()}
+
+{_CITE}
+
+{_PLAIN}
+
+WHAT YOU MAY USE. This archive and nothing else. Not what you know about
+Pasco County, not what was in the news, not what usually happens at a county
+commission. An answer that reaches past these tools makes the archive vouch
+for something it never saw, and the reader cannot tell which sentence that
+was. If the archive is silent, the finding is the silence.
+
+Search before you conclude. search_record for what was decided,
+search_transcript for what was argued, then get_item, get_case or get_meeting
+to read the thing itself rather than the summary of it.
+
+THE QUESTION: {a['question']}""",
+    },
+    {
+        "name": "what_happened_with",
+        "description":
+            "Trace one case, application or agenda item: what the county "
+            "decided, when, and what was argued about it beforehand.",
+        "arguments": [("subject",
+                       "A case number, an agenda code, an address, a "
+                       "project name, or a plain description.", True)],
+        "render": lambda a: f"""{_sources()}
+
+{_CITE}
+
+{_PLAIN}
+
+THE ORDER MATTERS HERE. Establish the DISPOSITION first, from the record:
+search_record, then get_item or get_case for the item itself. Lead your answer
+with what the county decided and the date it decided it.
+
+Only then use search_transcript for what was argued and by whom. Never
+contradict a recorded disposition with an inference from the transcript; if
+they disagree, say so and give both. If the record shows no outcome, say the
+published record shows no outcome. Do NOT infer one from a vote being called,
+and do not infer one from the discussion sounding settled.
+
+THE SUBJECT: {a['subject']}""",
+    },
+    {
+        "name": "what_was_said_about",
+        "description":
+            "Gather what people actually said about a subject in recorded "
+            "meetings, with the limits of the recordings stated.",
+        "arguments": [("topic", "The subject to search for.", True),
+                      ("years", "Optional range, e.g. '2020 to 2024'.",
+                       False)],
+        "render": lambda a: f"""{_sources()}
+
+{_CITE}
+
+{_PLAIN}
+
+THIS IS A TRANSCRIPT QUESTION, so state the limit in the same breath as the
+finding. Recordings start in 2018 and cover 9% of decided items, so what you
+gather is what was said AT THE MEETINGS THAT WERE FILMED, and that is how to
+describe it.
+
+Search more than once and more than one way before you summarise: the words a
+resident uses and the words an ordinance uses are rarely the same words. Where
+one person made the same point at four meetings, say so once and cite it once.
+
+Attribute carefully. A passage marked NAME NOT CONFIRMED gets "a resident" or
+"a commissioner", never a name.
+
+THE TOPIC: {a['topic']}{chr(10) + 'YEARS: ' + a['years'] if a.get('years') else ''}""",
+    },
+]
+
+BY_NAME = {p["name"]: p for p in PROMPTS}
+
+
+# -------------------------------------------------------------- the handlers
+async def _list_tools(ctx, params):
+    """The five, straight off the manifest the agent is handed.
+
+    `tools.MANIFEST` is `tools.SPECS` minus the callable, which is exactly an
+    MCP tool list with the schema key renamed. Projected rather than
+    re-declared: a tool whose arguments change in web/tools.py changes here in
+    the same edit, or it does not change at all.
+    """
+    return mt.ListToolsResult(tools=[
+        mt.Tool(name=s["name"], description=s["description"],
+                input_schema=s["parameters"],
+                # Read-only and safe to retry, which is worth telling a client
+                # that decides for itself whether to ask a human first.
+                annotations=mt.ToolAnnotations(readOnlyHint=True,
+                                               idempotentHint=True,
+                                               openWorldHint=False))
+        for s in tools.MANIFEST])
+
+
+def _run(name, args):
+    """One tool call, on a thread, with its own connection.
+
+    The connection is opened and closed HERE. web/server.py's do_GET leaked
+    one per request until it was fixed, and the failure was not local: the
+    database ran out of backends minutes later on a different endpoint. Every
+    path that opens one closes it in a finally.
+    """
+    con = db.connect(autocommit=True)
+    try:
+        return tools.call(con, name, args)
+    finally:
+        con.close()
+
+
+async def _call_tool(ctx, params):
+    """Meter it, run it off the event loop, hand back the JSON.
+
+    The result goes back as text rather than as structured content because
+    that is what every one of these tools already produces for the agent and
+    for /api/tool: one JSON document, the same shape in both places.
+    """
+    name = params.name
+    args = dict(params.arguments or {})
+    if name not in tools.BY_NAME:
+        return mt.CallToolResult(
+            content=[mt.TextContent(text=f"no such tool: {name}")],
+            is_error=True)
+
+    # `ctx.request` is the Starlette request the transport framed this message
+    # with, which is the only place the caller's address exists by the time a
+    # handler runs.
+    ip = limits.client_ip(ctx.request) if ctx.request is not None else "unknown"
+    try:
+        release = limits.mcp_reserve(ip, name)
+    except limits.Throttled as t:
+        # An error RESULT, not a protocol error: the call was well formed and
+        # the refusal is about this caller's budget, which is something the
+        # model should read and act on rather than something its client should
+        # treat as a broken server.
+        return mt.CallToolResult(
+            content=[mt.TextContent(text=t.message)], is_error=True)
+    try:
+        # Every tool is blocking: an indexed query, and for search_transcript
+        # a pass of the query encoder. On the event loop it would stall every
+        # other request in the process, including the reading API.
+        out = await anyio.to_thread.run_sync(_run, name, args)
+    except tools.ToolError as e:
+        return mt.CallToolResult(
+            content=[mt.TextContent(text=str(e))], is_error=True)
+    finally:
+        release()
+    return mt.CallToolResult(content=[mt.TextContent(
+        text=json.dumps(out, default=jsonable, ensure_ascii=False))])
+
+
+async def _list_prompts(ctx, params):
+    return mt.ListPromptsResult(prompts=[
+        mt.Prompt(name=p["name"], description=p["description"],
+                  arguments=[mt.PromptArgument(name=n, description=d,
+                                               required=r)
+                             for n, d, r in p["arguments"]])
+        for p in PROMPTS])
+
+
+async def _get_prompt(ctx, params):
+    """A bad prompt request is a bad REQUEST, not a server fault.
+
+    MCPError rather than ValueError, and the difference is visible from
+    outside: the SDK turns anything else into "modern request handler raised"
+    with a full traceback in the log. On a public endpoint that means any
+    caller can fill the operator's console with stack traces by asking for a
+    prompt and leaving out its argument.
+    """
+    p = BY_NAME.get(params.name)
+    if not p:
+        raise MCPError(mt.INVALID_PARAMS, f"no such prompt: {params.name}")
+    args = dict(params.arguments or {})
+    for n, _, required in p["arguments"]:
+        if required and not (args.get(n) or "").strip():
+            raise MCPError(mt.INVALID_PARAMS,
+                           f"{params.name}: {n} is required")
+    return mt.GetPromptResult(
+        description=p["description"],
+        messages=[mt.PromptMessage(
+            role="user", content=mt.TextContent(text=p["render"](args)))])
+
+
+def build():
+    """The MCP server and the ASGI app that speaks to it.
+
+    Returns `(session_manager, asgi_app)`. The caller mounts the app and MUST
+    enter `session_manager.run()` for the life of the process: it owns the
+    task group every request runs inside, and without it the first call hangs
+    rather than failing.
+
+    STATELESS, and JSON rather than SSE. Nothing here pushes: a tool call is a
+    request and a response, so a session to hold open would only be state to
+    lose on restart and affinity to arrange at the edge. Answering POSTs with
+    `application/json` also sidesteps the whole class of proxy buffering bugs
+    that /api/ask spent a week on, because there is no stream to buffer.
+    """
+    server = Server(
+        NAME,
+        version=VERSION,
+        title="Pasco County meeting archive",
+        instructions=INSTRUCTIONS,
+        on_list_tools=_list_tools,
+        on_call_tool=_call_tool,
+        on_list_prompts=_list_prompts,
+        on_get_prompt=_get_prompt,
+    )
+    manager = StreamableHTTPSessionManager(
+        app=server,
+        stateless=True,
+        json_response=True,
+        security_settings=_security(),
+    )
+    return manager, _PostOnly(manager.asgi_app)
+
+
+class _PostOnly:
+    """Refuse GET, and say why.
+
+    A GET on this path asks the transport to open a standalone SSE stream and
+    hold it for server-initiated messages. This server initiates nothing: it
+    is stateless, it answers a tool call and stops. Measured before this was
+    added: `curl http://.../mcp` never returned, because there was a stream at
+    the other end waiting for a message that was never going to come.
+
+    On a public endpoint that is a way to pin a connection for free, and it is
+    not covered by the tool-call budget, which meters work rather than
+    sockets. The spec allows a server with nothing to push to answer 405, so
+    that is what this does. POST and DELETE go through untouched.
+
+    A CLASS, not a closure, and that is load-bearing. Starlette's `Route`
+    decides what it was handed with `inspect.isfunction`: a plain function is
+    wrapped as a request handler and called with one `Request`, so the first
+    version of this answered 405 to POST and 500 to GET. An instance with
+    `__call__` is treated as the ASGI app it is, which is how the SDK's own
+    `StreamableHTTPASGIApp` reaches the same route.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and scope.get("method") == "GET":
+            body = json.dumps({
+                "error": "this endpoint answers POST. It opens no event "
+                         "stream: every reply arrives on the request that "
+                         "asked for it."}).encode()
+            await send({"type": "http.response.start", "status": 405,
+                        "headers": [(b"content-type", b"application/json"),
+                                    (b"allow", b"POST, DELETE"),
+                                    (b"content-length",
+                                     str(len(body)).encode())]})
+            await send({"type": "http.response.body", "body": body})
+            return
+        await self.app(scope, receive, send)
+
+
+def _security():
+    """Host and Origin checking for the mounted endpoint.
+
+    The SDK turns DNS-rebinding protection on by itself when it is told to
+    bind loopback, and this server IS bound to loopback in the container -
+    behind Next, behind nginx, answering for a public hostname. Left to
+    default, every forwarded request would be rejected for having the wrong
+    Host.
+
+    Off by default, therefore, and that is defensible for what this is: the
+    protection exists to stop a web page in a victim's browser reaching a
+    server that trusts its own locality. This one grants no authority to
+    anybody, holds no secret, and serves a document the county publishes. Set
+    MCP_ALLOWED_HOSTS and MCP_ALLOWED_ORIGINS (comma separated, `*` suffixes
+    allowed) to turn it back on where the deployment does want it.
+    """
+    hosts = [h for h in (os.environ.get("MCP_ALLOWED_HOSTS") or "").split(",")
+             if h.strip()]
+    origins = [o for o in
+               (os.environ.get("MCP_ALLOWED_ORIGINS") or "").split(",")
+               if o.strip()]
+    if not hosts and not origins:
+        return TransportSecuritySettings(enable_dns_rebinding_protection=False,
+                                         allowed_hosts=[], allowed_origins=[])
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[h.strip() for h in hosts],
+        allowed_origins=[o.strip() for o in origins])

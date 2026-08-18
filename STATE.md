@@ -863,8 +863,10 @@ Numbered so code and comments can cite them, which several do — grep
     it is not asking for the compression that causes the bug. And
     `BaseHTTPRequestHandler` defaults to **HTTP/1.0**, under which a response
     with no Content-Length is framed by closing the connection - so the
-    handler now sets `protocol_version = "HTTP/1.1"` and sends
-    `Connection: close` on the one streaming route.
+    handler set `protocol_version = "HTTP/1.1"` and sent `Connection: close`
+    on the one streaming route. *(Both retired with the handler itself in
+    gotcha 105. uvicorn frames a streaming body as chunked. The pad,
+    `no-transform` and `X-Accel-Buffering` above are all still load-bearing.)*
 
 62. **An id-shaped token the reader cannot cite gets cited anyway.**
     `agent.render()` listed an item's transcript as `[385] Yeager: so my
@@ -2621,6 +2623,109 @@ than teaching yourself to read the secret.
     "What the county published" and are numbered alongside `C10`. That is the
     §2 blur, in the one place a reader is most likely to quote from. Raised
     2026-08-18 and deferred at the maintainer's direction.
+
+105. **The reading API is ASGI now, because MCP could not be bolted to a
+    `BaseHTTPRequestHandler`.** The archive serves its five tools over MCP at
+    `/mcp` (`web/mcp_server.py`), so a reader with an MCP client can ask the
+    archive its own questions without going through the paid `/api/ask`. The
+    official SDK's streamable-HTTP transport is an ASGI app, and the server it
+    had to live inside was a threaded `BaseHTTPRequestHandler`. The two do not
+    compose.
+
+    **The rejected shape was a proxy.** Run the SDK under uvicorn on a second
+    loopback port, forward `/mcp` to it from the old handler. It is about
+    thirty lines and it works. What it buys is a second listener, a hop, and a
+    permanent answer of "the two halves of this server are different servers"
+    to every future question about middleware, limits or logging. The
+    maintainer's call on 2026-08-18 was to migrate instead.
+
+    `web/server.py` is Starlette on uvicorn: two apps, two listeners, one
+    process, one event loop. **Endpoints stayed `def` rather than `async
+    def`**, which is what kept the migration to one file. Starlette runs a
+    sync endpoint on a worker thread, so psycopg keeps blocking exactly as it
+    did and not one query was rewritten. Handler coupling outside the
+    transport was three functions (`limits.client_ip`, `admin.loopback`,
+    `admin.session_of`), all reading `.client_address` and `.headers`; they
+    take a Starlette `Request` now.
+
+    **What had to be carried across by hand, and why each one.** The gzip in
+    `_json` is still hand-rolled: `GZipMiddleware` compresses whatever it is
+    handed, and a gzip encoder buffers until it has a block, which is gotcha
+    61 exactly. A middleware would have reintroduced the bug the SSE headers
+    exist to prevent. The 2 KB comment pad, `no-transform` and
+    `X-Accel-Buffering: no` all stayed. `Connection: close` did NOT, and half
+    of gotcha 61 is retired with it: uvicorn speaks HTTP/1.1 and frames a
+    streaming body as chunked, so there is no longer a reason to give up the
+    connection to terminate a response.
+
+    **Two things got better rather than merely surviving.** The heartbeat is
+    no longer a second thread writing the same socket under a lock. The run
+    produces into a queue, the generator drains it, and a heartbeat is what
+    the generator emits when the queue has said nothing for `HEARTBEAT`
+    seconds. One writer, so the interleaving hazard the lock guarded is gone
+    rather than guarded. And a reader who navigates away now STOPS THE PAID
+    RUN: `on_event` raises once the generator is closed, which unwinds
+    `agent.ask` from inside whatever call it is in. The old handler got that
+    by accident, from `BrokenPipeError` on the socket write, and a queue would
+    have silently lost it.
+
+    **The admin boundary is structural now.** Curation routes are registered
+    on the curation app and nowhere else, so `/api/admin/*` on the public
+    listener is not refused by a check that could be got wrong, it is a path
+    that does not exist. The loopback test stays as depth.
+
+    **Two behaviour changes worth knowing.** `/api/item/abc` is a 404 rather
+    than the 500 it used to be, because the route matches `{item_id:int}`
+    instead of `int()`-ing whatever followed the last slash. And repeated
+    query parameters take the FIRST value, which needed saying out loud:
+    `parse_qs(...)[k][0]` took the first for years and Starlette's mapping
+    takes the last, so `?q=a&q=b` would have quietly started searching for
+    something else.
+
+    **Found on the way.** `limits.TRUST_PROXY` parsed as `env_value or ("" in
+    (...))` because `in` binds tighter than `or`, so it held the raw string
+    and `"0"` and `"false"` were both truthy: the flag could not be turned
+    off, and `deploy/unraid-app.md` documents `ASK_TRUST_PROXY=0` as the
+    setting that disables it. The loopback guard kept it from being remotely
+    exploitable. Fixed.
+
+    **The MCP surface itself.** `tools/list` is projected off `tools.MANIFEST`
+    rather than re-declared, so a tool whose arguments change in
+    `web/tools.py` changes at `/mcp` in the same edit. Three prompts import
+    `agent.SOURCES` for the same reason. It is stateless and answers in JSON
+    rather than SSE, which means a tool call is one request and one response
+    and there is no stream for a proxy to buffer. Its budget is `MCP_*` in
+    `web/limits.py` and deliberately NOT `ASK_*`: a tool call spends CPU and
+    the query encoder rather than tokens, and an MCP client must not be able
+    to close the endpoint a reader pays for. `search_transcript` has its own
+    lower ceiling, because it is the expensive tool and the one worth pulling
+    in bulk.
+
+    **Two traps in mounting it, both of which answered wrongly rather than
+    loudly.** A `Mount("/mcp", ...)` treats the path as a prefix and 307s it
+    to `/mcp/` before the app sees anything, and an MCP client POSTs to the
+    exact address it was given, so the handshake became a redirect. It is a
+    `Route` holding the ASGI app now, which is what the SDK does itself. And
+    the gate that refuses GET (below) was first written as a closure: Starlette's
+    `Route` decides what it was handed with `inspect.isfunction`, wrapped the
+    plain function as a request handler, and the endpoint answered 405 to POST
+    and 500 to GET. It is a class with `__call__` now.
+
+    **GET is refused, 405.** A GET asks the transport to open a standalone SSE
+    stream and hold it for server-initiated messages, and this server initiates
+    nothing. Measured: `curl http://.../mcp` never returned. On a public
+    endpoint that is a way to pin a connection for free, and the tool-call
+    budget does not cover it, because that meters work and this costs a socket.
+
+    Verified against the live archive: every reading endpoint, the admin
+    boundary in both directions, one real `/api/ask` run (38 stage events, 12
+    heartbeats, an answer saved and readable at `/api/answer/<id>`), a stream
+    requested WITH `Accept-Encoding: gzip` arriving uncompressed and chunked,
+    both throttles refusing at their limit without the refused call being
+    charged to the other window, and a full MCP session through the SDK's own
+    client over the PUBLIC origin - the Next rewrite included, which is the
+    path a reader's assistant actually takes to the address printed on
+    /about.
 
 ## Postgres, and what to watch out for
 
