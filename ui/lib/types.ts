@@ -618,6 +618,16 @@ export interface TranscriptHit {
   upload_date: string | null;
   meeting_id: number | null;
   meeting_date: string | null;
+  /**
+   * WHICH RECORDING the `start` above is a time on, and how many that meeting
+   * has. Half of all meeting-days are two videos on one continuous agenda, so
+   * a bare clock does not say which tape it is on — and neither field means
+   * anything without the other: `session_seq` is null on 48 videos that share
+   * a meeting with another, and 0 on three that do not. Read through
+   * `recordingName`, never by hand.
+   */
+  session_seq: number | null;
+  sessions: number;
   body: string | null;
   score: number;
 }

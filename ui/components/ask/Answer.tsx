@@ -8,7 +8,15 @@ import { ProvenanceMark } from "@/components/ProvenanceMark";
 import { SpeakerChip } from "@/components/SpeakerChip";
 import { DisputePassage } from "@/components/admin/DisputePassage";
 import { usePlayer } from "@/components/player/PlayerProvider";
-import { clock, meetingDate, phaseLabel, shortBody, shortTitle } from "@/lib/format";
+import {
+  clock,
+  meetingDate,
+  phaseLabel,
+  recordingName,
+  sessionLabel,
+  shortBody,
+  shortTitle,
+} from "@/lib/format";
 import type { AskResult, RecordHit, TranscriptHit } from "@/lib/types";
 import s from "./Answer.module.css";
 
@@ -29,10 +37,15 @@ export function Answer({ r }: { r: AskResult }) {
   const items = new Map(r.record.map((i) => [i.id, i]));
   const empty = !r.evidence.length && !r.record.length;
   const missing = (r.missing?.passages ?? 0) + (r.missing?.items ?? 0);
+  /* Numbered once for the whole answer, because the prose and the two lists
+     under it have to agree about what `[4]` is. */
+  const marks = marksOf(r.answer, byId, items);
 
   return (
     <div className={s.answer}>
-      <article className={s.prose}>{cite(r.answer, byId, items)}</article>
+      <article className={s.prose}>
+        <Prose marks={marks} />
+      </article>
 
       {/* R5.5.5: no answer without evidence, and the empty result is designed
           rather than treated as a failure. */}
@@ -54,17 +67,24 @@ export function Answer({ r }: { r: AskResult }) {
             </h2>
             <ProvenanceMark kind="minutes" compact />
           </header>
+          {/* In the order the answer refers to them: a numbered list that does
+              not ascend is a list somebody has to search. */}
           <ul className={s.list}>
-            {r.record.map((i) => (
-              <li key={i.id}>
-                <RecordCite item={i} />
-              </li>
-            ))}
+            {[...r.record]
+              .sort(
+                (a, b) =>
+                  (marks.item.get(a.id) ?? 1e9) - (marks.item.get(b.id) ?? 1e9),
+              )
+              .map((i) => (
+                <li key={i.id}>
+                  <RecordCite item={i} n={marks.item.get(i.id)} />
+                </li>
+              ))}
           </ul>
         </section>
       ) : null}
 
-      {r.evidence.length ? <Evidence hits={r.evidence} /> : null}
+      {r.evidence.length ? <Evidence hits={r.evidence} said={marks.said} anchor={marks.anchor} /> : null}
 
       <footer className={s.note}>
         Looked at {r.looked_at.items.toLocaleString()} items and{" "}
@@ -150,85 +170,379 @@ export const args = (a: Record<string, unknown> | undefined) =>
   Object.entries(a ?? {})
     .map(([k, v]) => (k === "query" ? `“${v}”` : `${k}=${v}`))
     .join(" · ");
-
 /* -------------------------------------------------------------- citations */
 
+/** One `[N]` or `[item:N]` as the writer typed it. */
+type Ref = { item: boolean; id: number };
+
+/** A maximal run of citations with nothing but whitespace between them, and
+ *  the punctuation that came after it. */
+type Run = { refs: Ref[]; tail: string };
+
+type Part = string | Run | { bold: string };
+
+/** One place in a recording. See `moments`. */
+type Moment = { at: TranscriptHit; of: TranscriptHit[] };
+
+/** A numbered reference, as it appears in the prose and in the list below. */
+type Mark =
+  | { n: number; kind: "item"; item: RecordHit }
+  | { n: number; kind: "said"; moment: Moment; where: string }
+  | { n: number; kind: "dead"; id: number };
+
+/** Every reference in one run, resolved and numbered. */
+type Plan = { marks: Mark[]; tail: string };
+
+/** The whole answer's references: the prose split around them, what each one
+ *  resolved to, and the number to print — on the marker AND on the row it
+ *  points at, which is the only thing that makes a number worth reading. */
+type Marks = {
+  parts: Part[];
+  plans: Map<Run, Plan>;
+  /** Published item id → its number. */
+  item: Map<number, number>;
+  /** Passage id → the number of the moment it belongs to. */
+  said: Map<number, number>;
+  /**
+   * The one passage per moment that carries the anchor. A moment can fold
+   * three passages and they all print its number, but only one of them may
+   * BE `#ref-7` — duplicate ids are invalid and a marker following one lands
+   * on whichever the document happens to reach first.
+   */
+  anchor: Set<number>;
+};
+
+const isRun = (p: Part | undefined): p is Run =>
+  typeof p === "object" && p !== null && "refs" in p;
+
 /**
- * R5.5.2: the two citation types render distinctly. `[item:N]` reveals the
+ * R5.5.2: the two citation types are distinct. `[item:N]` reveals the
  * published record; `[N]` seeks the player to that moment.
+ *
+ * R5.5.2a: A CITATION IS A NUMBER, AND THE NUMBER RESOLVES BELOW.
+ *
+ * Everything else was tried against a real answer and each version put more
+ * of the archive's furniture in the way of the sentence. `[323064] [323065]`
+ * drawn one chip each gave four orange pills in a row for one supported
+ * sentence. Folding them to one pill left `▸ 1:55:11 · 1:56:51`, still a row
+ * of numbers to parse. Naming the recording made it `▸ Aug 11, 2026 morning
+ * 53:54`, and an item with no agenda code printed the meeting date, so a
+ * paragraph about one meeting carried the same date three times in four
+ * lines — twice as a link. Setting the item's own title in the chip instead
+ * just made the token bigger.
+ *
+ * The mistake each time was answering "what should the chip say" instead of
+ * "why is a chip in the sentence at all". A reference is a POINTER; the thing
+ * it points at is already on the page, under two headings, with the recording
+ * named, the speaker named, the time, the quote and the disposition. So the
+ * prose carries the smallest pointer that can be followed — `[4]` — and the
+ * lists carry the answer. Repeat citations reuse their number, which is why
+ * "Aug 11, 2026 … Aug 11, 2026" cannot happen again: the second mention of a
+ * thing is the same number as the first.
+ *
+ * Still two kinds, and still distinct: the record's numbers are the record's
+ * colour and reveal the item; a recording's are the player's colour and seek
+ * it. And a number is legible on paper, which is where these answers get
+ * read — an answer printed to PDF is what started all of this.
  */
-function cite(
+function marksOf(
   text: string,
   byId: Map<number, TranscriptHit>,
   items: Map<number, RecordHit>,
-) {
+): Marks {
   /* Citations and `**bold**` in one pass. The agent is told to write plain
    * prose, and mostly does; when it does not, the asterisks used to reach the
    * page literally — "**What the record shows.**" — which reads as a bug in
    * the archive rather than a slip by the model. Bold is the only markdown
    * honoured: anything more would let the answer style the page. */
   const re = /\[(item:)?(\d{1,7})\]|\*\*(.+?)\*\*/g;
-  const out: React.ReactNode[] = [];
-  let at = 0;
-  let m: RegExpExecArray | null;
-  let n = 0;
-  while ((m = re.exec(text))) {
-    if (m.index > at) out.push(<Fragment key={`t${n}`}>{text.slice(at, m.index)}</Fragment>);
-    if (m[3] !== undefined) {
-      out.push(<strong key={`b${n}`}>{m[3]}</strong>);
-    } else {
-      const id = Number(m[2]);
-      if (m[1]) {
-        const i = items.get(id);
-        out.push(
-          <a
-            key={`c${n}`}
-            href={`#item-${id}`}
-            className={s.citeRecord}
-            title={i?.title ?? "the published record"}
-          >
-            {/* The item's own identifier where it has one. A transcript-derived
-                item has no code, so the meeting date is the next most useful
-                thing a reader can act on — "record" told them nothing. */}
-            {i?.code ?? (i ? meetingDate(i.date, "short") : "record")}
-          </a>,
-        );
-      } else {
-        out.push(<PlayCite key={`c${n}`} hit={byId.get(id)} id={id} />);
+  const parts: Part[] = [];
+
+  /* Text after a run gives up its leading punctuation to it. The full stop
+   * belongs to the sentence, not to the gap after a marker: left in the prose
+   * it is a floating "." after a space, and — measured on a printed answer — a
+   * line can break in that gap and start the next line with it. */
+  const pushText = (str: string) => {
+    const last = parts[parts.length - 1];
+    if (isRun(last) && !last.tail) {
+      const stop = /^[.,;:!?)\]}"'’”…]+/.exec(str);
+      if (stop) {
+        last.tail = stop[0];
+        str = str.slice(stop[0].length);
       }
     }
+    if (str) parts.push(str);
+  };
+
+  let at = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const between = text.slice(at, m.index);
     at = m.index + m[0].length;
-    n += 1;
+    if (m[3] !== undefined) {
+      pushText(between);
+      parts.push({ bold: m[3] });
+      continue;
+    }
+    const ref = { item: Boolean(m[1]), id: Number(m[2]) };
+    const last = parts[parts.length - 1];
+    if (isRun(last) && !last.tail && /^[ \t]*$/.test(between)) last.refs.push(ref);
+    else {
+      pushText(between);
+      parts.push({ refs: [ref], tail: "" });
+    }
   }
-  out.push(<Fragment key="tail">{text.slice(at)}</Fragment>);
-  return <div className={s.paras}>{out}</div>;
+  pushText(text.slice(at));
+
+  return number(parts, byId, items);
 }
 
-function PlayCite({ hit, id }: { hit: TranscriptHit | undefined; id: number }) {
-  const player = usePlayer();
-  if (!hit) return <span className={s.citeDead}>[{id}]</span>;
-  return (
-    <button
-      type="button"
-      className={s.citePlay}
-      title={`${hit.speaker_display ?? hit.speaker ?? "Unidentified speaker"} · ${clock(hit.start)} — play`}
-      onClick={() =>
-        player.play(
-          { videoId: hit.video_id, title: hit.title ?? "", href: hit.meeting_id ? `/meeting/${hit.meeting_id}` : undefined },
-          hit.start,
-          true,
-        )
+/**
+ * MOST OF A REFERENCE'S "SEVERAL MOMENTS" ARE ONE MOMENT.
+ *
+ * A passage is about a minute of one speaker, cut by the indexer, so a
+ * sentence that draws on two minutes of somebody talking cites two passages.
+ * Numbering them separately would put `[4][5]` in the prose and two rows in
+ * the list for one place in the recording.
+ *
+ * The test is the SILENCE between them, not the passage boundary. It is what
+ * a reader experiences — click the first, and anything a quarter of a minute
+ * later arrives on its own — and it does not care how the indexer cut, which
+ * an `(start_idx, end_idx)` adjacency test does: two passages of one person
+ * with a short interjection between them are not index-adjacent and are
+ * plainly one place to go.
+ *
+ * FIFTEEN SECONDS, and the archive picked the number rather than taste.
+ * Measured across the 28 passages one answer cited, the gaps are 0 seconds
+ * (39 of them) or 39 seconds and up, with a single 8-second case: a change of
+ * speaker mid-exchange. The threshold sits in the empty band, so no real
+ * citation is near it and nothing hinges on 14 against 16.
+ *
+ * A fold may therefore cover two speakers, which is right — 8 seconds apart is
+ * one place in the recording whoever is talking — so what names the stretch
+ * names everyone in it.
+ */
+const ONE_PLACE = 15;
+
+function moments(hits: TranscriptHit[]): Moment[] {
+  const out: Moment[] = [];
+  for (const h of hits) {
+    const run = out[out.length - 1];
+    const prev = run?.of[run.of.length - 1];
+    // Sorted ascending, so a negative gap is an overlap and folds too.
+    if (prev && h.start - prev.end < ONE_PLACE) run.of.push(h);
+    else out.push({ at: h, of: [h] });
+  }
+  return out;
+}
+
+/**
+ * Numbers, in the order a reader meets them.
+ *
+ * Done over the whole answer at once and not by the markers as they draw: a
+ * number depends on every reference before it, and a component that worked
+ * that out while rendering would be reading a value it had written on a
+ * previous pass. React renders twice in development, and the second pass
+ * would start counting from wherever the first left off.
+ */
+function number(
+  parts: Part[],
+  byId: Map<number, TranscriptHit>,
+  items: Map<number, RecordHit>,
+): Marks {
+  const plans = new Map<Run, Plan>();
+  const item = new Map<number, number>();
+  const said = new Map<number, number>();
+  const anchor = new Set<number>();
+  let next = 1;
+  /* Which recording the last reference was on. A number needs no context in
+     the sentence, but the row it points at is one of several under the same
+     meeting, so the list still says which recording — see `Evidence`. */
+  for (const p of parts) {
+    if (!isRun(p)) continue;
+    const marks: Mark[] = [];
+    const dead: number[] = [];
+    const hits: TranscriptHit[] = [];
+    const recs: RecordHit[] = [];
+    for (const r of p.refs) {
+      if (r.item) {
+        const it = items.get(r.id);
+        if (it && !recs.some((x) => x.id === it.id)) recs.push(it);
+        continue;
       }
-    >
-      ▸ {clock(hit.start)}
-    </button>
+      const h = byId.get(r.id);
+      if (h) hits.push(h);
+      else dead.push(r.id);
+    }
+    /* The record before the recording, always, whichever order they were
+       typed in: the county's own minutes are the authority and the transcript
+       is what was said around them (R5.5.4). Numbers are handed out in that
+       same order, so they only ever ascend in the prose. */
+    for (const it of recs) {
+      const n = item.get(it.id) ?? next;
+      if (!item.has(it.id)) item.set(it.id, next++);
+      marks.push({ n, kind: "item", item: it });
+    }
+    /* In the order the recording plays, not the order the writer happened to
+       type: it cited `[363214] [363212]`, which would have numbered the later
+       moment first. */
+    hits.sort((a, b) => a.start - b.start);
+    for (const mo of moments(hits)) {
+      const seen = said.get(mo.at.id);
+      const n = seen ?? next;
+      if (seen === undefined) {
+        next += 1;
+        // Every passage of the moment answers to the moment's number, so the
+        // rows the fold covers all carry it in the list below; the moment's
+        // first passage is the one that answers to the anchor.
+        for (const h of mo.of) said.set(h.id, n);
+        anchor.add(mo.at.id);
+      }
+      marks.push({ n, kind: "said", moment: mo, where: recordingName(mo.at) });
+    }
+    for (const id of dead) marks.push({ n: 0, kind: "dead", id });
+    plans.set(p, { marks, tail: p.tail });
+  }
+  return { parts, plans, item, said, anchor };
+}
+
+function Prose({ marks }: { marks: Marks }) {
+  return (
+    <div className={s.paras}>
+      {marks.parts.map((p, i) =>
+        typeof p === "string" ? (
+          <Fragment key={`t${i}`}>{p}</Fragment>
+        ) : isRun(p) ? (
+          <Refs key={`c${i}`} plan={marks.plans.get(p)!} />
+        ) : (
+          <strong key={`b${i}`}>{p.bold}</strong>
+        ),
+      )}
+    </div>
   );
 }
 
-function RecordCite({ item }: { item: RecordHit }) {
+/** One reference: everything the writer cited in one breath, as numbers. */
+function Refs({ plan }: { plan: Plan }) {
+  const player = usePlayer();
+  const els: React.ReactNode[] = [];
+  for (const mk of plan.marks) {
+    if (mk.kind === "item")
+      els.push(
+        <a
+          key={`i${mk.item.id}`}
+          href={`#ref-${mk.n}`}
+          className={s.mark}
+          title={`${mk.n}. ${shortTitle(mk.item.title, 90) || "the published record"} — the county's record`}
+        >
+          [{mk.n}]
+        </a>,
+      );
+    else if (mk.kind === "said") {
+      const hit = mk.moment.at;
+      /* EVERYONE in the stretch, not whoever starts it. A fold is 15 seconds
+         of silence or less, which can span a change of speaker, and one name
+         over two people is the kind of quiet misattribution this archive is
+         careful about everywhere else (R2.3). */
+      const who = [
+        ...new Set(
+          mk.moment.of.map((h) => h.speaker_display ?? h.speaker ?? "Unidentified speaker"),
+        ),
+      ];
+      const said =
+        who.length === 1 ? who[0]
+        : who.length === 2 ? `${who[0]} and ${who[1]}`
+        : `${who[0]} and ${who.length - 1} others`;
+      const ran = mk.moment.of[mk.moment.of.length - 1].end - hit.start;
+      const long = ran >= 90 ? `, ${Math.round(ran / 60)} min` : "";
+      const what = `${mk.n}. ${said} · ${mk.where ? `${mk.where}, ` : ""}${clock(hit.start)}${long} — play`;
+      els.push(
+        <button
+          key={`s${hit.id}`}
+          type="button"
+          className={`${s.mark} ${s.markSaid}`}
+          title={what}
+          aria-label={what}
+          onClick={() =>
+            player.play(
+              {
+                videoId: hit.video_id,
+                title: hit.title ?? "",
+                href: hit.meeting_id ? `/meeting/${hit.meeting_id}` : undefined,
+              },
+              hit.start,
+              true,
+            )
+          }
+        >
+          {/* THE MARK, not the colour. Which of the two kinds a reference is
+              matters most where colour is not available — printed, in high
+              contrast, or to a reader who does not see the difference between
+              the record's blue and the player's orange — and this archive
+              says so about itself in ProvenanceMark: the primary signal is
+              never a colour. ▸ is what "play" looks like everywhere else on
+              this site, and one character says "this is a recording" in a way
+              a number cannot. */}
+          {"["}
+          <span aria-hidden className={s.markPlay}>
+            ▸
+          </span>
+          {mk.n}
+          {"]"}
+        </button>,
+      );
+    } else
+      /* Should never render: check() strips unverifiable citations before the
+         answer leaves the server. Kept visible rather than silent so that if
+         one ever does get through, it is obvious rather than disguised. */
+      els.push(
+        <span key={`d${mk.id}`} className={s.citeDead}>
+          [{mk.id}]
+        </span>,
+      );
+  }
+
+  /* The whole run rides with the punctuation that ends its sentence: markers
+     are two or three characters, so there is no reason to let a line break
+     inside one reference or before its full stop. */
+  return (
+    <span className={s.refs}>
+      {els}
+      {plan.tail}
+    </span>
+  );
+}
+
+/** The number, where the thing it points at actually is. */
+function RefNo({
+  n,
+  said = false,
+  anchor = true,
+}: {
+  n: number | undefined;
+  said?: boolean;
+  anchor?: boolean;
+}) {
+  if (n === undefined) return null;
+  return (
+    <span
+      id={anchor ? `ref-${n}` : undefined}
+      className={`${s.refNo} ${said ? s.refNoSaid : ""}`}
+    >
+      {/* No ▸ here, unlike the marker in the prose. The mark is there to say
+          which of two kinds a reference is where they are mixed mid-sentence;
+          in the list the heading above the row has already said it, and the
+          row's own play button carries a ▸ two words later. */}
+      {n}
+    </span>
+  );
+}
+
+function RecordCite({ item, n }: { item: RecordHit; n: number | undefined }) {
   return (
     <div className={s.recRow} id={`item-${item.id}`}>
       <div className={s.recTop}>
+        <RefNo n={n} />
         <Link href={`/meeting/${item.meeting_id}`} className={s.when}>
           {meetingDate(item.date, "short")}
         </Link>
@@ -249,13 +563,25 @@ function RecordCite({ item }: { item: RecordHit }) {
 }
 
 /** R5.5.3: grouped meeting → agenda item, never a flat chronological list. */
-function Evidence({ hits }: { hits: TranscriptHit[] }) {
+function Evidence({
+  hits,
+  said,
+  anchor,
+}: {
+  hits: TranscriptHit[];
+  said: Map<number, number>;
+  anchor: Set<number>;
+}) {
   const meetings = new Map<string, { label: string; items: Map<string, TranscriptHit[]> }>();
   for (const h of hits) {
     const mk = String(h.meeting_id ?? h.video_id);
-    const label = `${meetingDate(h.meeting_date ?? h.upload_date ?? "", "long")}${
-      h.body ? ` · ${h.body}` : ""
-    }`;
+    /* 17 recordings in the archive have no date and no meeting. Their own
+       title is what names them; the alternative was the date this printed
+       before anyone looked, which was Monday, January 1, 1900. */
+    const when = meetingDate(h.meeting_date ?? h.upload_date ?? "", "long");
+    const label =
+      (when || shortTitle(h.title, 70) || "Undated recording") +
+      (when && h.body ? ` · ${h.body}` : "");
     const m = meetings.get(mk) ?? { label, items: new Map() };
     const ik = String(h.agenda_item_id ?? "none");
     (m.items.get(ik) ?? m.items.set(ik, []).get(ik)!).push(h);
@@ -296,7 +622,7 @@ function Evidence({ hits }: { hits: TranscriptHit[] }) {
               <ul className={s.quotes}>
                 {group.map((h) => (
                   <li key={h.id} className={s.quote}>
-                    <Quote hit={h} />
+                    <Quote hit={h} n={said.get(h.id)} anchor={anchor.has(h.id)} />
                   </li>
                 ))}
               </ul>
@@ -308,11 +634,20 @@ function Evidence({ hits }: { hits: TranscriptHit[] }) {
   );
 }
 
-function Quote({ hit }: { hit: TranscriptHit }) {
+function Quote({
+  hit,
+  n,
+  anchor,
+}: {
+  hit: TranscriptHit;
+  n: number | undefined;
+  anchor: boolean;
+}) {
   const player = usePlayer();
   return (
     <>
       <div className={s.quoteTop}>
+        <RefNo n={n} said anchor={anchor} />
         {/* Drawn with the certainty behind it, not as a flat label (R2.3),
             and the answer above was written under the same rule: web/agent.py
             marks the weak ones in the brief and COMPOSE refuses to attribute
@@ -335,7 +670,20 @@ function Quote({ hit }: { hit: TranscriptHit }) {
             )
           }
         >
-          ▸ {clock(hit.start)}
+          {/* WHICH RECORDING, on the row a marker resolves to. Rows are
+              grouped by MEETING (R5.5.3) and half of all meeting-days are two
+              recordings, so without this a 5:41 from the afternoon session
+              sits under the same heading as a 1:57:52 from the morning and
+              reads like a mistake. Said only where `sessions` proves the
+              meeting has more than one. */}
+          ▸ {(hit.sessions ?? 0) > 1 && hit.session_seq != null ? (
+            <>
+              <span className={s.sess}>
+                {sessionLabel(hit.session_seq, hit.sessions).replace(/ session$/, "").toLowerCase()}
+              </span>{" "}
+            </>
+          ) : null}
+          {clock(hit.start)}
         </button>
         {hit.phase ? <span className={s.phase}>{phaseLabel(hit.phase)}</span> : null}
       </div>

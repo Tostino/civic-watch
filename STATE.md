@@ -2499,6 +2499,89 @@ than teaching yourself to read the secret.
     applied `residence` redactions cut the words `one`, `two`, `A` and `L` out
     of the published record. Over-redaction had no check at all.
 
+104. **An answer's citations were furniture in the way of its sentences, and
+    its timestamps could not say which recording they were on.** Both showed
+    up the same way: the maintainer read an answer as a PDF on 2026-08-18.
+
+    `COMPOSE` tells the writer to cite every passage a sentence rests on and
+    not the clearest one, which is right — a reader clicks a citation and gets
+    that passage alone. Drawn one chip each it produced `▸ 1:55:11 ▸ 1:56:51
+    ▸ 1:57:52 ▸ 5:41`, four things to look at for one supported sentence.
+    **Four redesigns of the chip all failed the same way**, and they are worth
+    listing because each looked like the answer at the time: fold the run into
+    one pill (still a row of clocks); name the recording in it (`▸ Aug 11,
+    2026 morning 53:54`); an item with no agenda code printed the meeting date
+    instead, so a paragraph about one meeting carried that date three times in
+    four lines, twice as a link; set the item's own title in the chip and the
+    token just got bigger. The question was never what the chip should say. It
+    was why a chip is in the sentence at all — everything it could carry is
+    already on the page under two headings, with the recording, the speaker,
+    the time, the quote and the disposition.
+
+    **So a citation is a number** (R5.5.2a). `[4]` in the prose, the same `4`
+    on its row below, numbered in the order a reader meets them, and a repeat
+    citation reuses its number — which is what makes a repeated date
+    impossible rather than merely fixed.
+
+    The two kinds are told apart by a MARK and not by colour: `[▸4]` plays a
+    recording, `[1]` reveals the published record. Colour was the first
+    version and it is the one signal that does not survive being printed —
+    which is where the answer that started this was read — or high contrast,
+    or a reader who does not distinguish the record's blue from the player's
+    orange. `ProvenanceMark` has said this about itself since slice 2 and the
+    citations were not obeying it. The mark is not repeated on the row the
+    number resolves to: the heading above it has already said which kind it
+    is, and the row's own play button carries a ▸ two words later.
+
+    **One number per PLACE in the recording, not per passage.** A passage is
+    about a minute of one speaker, so a sentence drawing on two minutes of
+    somebody talking cites two of them. Cited passages less than **15 seconds**
+    apart fold to one, the first of them. The test is the SILENCE, not the
+    passage boundary — an index-adjacency test on `(start_idx, end_idx)` was
+    written first and is worse, because two passages of one person with a
+    short interjection between them are not index-adjacent and are plainly one
+    place to go. **The threshold is measured**: across the 28 passages that
+    answer cited, the gaps are 0 seconds or 39 seconds and up with a single
+    8-second case, so 15 sits in an empty band and nothing hinges on 14
+    against 16. A fold can span a change of speaker, which is correct at that
+    distance and would be a quiet misattribution if the reference kept naming
+    only whoever starts the stretch — so it names everyone in it (R2.3).
+
+    **The timestamps could not say which recording they were on.** Half of all
+    meeting-days are two recordings on one continuous agenda, so `1:57:52` and
+    `5:41` were the morning and the afternoon of the same meeting with nothing
+    to tell them apart, and one paragraph cited seven recordings across five
+    years as bare clocks. `tools.PASSAGE_HIT` and the `get_item` projection in
+    `agent.py` now carry `session_seq` AND a count of the meeting's recordings,
+    because neither means anything alone: `session_seq` is null on 48 videos
+    that share a meeting with another and 0 on three that do not. The evidence
+    rows say it — `▸ afternoon 5:41` — since that is where a number resolves.
+
+    **Two bugs fell out of looking.** `meetingDate("")` reached
+    `Date.UTC(0, 0, 1)` and printed **"Monday, January 1, 1900"** as the
+    evidence heading for the 17 recordings that have no date, which is a date
+    this archive invented; it returns "" now and the heading falls back to the
+    recording's own title. And a folded moment put the same `id="ref-N"` on
+    every row it covered — duplicate ids, so a marker landed on whichever the
+    document reached first.
+
+    Three things worth keeping from the fix. `Refs` worked out its running
+    state (which recording was last, then what number comes next) **while
+    rendering**, which React's lint caught: development renders twice, and the
+    second pass reads what the first wrote. It is resolved as data now, over
+    the whole answer, before anything is drawn. The new `.at` class for a time
+    inside a reference collided with the evidence list's own `.at` in the same
+    CSS module — same file, later in it, so it silently took the size and
+    colour of every time on the page; `.citeNamed` sprang the identical trap
+    an hour later. **CSS modules scope per FILE, not per component.**
+
+    **Left open.** The code-less items are `source = 'transcript'` — stretches
+    this archive cut out of the recording, which `RecordView` elsewhere
+    separates from the agenda under the words "it is **not** the county's
+    record and no part of it is authoritative". On an answer they sit inside
+    "What the county published" and are numbered alongside `C10`. That is the
+    §2 blur, in the one place a reader is most likely to quote from. Raised
+    2026-08-18 and deferred at the maintainer's direction.
 
 ## Postgres, and what to watch out for
 

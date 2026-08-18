@@ -59,37 +59,64 @@
   white-space: pre-wrap;
 }
 
-/* R5.5.2 — the two citation types are two different things and look it. A
- * record citation reveals the county's own words; a transcript citation plays
- * the moment. Same shape would imply the same authority. */
-.citeRecord {
+/* R5.5.2a — A CITATION IS A NUMBER. Every chip this file has drawn put more
+ * of the archive's furniture in the way of the sentence: four orange pills in
+ * a row, then one pill holding a row of clocks, then a pill naming the
+ * recording, then the item's own title. The thing a citation points at is
+ * already on the page under two headings, with the recording named, the
+ * speaker, the time, the quote and the disposition — so the prose carries the
+ * smallest pointer that can be followed and the lists carry the answer.
+ *
+ * Still two kinds and still distinct (R5.5.2): the record's colour reveals
+ * the item, the player's colour seeks the recording. No background: a marker
+ * is punctuation, not a token. */
+.mark {
   font-family: var(--font-mono);
-  font-size: 0.82em;
+  font-size: 0.78em;
   font-weight: 600;
   color: var(--accent);
-  text-decoration: none;
-  padding: 0.05em 0.3em;
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  white-space: nowrap;
-}
-
-.citePlay {
-  font: inherit;
-  font-family: var(--font-mono);
-  font-size: 0.82em;
-  font-weight: 600;
-  color: var(--live);
-  background: var(--live-soft);
+  background: none;
   border: none;
-  border-radius: var(--radius-sm);
-  padding: 0.05em 0.3em;
+  padding: 0 0.06em;
+  text-decoration: none;
   cursor: pointer;
+}
+
+.mark:hover {
+  text-decoration: underline;
+}
+
+.markSaid {
+  color: var(--live);
+}
+
+/* Slightly under the number's size so the reference still reads as a number
+ * with a mark on it, not as a symbol with a number after it. */
+.markPlay {
+  font-size: 0.85em;
+  margin-inline-end: 0.1em;
+}
+
+/* Markers are two or three characters, so there is never a reason to break a
+ * line inside one reference — or between the last one and the full stop that
+ * ends its sentence, which used to strand a "." at the start of a line. */
+.refs {
   white-space: nowrap;
 }
 
-.citePlay:hover {
-  text-decoration: underline;
+/* The same number, on the row it points at. Without this the marker is a
+ * riddle. `scroll-margin` keeps the row clear of the sticky header when a
+ * marker jumps to it. */
+.refNo {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--accent);
+  scroll-margin-top: calc(var(--header) + var(--sp-4));
+}
+
+.refNoSaid {
+  color: var(--live);
 }
 
 /* Should never render: check() strips unverifiable citations before the answer
@@ -296,6 +323,16 @@
 
 .at:hover {
   text-decoration: underline;
+}
+
+/* The session word beside a time, in the prose face because it is a word and
+ * not a clock. */
+/* A real space follows it in the markup, not a margin: the row is read out
+ * loud and copied out of the page, and margin made that "morning30:37". */
+.sess {
+  font-family: var(--font-record);
+  font-weight: 500;
+  color: var(--ink-2);
 }
 
 .phase {

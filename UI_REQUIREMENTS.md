@@ -414,6 +414,49 @@ itself.*
 record; `[N]` → a transcript passage with a timestamp. Clicking a record
 citation reveals the record; clicking a transcript citation seeks the player.
 
+**R5.5.2a** A citation in the prose MUST be a NUMBER, and the number MUST
+appear on the thing it points at. Four versions of a chip were built and each
+put more of the archive's furniture in the way of the sentence: four pills in
+a row for one supported sentence; then one pill holding a row of clocks; then
+the recording's name inside it; then the item's own title. Each answered "what
+should the chip say" when the question was "why is a chip in the sentence at
+all" — everything a chip could carry is already on the page, under two
+headings, with the recording named, the speaker, the time, the quote and the
+disposition. *Built HN-style: `[4]` in the prose, the same `4` on its row
+below, numbered in the order a reader meets them. A repeat citation reuses its
+number, which is what makes "Aug 11, 2026 … Aug 11, 2026" impossible rather
+than merely fixed. R5.5.2 still holds inside this, and NOT by
+colour: a reference to a recording carries the play mark the rest of the site
+uses, `[▸4]`, where one to the published record is `[1]`. Which kind a
+reference is matters most exactly where colour is unavailable — printed, in
+high contrast, or to a reader who does not see the difference between the
+record's blue and the player's orange — and this archive says so about itself
+in `ProvenanceMark`: the primary signal is never a colour. The mark is not
+repeated on the row it resolves to, where the heading above it has already
+said which kind it is.*
+
+**R5.5.2b** One number per PLACE in a recording, not per passage. A passage is
+about a minute of one speaker, cut by the indexer, so a sentence resting on
+two minutes of somebody talking cites two passages and would take two numbers
+and two rows for one place. *Cited passages less than **fifteen seconds** apart
+fold into one, the first of them. The test is the silence and not the passage
+boundary, because that is what a reader experiences. The number is measured:
+across the 28 passages one answer cited the gaps are 0 seconds or 39 seconds
+and up, with one 8-second case, so the threshold sits in an empty band. A fold
+may span a change of speaker, which is right at that distance, so what names
+the stretch names everyone in it (R2.3).*
+
+**R5.5.2c** The evidence rows MUST say WHICH RECORDING a time is on. Rows are
+grouped by meeting (R5.5.3) and half of all meeting-days are two recordings on
+one continuous agenda, so without it a `5:41` from the afternoon session sits
+under the same heading as a `1:57:52` from the morning and reads like a
+mistake. *Said only where the archive knows the meeting has more than one
+recording — `session_seq` is null on 48 videos that share a meeting and 0 on
+three that do not, so neither field means anything alone. A recording with no
+date at all is named by its own title: the heading printed "Monday, January 1,
+1900" for those until this was looked at, which is a date this archive
+invented.*
+
 **R5.5.3** Evidence MUST be grouped **meeting → agenda item**, never a flat
 chronological list. A quote cannot be judged without knowing which item it
 belongs to.

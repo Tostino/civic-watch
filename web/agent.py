@@ -812,6 +812,14 @@ def _cover(con, item_id):
                p.start_idx, p.end_idx, p.phase, p.agenda_item_id,
                ai.title AS item, ai.code, ai.case_id, ai.outcome,
                v.title, v.upload_date, v.meeting_id,
+               -- Same two fields as tools.PASSAGE_HIT, for the same reason the
+               -- comment above gives about display_name: these become the
+               -- answer's evidence, and a citation reached through get_item
+               -- that could not name its recording would print a bare clock
+               -- beside one that named the meeting.
+               v.session_seq,
+               (SELECT count(*)::int FROM videos v2
+                 WHERE v2.meeting_id = v.meeting_id) AS sessions,
                m.date AS meeting_date, m.body
           FROM passages p
           JOIN videos v ON v.id = p.video_id

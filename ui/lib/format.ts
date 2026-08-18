@@ -29,6 +29,11 @@ export function duration(seconds: number | null | undefined): string {
 /** Dates arrive as YYYY-MM-DD. Parsing them as UTC avoids the off-by-one-day
  *  that `new Date('2021-12-07')` gives west of Greenwich. */
 export function meetingDate(iso: string, style: "long" | "short" = "long"): string {
+  /* An empty string used to reach `Date.UTC(0, 0, 1)` and print "Monday,
+     January 1, 1900" — a date this archive invented, on the evidence heading
+     for the 17 recordings that have no date at all. Nothing here may make one
+     up: callers with no date get nothing back and say so in their own words. */
+  if (!/^\d{4}-\d{2}-\d{2}/.test(iso ?? "")) return "";
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
   return dt.toLocaleDateString("en-US", {
@@ -276,6 +281,53 @@ export function sessionLabel(seq: number | null, total: number): string {
   if (seq === 0) return "Morning session";
   if (seq === 1) return "Afternoon session";
   return `Session ${(seq ?? 0) + 1}`;
+}
+
+/**
+ * WHICH RECORDING a timestamp is on, in as few words as it takes.
+ *
+ * A clock alone is only usable by somebody already looking at the right tape,
+ * and an answer's citations are not: one paragraph of a live answer cited
+ * seven recordings across five years, every one of them printed as a bare
+ * `1:46:53`. Two of those were the morning and the afternoon of the same day,
+ * where even the date does not separate them — hence the session word, which
+ * is said only where `sessions` proves the meeting HAS more than one and
+ * `session_seq` says which this is. An undated video falls back to its own
+ * title, because "Constitutional Budgets Workshop" is still a recording a
+ * reader can go and find and an empty string is not.
+ */
+export function recordingName(h: {
+  meeting_date?: string | null;
+  upload_date?: string | null;
+  title?: string | null;
+  session_seq?: number | null;
+  sessions?: number | null;
+}): string {
+  const when = h.meeting_date || h.upload_date;
+  // 17 recordings carry no date at all. What names those is their own title,
+  // minus the boilerplate every title on the channel opens with: cut to length
+  // from the front, "Pasco Board of County Commissioners Constitutional
+  // Budgets Workshop" becomes "Pasco Board of County Commissioners…", which
+  // names 432 recordings and this one no better than the bare clock did.
+  if (!when)
+    return h.title
+      ? shortTitle(
+          h.title.replace(
+            /^\s*(?:pasco\s+)?(?:county\s+)?(?:board of county commissioners|planning commission|bcc)\b[\s\-\u2013\u2014:,]*/i,
+            "",
+          ) || h.title,
+          36,
+        )
+      : "";
+  const date = meetingDate(when, "short");
+  if ((h.sessions ?? 0) < 2 || h.session_seq == null) return date;
+  // The same naming the meeting page uses, in the lower case of a sentence:
+  // one archive cannot call it "Afternoon session" in one place and "part 2"
+  // in another and expect a reader to know they are the same tape.
+  const which = sessionLabel(h.session_seq, h.sessions ?? 0)
+    .replace(/ session$/, "")
+    .toLowerCase();
+  return `${date} ${which}`;
 }
 
 /**

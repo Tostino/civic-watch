@@ -182,6 +182,18 @@ PASSAGE_HIT = """
                ai.outcome, ai.recommendation, ai.department,
                ai.source AS item_source,
                v.title, v.upload_date, v.kind,
+               -- WHICH RECORDING the passage's clock is on. About half of all
+               -- meeting-days are two videos on one continuous agenda, so
+               -- "1:57:52" and "5:41" can both be Aug 11 2026 and a reader
+               -- given the bare clocks has no way to see that. `sessions` is
+               -- what makes `session_seq` sayable: a null seq is common on a
+               -- two-video day and a 0 appears on a one-video one, so neither
+               -- means anything alone. Counted here rather than derived from
+               -- what an answer happened to cite, because a printed answer is
+               -- read away from the archive. 3.6 ms for 600 rows, measured.
+               v.session_seq,
+               (SELECT count(*)::int FROM videos v2
+                 WHERE v2.meeting_id = v.meeting_id) AS sessions,
                v.meeting_id, mt.date AS meeting_date, mt.body
         FROM passages p
         JOIN videos v ON v.id = p.video_id
