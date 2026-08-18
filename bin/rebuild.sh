@@ -51,6 +51,7 @@ echo "target database: $TARGET"
 
 APPLY=0
 SKIP_LLM=0
+export APPLY
 for a in "$@"; do
   case "$a" in
     --yes)      APPLY=1 ;;
@@ -79,12 +80,51 @@ import os
 # it would silently un-redact every home address the archive has taken out -
 # the precise harm the feature exists to prevent - and the transcript would
 # keep the marker with no row left to explain or reverse it.
+#
+# Ten tables were unclassified and this script has been refusing to run since
+# the first of them landed, which is the guard working. Classified:
+#
+#   answers          KEEP. `/ask/<id>` is a PUBLIC URL and this is what it
+#                    reads, so dropping it 404s every answer anyone has
+#                    shared. It is also a redaction surface - bin/redact.py
+#                    rewrites `answer` in place and redaction.gone_from_answers
+#                    proves it happened - so it is `redaction`'s case exactly.
+#   subject          KEEP. The curated vocabulary: which subjects exist, what
+#   subject_term     they are called, what nests under what, and 533 phrases a
+#                    person kept after seeing what each one matches here. A
+#                    rebuild cannot re-derive a judgement, and re-proposing
+#                    them costs the whole model chain and every decision again.
+#   speaker_method   KEEP. Precedence as data rather than as a CASE. schema.sql
+#                    seeds it ON CONFLICT DO NOTHING, which restores the
+#                    defaults and silently discards any rank somebody tuned -
+#                    and tuning one is the single UPDATE its own comment
+#                    advertises.
+#
+#   person_alias     drop. Written by speaker_claims --link, and NOT NULL
+#   organizations    against `people`, which is dropped here - so a cascade
+#   organization_    would empty them anyway and KEEP would be a fiction.
+#     alias
+#   speaker_claim    drop. Derived, and cheaply: `--all` is deterministic and
+#   speaker_resolved calls no model. Every human claim in them is a restatement
+#                    of speaker_override / speaker_label, which are KEEP, so
+#                    --backfill puts the irreplaceable half back.
+#   subject_year     drop. Pure rollup output. It is a function of the kept
+#                    vocabulary and the rebuilt items, so keeping it across a
+#                    rebuild would preserve counts of items that no longer
+#                    exist - stale in the one way nothing on the page reveals.
+#
+# The last three are rebuilt by two stages at the foot of this script. Without
+# those an empty `subject_year` sends the front page to the live join, which
+# is 163 seconds per request.
 KEEP = {"utterances", "videos", "speaker_label", "speaker_override",
-        "speaker_ignore", "redaction", "portal_events", "portal_files",
-        "vec_cache"}
+        "speaker_ignore", "redaction", "answers", "speaker_method",
+        "subject", "subject_term",
+        "portal_events", "portal_files", "vec_cache"}
 DROP = {"meetings", "agenda_items", "cases", "segments", "item_spans",
         "people", "board_terms", "meeting_roster",
+        "person_alias", "organizations", "organization_alias",
         "speaker_identity", "voice_affinity",
+        "speaker_claim", "speaker_resolved", "subject_year",
         "passages", "passage_keys", "passage_len", "passage_terms",
         "term_df", "bm25_stats"}
 
@@ -112,6 +152,46 @@ for t in sorted(live):
         fate = "KEEP (no LLM to rebuild them)"
     print(f"{t:22s}{n:>12,d}   {fate}")
 PYEOF
+
+# SAVED ANSWERS CITE AGENDA ITEMS BY RAW ID, and the truncate below restarts
+# the identity sequence. `answers` is KEEP - it has to be, those are public
+# URLs and a redaction surface - but `cites.items` is a plain list of integers
+# that web/answers.py resolves at render time with items_at(). Nothing checks
+# that item 17923 today is item 17923 after a rebuild, and it will not be.
+#
+# The passage half of a citation was built against exactly this hazard and is
+# safe: it is keyed by (video_id, start_idx, end_idx) because index_passages
+# reassigns passage ids on every run and says so. The item half was written
+# believing `/item/<id>` is durable, which is true of the live archive and
+# false across this script. So the failure is silent and it is the bad kind -
+# not a citation that stops resolving, a citation that resolves to the WRONG
+# item, on a public page, under an answer somebody was shown.
+#
+# This REFUSES rather than warns, for the same reason the unclassified-table
+# guard above refuses: a line of warning inside a multi-hour rebuild is a line
+# nobody reads. The fix is a policy call - drop the item cites so they read as
+# honestly gone, the way a moved redaction boundary already does, or re-key
+# them onto something durable - and it wants deciding once, by a person.
+$PY - <<'ANSWEOF'
+import os, sys
+sys.path.insert(0, "bin")
+import db
+con = db.connect(autocommit=True)
+n = con.execute("SELECT count(*) FROM answers").fetchone()[0]
+c = con.execute("""SELECT count(*) FROM answers
+                    WHERE jsonb_array_length(coalesce(cites->'items','[]')) > 0"""
+                ).fetchone()[0]
+if c:
+    print()
+    print(f"  !! {c} of {n} saved answers cite agenda items by raw id.")
+    print("     This script restarts the agenda_items sequence, so every one")
+    print("     of those citations will point at a DIFFERENT item afterwards.")
+    print("     Nothing downstream detects it - the page renders a wrong item")
+    print("     as confidently as a right one.")
+    if os.environ.get("APPLY") == "1" and os.environ.get("REBUILD_ANSWERS_OK") != "1":
+        sys.exit("\n  Refusing. Decide what happens to those citations, then\n"
+                 "  re-run with REBUILD_ANSWERS_OK=1 to say so.")
+ANSWEOF
 
 if [ "$APPLY" -ne 1 ]; then
   echo
@@ -169,11 +249,14 @@ sys.path.insert(0, "bin")
 import db
 import os
 KEEP = ["utterances", "videos", "speaker_label", "speaker_override",
-        "speaker_ignore", "redaction", "portal_events", "portal_files",
-        "vec_cache"]
+        "speaker_ignore", "redaction", "answers", "speaker_method",
+        "subject", "subject_term",
+        "portal_events", "portal_files", "vec_cache"]
 DROP = ["meetings", "agenda_items", "cases", "segments", "item_spans",
         "people", "board_terms", "meeting_roster",
+        "person_alias", "organizations", "organization_alias",
         "speaker_identity", "voice_affinity",
+        "speaker_claim", "speaker_resolved", "subject_year",
         "passages", "passage_keys", "passage_len", "passage_terms",
         "term_df", "bm25_stats"]
 if os.environ.get("SKIP_LLM") == "1":
@@ -300,6 +383,17 @@ $PY bin/parse_minutes.py --write
 
 stage index_passages
 $PY bin/index_passages.py
+
+# THE TWO DERIVED TABLES NOTHING ABOVE PUTS BACK. Neither is on the ingest
+# path, so both would sit empty after a rebuild - and an empty `subject_year`
+# is not a blank section, it is the front page falling through to the live
+# join at 163 seconds a request. Both are deterministic and call no model, so
+# they cost nothing to be sure about.
+stage "speaker_claims (shadow: evidence, links and resolution)"
+$PY bin/speaker_claims.py --all
+
+stage "subjects --rollup"
+$PY bin/subjects.py --rollup
 
 stage audit
 $PY bin/audit.py || true
