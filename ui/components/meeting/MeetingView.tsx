@@ -23,6 +23,8 @@ export interface MeetingLocation {
   videoId?: string;
   t?: number;
   item?: number;
+  /** Utterance range to mark, inclusive. From a search hit's passage. */
+  focus?: [number, number];
 }
 
 /**
@@ -170,11 +172,22 @@ export function MeetingView({
       q.set("t", String(Math.floor(playhead.position)));
     }
     if (activeItem) q.set("item", String(activeItem));
+    // The marked range survives the rewrite. This effect rebuilds the query
+    // from the view's own state and drops anything it does not know about,
+    // which silently ate `from`/`to` the first time the playhead moved - the
+    // link worked, the transcript scrolled, and the highlight vanished before
+    // a reader could see it. It is arrival state rather than playback state,
+    // so it is carried rather than recomputed, and a shared link still marks
+    // the same words.
+    if (location.focus) {
+      q.set("from", String(location.focus[0]));
+      q.set("to", String(location.focus[1]));
+    }
     const url = `${window.location.pathname}?${q}`;
     if (url === lastUrl.current) return;
     lastUrl.current = url;
     window.history.replaceState(null, "", url);
-  }, [video, playhead.videoId, playhead.position, activeItem]);
+  }, [video, playhead.videoId, playhead.position, activeItem, location.focus]);
 
   const selectItem = useCallback(
     /* `at` is the appearance the reader clicked. The spine lists an item once
@@ -488,6 +501,7 @@ export function MeetingView({
                 items={items}
                 activeItem={activeItem}
                 cue={cue && cue.videoId === video.id ? cue : null}
+                focus={location.videoId === video.id ? (location.focus ?? null) : null}
                 onSeek={(sec) => seek(video.id, sec)}
                 onSelectItem={selectItem}
                 onReading={setReadingItem}

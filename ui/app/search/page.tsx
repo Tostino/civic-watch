@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Examples } from "@/components/Examples";
 import { FilterRail, type Query } from "@/components/search/FilterRail";
 import { RecordHits, TranscriptHits } from "@/components/search/Hits";
 import { SearchBox } from "@/components/search/SearchBox";
@@ -277,17 +278,15 @@ function Empty() {
         <b>What was said</b> is the transcript, and only the meetings that were
         recorded have one.
       </p>
-      <h2 className={s.triesHead}>Examples</h2>
-      <ul className={s.tries}>
-        {tries.map(([q, why]) => (
-          <li key={q}>
-            <Link href={`/search?q=${encodeURIComponent(q)}`} className={s.try}>
-              {q}
-            </Link>
-            <span className={s.tryWhy}>{why}</span>
-          </li>
-        ))}
-      </ul>
+      <Examples
+        label="Examples"
+        mono
+        items={tries.map(([q, why]) => ({
+          tag: why,
+          text: q,
+          href: `/search?q=${encodeURIComponent(q)}`,
+        }))}
+      />
     </div>
   );
 }

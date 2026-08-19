@@ -20,20 +20,33 @@
   color: var(--ink-4);
 }
 
+/* ONE CONTROL, the same one /search has. The input and the button were two
+ * separately bordered, separately rounded objects with 8px of page showing
+ * between them, which is the exact thing SearchBox was rebuilt to stop being:
+ * a field reads as one thing. Border on the wrapper, parts flush inside it,
+ * focus ring round the whole via :focus-within. */
 .row {
   display: flex;
-  gap: var(--sp-2);
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong, var(--rule));
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.row:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
 .input {
   flex: 1;
   min-width: 0;
-  padding: 0.6rem 0.8rem;
-  font-size: var(--text-md);
+  padding: 0.55rem 0.8rem;
+  font-size: var(--text-base);
   color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
+  background: none;
+  border: 0;
 }
 
 .input::placeholder {
@@ -41,11 +54,11 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  border-color: var(--accent);
+  outline: none;
 }
 
+/* Worded, not a glyph: /search keeps the worded button on the page where the
+ * field IS the page, and here it always is. */
 .go {
   flex: none;
   padding: 0 1.1rem;
@@ -53,8 +66,7 @@
   font-weight: 600;
   color: var(--accent-ink);
   background: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
+  border: 0;
   cursor: pointer;
 }
 
@@ -136,43 +148,12 @@
   cursor: pointer;
 }
 
-/* --------------------------------------------------------- nothing asked yet */
-.examples {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.examplesHead {
-  font-family: var(--font-record);
-  font-size: var(--text-xl);
-  font-weight: 600;
-  color: var(--ink);
-}
-
 .examplesWhy {
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   color: var(--ink-2);
   max-width: 66ch;
   text-wrap: pretty;
-}
-
-/* Cards rather than a bulleted column. Four questions two lines long each
- * read as a paragraph broken into pieces when they are plain links in a
- * stack; boxed, the reader sees four things to choose between, and the kind
- * tag can say which of the archive's two sources the question leans on
- * without a sentence explaining it. Two columns where there is room, one
- * where there is not, and the cards keep equal height so the tags line up. */
-.tries {
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
-  gap: var(--sp-2);
-}
-
-.tries li {
-  display: flex;
 }
 
 /*
@@ -279,44 +260,3 @@
 }
 
 
-.try {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: var(--sp-3);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  text-decoration: none;
-  transition: border-color 120ms ease, background-color 120ms ease;
-}
-
-.try:hover,
-.try:focus-visible {
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-}
-
-/* Which of the two sources the question leans on. Small, and above the
- * question rather than beside it: beside it, the longest tag sets a column
- * width and the questions stop starting in the same place. */
-.tryKind {
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-.try:hover .tryKind,
-.try:focus-visible .tryKind {
-  color: var(--accent);
-}
-
-.tryQ {
-  font-family: var(--font-record);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  color: var(--accent);
-  text-wrap: pretty;
-}

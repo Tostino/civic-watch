@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Answer, Lookups, TOOL_LABEL, type Lookup } from "./Answer";
 import { CopyButton } from "@/components/CopyButton";
+import { Examples as ExampleCards } from "@/components/Examples";
 import { mcpUrl } from "@/lib/mcp";
 import type { AskExample } from "./examples";
 import type { AskResult, AskStage } from "@/lib/types";
@@ -248,26 +249,18 @@ function Connect({ origin }: { origin: string }) {
 }
 
 function Examples({ examples }: { examples: AskExample[] }) {
+  /* This used to be a 28px serif heading over its own cards, while /search
+     had a caps label over a bulleted list. Same job, same week, no two parts
+     alike. Both render through <Examples> now and the heading is the eyebrow
+     the box above it already uses. */
   return (
-    <div className={s.examples}>
-      <h2 className={s.examplesHead}>Questions this can answer</h2>
-      {/* This used to end "…and citations it cannot support are removed before
-          you see the answer", which is true and does not belong here. It is a
-          failure mode dressed as a feature: before the reader has seen
-          anything it tells them the thing invents citations, which invites the
-          obvious next question about everything else in the answer. The check
-          is real and stays; where it belongs is the footer, stated when it has
-          actually fired and removed something. */}
-      <ul className={s.tries}>
-        {examples.map((x) => (
-          <li key={x.q}>
-            <Link href={`/ask?q=${encodeURIComponent(x.q)}`} className={s.try}>
-              <span className={s.tryKind}>{x.kind}</span>
-              <span className={s.tryQ}>{x.q}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ExampleCards
+      label="Questions this can answer"
+      items={examples.map((x) => ({
+        tag: x.kind,
+        text: x.q,
+        href: `/ask?q=${encodeURIComponent(x.q)}`,
+      }))}
+    />
   );
 }

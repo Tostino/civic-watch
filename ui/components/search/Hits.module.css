@@ -88,6 +88,21 @@
   color: var(--ink-3);
 }
 
+/* The same clock, when there is a meeting to open. Underlined on hover only:
+ * a row of results is mostly timestamps and permanently underlining all of
+ * them turns the column into noise. */
+.atLink {
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.atLink:hover,
+.atLink:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 .heard {
   color: var(--live);
   font-weight: 600;

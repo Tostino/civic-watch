@@ -37,6 +37,7 @@ export function TranscriptView({
   items,
   activeItem,
   cue,
+  focus,
   onSeek,
   onSelectItem,
   onReading,
@@ -45,6 +46,13 @@ export function TranscriptView({
   items: Item[];
   activeItem: number | null;
   cue: Cue | null;
+  /**
+   * The utterance range a reader arrived at, inclusive, or null. Marked for as
+   * long as they stay: a search result is a claim about a stretch of speech,
+   * and landing them near it and highlighting one line would leave them to
+   * work out which words were the ones they clicked.
+   */
+  focus: [number, number] | null;
   onSeek: (seconds: number) => void;
   onSelectItem: (item: Item) => void;
   /** Reports the item the reader has scrolled to, so the spine can follow. */
@@ -223,6 +231,19 @@ export function TranscriptView({
     return goTo(row < 0 ? rows.length - 1 : row, pos < 0 ? -1 : lines[pos].idx, true);
   }, [cue, lines, rows, goTo]);
 
+  // Arriving from a search result. Once, when the lines are in: after that the
+  // reader owns the scroll position, so this must not re-fire on every render
+  // the way `following` does.
+  const servedFocus = useRef(false);
+  useEffect(() => {
+    if (!focus || servedFocus.current || !lines?.length || !rows.length) return;
+    const pos = lines.findIndex((l) => l.idx >= focus[0]);
+    if (pos < 0) return;
+    servedFocus.current = true;
+    const row = rows.findIndex((r) => r.kind === "turn" && r.to >= pos);
+    return goTo(row < 0 ? rows.length - 1 : row, lines[pos].idx, true);
+  }, [focus, lines, rows, goTo]);
+
   // Passive drift with the playhead. On `activeIdx` rather than `activeRow`:
   // inside a long turn the row does not change for minutes at a time, which
   // is exactly when the reader needs it to.
@@ -350,6 +371,7 @@ export function TranscriptView({
                     tags={tags}
                     offices={data.offices}
                     activeIdx={activeIdx}
+                    focus={focus}
                     onSeek={onSeek}
                     onSeekStart={() => setFollowing(true)}
                     onDispute={dispute ? () => dispute(row.lines) : undefined}
@@ -416,6 +438,7 @@ function Turn({
   tags,
   offices,
   activeIdx,
+  focus,
   onSeek,
   onSeekStart,
   onDispute,
@@ -424,6 +447,7 @@ function Turn({
   tags: Map<number, string>;
   offices: Record<string, { office: "chair" | "vice_chair" | "second_vice_chair" | null; district: number | null; full_name: string | null }>;
   activeIdx: number;
+  focus: [number, number] | null;
   onSeek: (seconds: number) => void;
   onSeekStart: () => void;
   onDispute?: () => void;
@@ -447,11 +471,16 @@ function Turn({
       <div className={s.said}>
         {lines.map((l) => {
           const on = l.idx === activeIdx;
+          const marked = !!focus && l.idx >= focus[0] && l.idx <= focus[1];
           return (
             /* `data-line` is how following finds this line's box. The utterance
                id, not the array position: the two agree today and one of them
                is a database key. */
-            <p key={l.idx} data-line={l.idx} className={`${s.line} ${on ? s.lineActive : ""}`}>
+            <p
+              key={l.idx}
+              data-line={l.idx}
+              className={`${s.line} ${on ? s.lineActive : ""} ${marked ? s.lineMarked : ""}`}
+            >
               <button
                 type="button"
                 className={s.at}

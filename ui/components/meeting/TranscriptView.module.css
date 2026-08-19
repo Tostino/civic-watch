@@ -189,6 +189,16 @@
   border-inline-start-color: var(--live);
 }
 
+/* Where a search result landed. Deliberately not the same treatment as
+ * `.lineActive`: that one tracks the playhead and moves as the recording runs,
+ * this one marks the words a reader clicked and stays put. Both can be on one
+ * line at once, and the playhead's tint sits on top because it is the thing
+ * that is moving. */
+.lineMarked {
+  background: var(--accent-soft);
+  border-inline-start-color: var(--accent);
+}
+
 .at {
   flex: none;
   font-family: var(--font-mono);

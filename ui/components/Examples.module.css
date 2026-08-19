@@ -1,0 +1,91 @@
+/*
+ *  The block of things to click, before anybody has typed. /search and /ask
+ * both have one, they were built a week apart, and they had nothing in
+ * common: one was a caps label over a bulleted list of monospace links, the
+ * other a 28px serif heading over bordered cards. Two pages doing the same
+ * job two ways is what a reader reads as two products.
+ *
+ * Browse settles the arguments this raises. Its section heads are quiet
+ * (`.yearHead`, `.listTitle`) and the clickable things carry their own
+ * border and go accent on hover (`.chip`, `.row`), so that is what these do.
+*/
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* The same eyebrow both boxes label themselves with, so the page reads as
+ * field, then hint, then this - three labels of one kind, not two kinds. */
+.head {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+/* Two columns where there is room and one where there is not. Four questions
+ * two lines long read as a broken paragraph in a bulleted stack; boxed, they
+ * are four things to choose between. Equal height so the tags line up. */
+.grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: var(--sp-2);
+}
+
+.grid li {
+  display: flex;
+}
+
+.card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.card:hover,
+.card:focus-visible {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+/* What kind of thing this is: a subject, an item code, a whole question.
+ * Above the value rather than beside it, or the longest tag sets a column
+ * width and the values stop starting in the same place. */
+.tag {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.card:hover .tag,
+.card:focus-visible .tag {
+  color: var(--accent);
+}
+
+.text {
+  font-family: var(--font-record);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--accent);
+  text-wrap: pretty;
+}
+
+/* A query is a literal string somebody could have typed, and `PDE-25-7738`
+ * in a serif reads as prose about a case rather than as the thing to type. */
+.mono {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-wrap: nowrap;
+}

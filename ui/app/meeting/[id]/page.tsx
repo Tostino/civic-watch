@@ -8,7 +8,7 @@ import { meetingDate } from "@/lib/format";
 /* Next 16: params and searchParams are Promises. */
 type Props = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ v?: string; t?: string; item?: string }>;
+  searchParams: Promise<{ v?: string; t?: string; item?: string; from?: string; to?: string }>;
 };
 
 async function load(idParam: string) {
@@ -49,6 +49,16 @@ export default async function MeetingPage({ params, searchParams }: Props) {
   // is right on the server-rendered first paint.
   const t = q.t != null ? Number(q.t) : NaN;
   const item = q.item != null ? Number(q.item) : NaN;
+  // The utterance range a search hit came from, so following a result lands on
+  // the passage rather than near it. Utterance idx, not seconds: it is the
+  // durable key a passage is stored against, and `t` moves the player while
+  // this marks the words.
+  const from = q.from != null ? Number(q.from) : NaN;
+  const to = q.to != null ? Number(q.to) : NaN;
+  const focus: [number, number] | undefined =
+    Number.isInteger(from) && Number.isInteger(to) && to >= from
+      ? [from, to]
+      : undefined;
   return (
     <MeetingView
       data={await load(id)}
@@ -56,6 +66,7 @@ export default async function MeetingPage({ params, searchParams }: Props) {
         videoId: q.v,
         t: Number.isFinite(t) && t >= 0 ? t : undefined,
         item: Number.isInteger(item) ? item : undefined,
+        focus,
       }}
     />
   );

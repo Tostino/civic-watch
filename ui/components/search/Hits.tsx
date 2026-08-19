@@ -156,7 +156,23 @@ export function TranscriptHits({
                   </span>
                 )}
                 {h.body ? <span className={s.whereBody}>{shortBody(h.body)}</span> : null}
-                <span className={s.at}>{clock(h.start)}</span>
+                {/* THE WAY IN. A result is a claim about a stretch of
+                    speech, and until this was a link the only way to read
+                    around it was to open the meeting and hunt for the clock.
+                    `t` moves the player, `from`/`to` mark the passage's own
+                    utterances, and `v` says which recording - a meeting-day is
+                    often two, and the same clock reads in both. */}
+                {h.meeting_id ? (
+                  <Link
+                    href={`/meeting/${h.meeting_id}?v=${encodeURIComponent(h.video_id)}&t=${Math.floor(h.start)}&from=${h.start_idx}&to=${h.end_idx}`}
+                    className={s.atLink}
+                    title="Read this in the meeting transcript"
+                  >
+                    {clock(h.start)}
+                  </Link>
+                ) : (
+                  <span className={s.at}>{clock(h.start)}</span>
+                )}
                 {h.phase ? <span className={s.phase}>{phaseLabel(h.phase)}</span> : null}
               </div>
 
