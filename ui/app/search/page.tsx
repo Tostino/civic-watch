@@ -210,14 +210,23 @@ const EXAMPLES: [string, string][][] = [
     ["code enforcement lien", "where a code case ends"],
     // Whole questions. They ride in this pool rather than getting a fifth
     // line of their own, because four examples is the shape and a question
-    // is still words rather than an identifier. Each was read, not counted:
-    // a sentence always loosens the record side, so what matters is whether
-    // the top of both lists answers the question, and for these it does.
+    // is still words rather than an identifier.
+    //
+    // A sentence nearly always loosens the record side, so its total is
+    // meaningless and only the top of the two lists decides whether the
+    // example is worth showing. Each of these was checked by reading the
+    // first five FULL titles, which is the whole trick: truncated to a
+    // hundred characters, five straight impact fee ordinances all read as
+    // "An Ordinance By The Pasco County Board Of County Commissioners
+    // Amending The Pasco County Land Development Code" and look like noise.
+    // Two questions that read well but answered badly were cut here: a lot
+    // mowing one, where "lot" pulled in every lot size variance, and a
+    // water utility one, whose second hit was the best tasting water award.
     ["what is the county doing about flooding in my neighborhood", "a whole question"],
     ["does the county allow backyard chickens", "a whole question"],
-    ["what happens if I do not mow my lot", "a whole question"],
-    ["is the county buying the water system", "a whole question"],
     ["is the county raising the stormwater rate", "a whole question"],
+    ["did the county raise impact fees for new homes", "a whole question"],
+    ["how do I get a sidewalk on my street", "a whole question"],
   ],
   [
     ["Orange Belt Trail", "a trail"],
