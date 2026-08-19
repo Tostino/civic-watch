@@ -95,18 +95,27 @@
   color: var(--accent);
 }
 
+/* WEIGHT, because the two variants were not carrying the same amount of ink.
+ * A query is mono at 600 and reads dense and crisp; a question was the record
+ * serif at 13px and 400, which at this size is thin strokes in a mid-navy -
+ * the same colour doing half the work. Bigger and heavier, and the two cards
+ * weigh the same on the page. */
 .text {
   font-family: var(--font-record);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: var(--leading-snug);
   color: var(--accent);
   text-wrap: pretty;
 }
 
 /* A query is a literal string somebody could have typed, and `PDE-25-7738`
  * in a serif reads as prose about a case rather than as the thing to type. */
+/* Mono keeps 13px: its glyphs are wider than the serif's at the same size,
+ * and `does the county allow backyard chickens` at 15px does not fit a card
+ * it may not wrap in. */
 .mono {
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-size: var(--text-sm);
   text-wrap: nowrap;
 }
