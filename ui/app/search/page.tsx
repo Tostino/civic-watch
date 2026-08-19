@@ -272,11 +272,19 @@ function Empty() {
   return (
     <div className={s.empty}>
       <h1 className={s.emptyHead}>What you can search</h1>
+      {/* PLAIN SENTENCES, and short ones. The version this replaces ran
+          "every agenda item and the outcome its approved minutes recorded,
+          whether or not a camera was running", which asks a reader to hold a
+          subordinate clause and a concession at once, and used `recorded` in
+          both of its senses two words apart: written down by the county, and
+          filmed. The two facts that matter are that one source covers every
+          meeting and the other covers a minority, so each gets its own
+          sentence and nothing else does. */}
       <p className={s.emptyWhy}>
-        <b>What the county recorded</b> is every agenda item and the outcome its
-        approved minutes recorded, whether or not a camera was running.{" "}
-        <b>What was said</b> is the transcript, and only the meetings that were
-        recorded have one.
+        <b>What the county recorded</b> is every agenda item and what the minutes
+        say was decided. It exists for every meeting.{" "}
+        <b>What was said</b> is the transcript of the recording, and most meetings
+        were never recorded.
       </p>
       <Examples
         label="Examples"
