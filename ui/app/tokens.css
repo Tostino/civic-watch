@@ -47,6 +47,26 @@
   /* --------------------------------------------------------- layout */
   --rail: 21rem;          /* context rail / agenda spine             */
   --measure: 42rem;       /* readable line length for the record     */
+  /* The column the two entry pages open in. /search and /ask ask for the
+   * same thing in the same shape - a field, a sentence, four examples -
+   * and they are one nav click apart, so a reader moving between them sees
+   * the field and the cards change width for no reason they can name. They
+   * held 62rem and 58rem, which was two files rather than a decision. */
+  --entry: 62rem;
+
+  /* THE PAGE FRAME, and there is one of it. Every route centred a column in
+   * the viewport and every route picked its own number for it: 62 on /case,
+   * 68 on browse, 74 on /item, 76 on /search and /ask. A reader going browse
+   * -> search -> item -> case, which is the ordinary path through this site,
+   * watched the frame step in and out four times. None of those numbers was
+   * chosen against the others; they were chosen one file at a time. */
+  --shell: 76rem;
+
+  /* The exception, and it is a real one. /meeting is two scrolling panes side
+   * by side - the agenda spine and the transcript - against a fixed player,
+   * and it is the only page whose job is to hold two documents open at once.
+   * Held to --shell the transcript loses about 200px it reads with. */
+  --shell-wide: 96rem;
   --header: 3.25rem;
 
   /*

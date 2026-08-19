@@ -10,7 +10,12 @@
 
 .inner {
   height: 100%;
-  max-width: 96rem;
+  /* The bar is as wide as the widest thing under it, which is /meeting. It
+   * cannot be --shell: on that one route the panes would run 10rem past the
+   * bar at either side, and content wider than its own header reads as a
+   * layout that broke. Every other route is narrower than the bar, which
+   * reads as a bar. */
+  max-width: var(--shell-wide);
   margin: 0 auto;
   padding: 0 var(--sp-5);
   display: flex;

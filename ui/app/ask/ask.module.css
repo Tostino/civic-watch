@@ -1,5 +1,5 @@
 .page {
-  max-width: 76rem;
+  max-width: var(--shell);
   margin: 0 auto;
   /* 8rem at the foot clears the player dock, which is fixed and which this
      page's citations drive. */

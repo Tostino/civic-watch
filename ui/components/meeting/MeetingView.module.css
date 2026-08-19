@@ -15,7 +15,7 @@
 }
 
 .mastheadInner {
-  max-width: 96rem;
+  max-width: var(--shell-wide);
   margin: 0 auto;
   padding: var(--sp-4) var(--sp-5) var(--sp-3);
   display: flex;
@@ -252,7 +252,7 @@
 
 /* ----------------------------------------------------------- the split */
 .split {
-  max-width: 96rem;
+  max-width: var(--shell-wide);
   margin: 0 auto;
   /* Tight at the top: the masthead already ends in a rule and its own bottom
    * padding, so a second --sp-4 under it was 16px of nothing between the two

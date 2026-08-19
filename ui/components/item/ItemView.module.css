@@ -13,7 +13,7 @@
 }
 
 .inner {
-  max-width: 74rem;
+  max-width: var(--shell);
   margin-inline: auto;
   padding: var(--sp-5) var(--sp-5) var(--sp-4);
 }
@@ -128,7 +128,7 @@
 
 /* ---------------------------------------------------------------- layout */
 .split {
-  max-width: 74rem;
+  max-width: var(--shell);
   margin-inline: auto;
   padding: var(--sp-5);
   display: grid;

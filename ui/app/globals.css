@@ -11,6 +11,12 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  /* The gutter is reserved whether or not a page scrolls. Every route centres
+   * a column in the viewport, so a page short enough to fit sat 7px to the
+   * right of the page before it, and moving between /search and /ask - which
+   * are one nav click apart and hold the same field - jogged the whole page
+   * sideways. */
+  scrollbar-gutter: stable;
 }
 
 body {

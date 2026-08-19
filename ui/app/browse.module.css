@@ -1,5 +1,5 @@
 .page {
-  max-width: 68rem;
+  max-width: var(--shell);
   margin: 0 auto;
   padding: var(--sp-4) var(--sp-5) 8rem;
   display: flex;
