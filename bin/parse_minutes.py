@@ -59,17 +59,7 @@ SUBSIDIARY_SQL = (
 
 
 def load_agenda(con, meeting_id):
-    """The meeting's published items, addressed by ID. (items, by_code)
-
-    Read into a dict keyed on code, with no ORDER BY, whichever row the query
-    happened to yield last decided the whole meeting's map. Measured in the
-    sandbox with NOTHING changed but `enable_indexscan`: 4 of 688 items stored
-    a different outcome_text, and meeting 220's PC5 stored one under one plan
-    and nothing at all under the other.
-
-    ORDER BY here makes even the last-resort tie-break deterministic; the
-    resolution below does not depend on it.
-    """
+    """The meeting's published items, addressed by ID. (items, by_code)"""
     items = [{"id": r[0], "code": r[1], "section": r[2], "seq": r[3],
               "title": r[4]}
              for r in con.execute(
@@ -99,13 +89,7 @@ def title_agreement(heading, title):
 
 
 def pick(by_code, code, section=None, heading=None):
-    """Which agenda ROW a minutes reference to `code` means. (item, ambiguous)
-
-    A no-op wherever the key was already unique, which is 23,043 of the 23,123
-    coded items - the whole point is to leave those alone and decide the 80
-    rows, in 39 pairs, where `code` addresses more than one thing. Replayed
-    over every minutes document in the archive, 22,055 of 22,087 items resolve
-    to exactly what they did before and 32 change."""
+    """Which agenda ROW a minutes reference to `code` means. (item, ambiguous)"""
     cand = by_code.get(code) or []
     if len(cand) <= 1:
         return (cand[0] if cand else None), False

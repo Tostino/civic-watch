@@ -5,14 +5,7 @@ and noticing it looked wrong - the bulk consent sentence that marked 180
 approved items withdrawn, the roster that credited a commissioner with 14,148
 utterances from before she took office, the retrieval query that omitted
 `segment_id` so an entire expansion step silently did nothing. Each of those
-was invisible in the summary statistics and obvious against an invariant.
-
-Every check also reports HOW MANY ROWS IT EXAMINED, and that is not decoration.
-This audit once printed "18/18 ok" when two of its checks were ranging over an
-empty set: both filter on `passages.agenda_item_id IS NOT NULL`, and at that
-moment not one passage had been bound to an agenda item, so both passed by
-examining nothing. A green board meant only that the rebuild had not run yet.
-A check with no rows under it proves nothing and now says so."""
+was invisible in the summary statistics and obvious against an invariant."""
 import argparse
 import os
 import sys
@@ -451,9 +444,6 @@ def _(con):
         # every chip and citation. Older agendas write "Mr. Calvin Branche" and
         # roster.py kept the whole string. This asserts roster.clean_name and the
         # stored rows have not drifted; the pattern is roster.HONORIFIC_SQL.
-        #
-        # Members of the public are excluded: they really are introduced as
-        # "Pastor Danny Fields", which is what the record says, not a parser defect.
     q = f"""FROM people WHERE kind = 'board'
               AND full_name ~* '{roster.HONORIFIC_SQL}'"""
     return count(con, f"SELECT COUNT(*) {q}"), \
@@ -521,14 +511,7 @@ def _(con):
 @check("speaker.chair_anchor_intact",
        "no cluster is stored under a name the county's own roster contradicts")
 def _(con):
-    """`speaker_id` erased the chair anchor, and nothing noticed.
-
-    chair_anchor also refuses to rewrite a cluster that holds more than one
-    person, and that gate needs the voice embeddings; it is not applied here.
-    So this is a SUPERSET: it reports a contradiction chair_anchor might
-    decline to act on. It has no false positives on this archive today - the
-    one cluster it examines and does not flag is the one the anchor confirms.
-    """
+    """`speaker_id` erased the chair anchor, and nothing noticed."""
     import chair_anchor
     bad = []
     for cluster, tally in chair_anchor.evidence(con).items():
@@ -752,13 +735,7 @@ def _(con):
 @check("override.roundtrip",
        "a correction actually takes effect, proved by making one and rolling it back")
 def _(con):
-    """Exercise the correction path instead of reporting EMPTY about it.
-
-    Guards the two properties that matter and cannot be checked statically:
-    a named correction replaces the derived name, and `detach` - the operation
-    the old whole-voice model could not express at all - clears it without
-    falling through to the machine's answer.
-    """
+    """Exercise the correction path instead of reporting EMPTY about it."""
     row = con.execute("""SELECT video_id, idx FROM utterances
                          ORDER BY video_id, idx LIMIT 1""").fetchone()
     if not row:
@@ -846,10 +823,6 @@ def _(con):
         # every quote the agent prints, and when it drifts the archive contradicts
         # itself where nobody is reading closely enough to notice.
         #
-        # EVERY LINE, not merely one of them. Asking whether the baked name appears
-        # SOMEWHERE in the passage is too weak: one passage was two speakers' letters
-        # filed under the first, and it passed because the first line really is his.
-        #
         # Joined on the INDEX range, not the time window. `start` and `end` are doubles
         # that do not always round-trip, so three of the first eight violations were the
         # check's own boundary arithmetic. Integers cannot drift.
@@ -876,26 +849,7 @@ def _(con):
     names back to 8,795 utterances. The same file could not create
     the schema from scratch at all, because two views referenced tables defined
     below them - which nobody noticed because the production database was built
-    statement by statement and never from the file.
-
-    Both directions bite. A column added by hand with ALTER TABLE and not
-    written into schema.sql vanishes on the next rebuild; a column added to
-    schema.sql and not applied breaks the code that expects it. This compares
-    the CREATE TABLE statements in the file against information_schema and
-    reports either way, so the drift is caught by a run rather than by a
-    surprise months later.
-
-    Views are deliberately not compared. They are `CREATE OR REPLACE` and are
-    reapplied wholesale, so their text is the definition; it is the tables that
-    accumulate hand-edits.
-
-    BOTH forms count. This file adds 19 columns with
-    `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` rather than editing the original
-    CREATE - which is what lets it be replayed against a live database - so a
-    parser that reads only CREATE bodies reports every one of them as drift.
-    The first version of this check did exactly that and called 18 false
-    positives a finding.
-    """
+    statement by statement and never from the file."""
     import re
     want = {}
     sql = open(db.SCHEMA_SQL).read()
@@ -973,17 +927,7 @@ def _(con):
        "no redacted address survives in the passages search reads")
 def _(con):
     """COUNTS occurrences rather than looking for one, and the difference is
-    the whole check.
-
-    THAT CATCHES THE ONE THIS CHECK EXISTS FOR, which nothing else can see. An
-    address split across an utterance boundary - idx 158 ending "located at
-    14720", idx 159 opening "Bluestone Lane in Odessa" - matches no
-    per-utterance test, because `position(span in u.text)` is evaluated one
-    row at a time and the span is in neither row. The passage renderer joins
-    those rows with a space and puts the address back together, whole, in the
-    text search reads and the agent quotes. The transcript check passes. This
-    one does not.
-    """
+    the whole check."""
     # occurrences of `needle` in `hay`, by how much shorter the string gets
     # when they are removed. Postgres has no count-substring; this is exact.
     def n_in(hay, needle):
@@ -1016,10 +960,6 @@ def _(con):
         # The end-to-end statement: put the span through the same full-text query search
         # uses and assert the LINE IT WAS CUT FROM no longer comes back. It catches a
         # stale `tsv`, which the two checks above cannot.
-        #
-        # Scoped to that one line, and it was not: asking whether the phrase occurred
-        # anywhere in the recording answered yes 84 times of 3,440. Spans are ordinary
-        # English, and a meeting about a place says its name many times.
     q = """FROM redaction r
            WHERE r.status = 'applied' AND EXISTS (
              SELECT 1 FROM utterances u
@@ -1199,14 +1139,7 @@ def _(con):
        "a claim's quote is still the words in the range it covers")
 def _(con):
     """the design notes, and the reason it is not enough that
-    name_speakers.py checks this at write time.
-
-    A quote is the evidence a claim rests on. `self` claims quote the speaker
-    naming themselves; `llm` claims quote the span the model was told to copy
-    verbatim, and name_speakers.py refuses a proposal whose quote it cannot
-    find. Nothing re-checks it afterwards, and A REDACTION CHANGES THE TEXT
-    UNDERNEATH: the archive removed '14720 Bluestone Lane' from a line in
-    August, and any claim quoting that line no longer quotes anything."""
+    name_speakers.py checks this at write time."""
     q = """FROM speaker_claim c
            WHERE c.quote IS NOT NULL AND btrim(c.quote) <> ''
              AND position(regexp_replace(btrim(c.quote), '[[:space:]]+', ' ', 'g')
@@ -1245,13 +1178,7 @@ def _(con):
 def _(con):
     """REPORTED, NOT ASSERTED - the design notes says so about the
     contested count, and the same argument covers this. Neither is a defect:
-    they are the size of a job.
-
-    `cluster`, `voice` and `chair` have no quote and mostly cannot have one.
-    The number worth watching is not how many claims lack evidence but how
-    much of what a READER SEES rests on a claim that does - if that share
-    falls, the archive is asserting more than it can show, and nothing else
-    here would say so."""
+    they are the size of a job."""
     q = """FROM speaker_resolved r
            WHERE r.method IN ('cluster', 'voice', 'chair', 'llm', 'label')"""
     return count(con, f"SELECT COUNT(*) {q}"), """

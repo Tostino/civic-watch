@@ -21,12 +21,7 @@ def turns_for(video_id):
 
 
 def uncovered(turns, words):
-    """Speech-time diarization found that no utterance covers.
-
-    Both sides are merged into flat intervals first: turns overlap each other
-    constantly (two people talking), and treating them individually would
-    count the same second several times over.
-    """
+    """Speech-time diarization found that no utterance covers."""
     def merge(spans):
         out = []
         for s, e in sorted(spans):

@@ -50,12 +50,6 @@ def load_rosters(con):
     # A meeting with no published agenda still has a knowable board: whoever's
     # term spans that date. Falling back to everyone let commissioners who left
     # years earlier be assigned voices.
-    #
-    # A term belongs to a BODY, and that is not decoration. Matching on date
-    # alone gave every Planning Commission meeting whichever County
-    # Commissioners were seated that day, and the guard downstream waved them
-    # through because those names really were seated by that reckoning: 54,000
-    # utterances, 21% of the archive.
     terms = [(r[0], r[1], r[2], r[3]) for r in con.execute(
         "SELECT lower(p.surname), bt.first_seen, bt.last_seen, bt.body "
         "FROM board_terms bt JOIN people p ON p.id = bt.person_id")]
@@ -174,13 +168,7 @@ NAME_FILLER = {"um", "uh", "er", "ah", "oh", "so", "well", "yes", "yeah",
 
 
 def trim_name(name):
-    """Drop the filler and connectives the capture runs into at either end.
-
-    "my name is Laura Daffer and I live at ..." yields "Laura Daffer And",
-    because the pattern takes up to three capitalised tokens and a
-    sentence-initial "And" qualifies. The same thing happens at the front once
-    the clerk's queue is being read: "Uh Debbie Manns".
-    """
+    """Drop the filler and connectives the capture runs into at either end."""
     toks = name.split()
     while toks and toks[0].lower() in NAME_FILLER:
         toks.pop(0)
@@ -190,12 +178,7 @@ def trim_name(name):
 
 
 def plausible_name(name):
-    """Reject phrases the name patterns pick up that are not people.
-
-    "my name is ..." and the clerk's "next we have ..." both run into ordinary
-    sentences ("An Agenda Memo", "The Applicant Proposing"), and a wrong name
-    is worse than none - it displays with full confidence.
-    """
+    """Reject phrases the name patterns pick up that are not people."""
     toks = name.split()
     if not 1 <= len(toks) <= 3 or len(name) < 4:
         return False
@@ -229,12 +212,7 @@ def label_for_time(turns, t):
 
 
 def cluster_voices(meetings, skip=None):
-    """Agglomerative clustering of every speaker centroid in the archive.
-
-    `skip` holds voices with too little real speech to be identifiable; they
-    are left unclustered rather than seeding junk groups that clutter the
-    review queue and drag on the anchor references.
-    """
+    """Agglomerative clustering of every speaker centroid in the archive."""
     from sklearn.cluster import AgglomerativeClustering
 
     skip = skip or set()
@@ -258,13 +236,7 @@ def cluster_voices(meetings, skip=None):
 
 def assign_per_meeting(local_votes, local_gavel=None, rosters=None,
                        everyone=None):
-    """One commissioner per voice, per meeting, via optimal matching.
-
-    Independent per-voice voting lets the same commissioner win several voices
-    in one meeting. Matching the meeting's voices against the five roster slots
-    makes that impossible, and forces weakly-evidenced voices onto the slots
-    nobody else claimed - which is how a quiet commissioner gets found.
-    """
+    """One commissioner per voice, per meeting, via optimal matching."""
     from scipy.optimize import linear_sum_assignment
 
     rosters = rosters or {}
@@ -695,10 +667,6 @@ def main():
             # two tables do not overlap today, so this spares nothing now; it is
             # here because both are human statements and one silently deleting the
             # other is not a resolution the pipeline gets to make.
-            #
-            # One statement rather than an executemany, so `rowcount` is the rows
-            # that actually went: most held-out voices have no row to begin with,
-            # and reporting len(drop) would claim a retraction that did not happen.
             retract = skip - labeled          # membership test, per utterance
             drop = sorted(retract)
             n_retracted = 0

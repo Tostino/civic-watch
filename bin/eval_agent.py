@@ -1,12 +1,5 @@
 """Pass/fail: did the answer reach the evidence it needed?
 
-Named for votes once, because that was the only thing it checked. A vote is
-still the hardest single case and still the first target below, but the
-question this asks is broader now: for each of a handful of questions, did the
-agent's CITED evidence contain the things an answer to it cannot be right
-without. Each entry in ANSWERS fails for a reason the others cannot see -
-otherwise it is not worth the run it costs.
-
 The target is addressed by (meeting, timestamp), never by passage id: ids are
 reassigned on every index rebuild, so a hard-coded id silently starts pointing
 at a different passage as the archive grows."""

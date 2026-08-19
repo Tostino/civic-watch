@@ -11,13 +11,6 @@ MODEL_ID = "microsoft/harrier-oss-v1-0.6b"
 
 # Where the query encoder runs. `cuda:1` is this workstation; the reader
 # container sets `PASCO_EMBED_DEVICE=cpu` and has no GPU at all.
-#
-# The default used to be the literal "cuda:1" in four signatures while
-# `PASCO_EMBED_DEVICE` was read only outside the read path, so a CPU deployment
-# asked for cuda:1, failed, and `tools.warm()` swallowed it by design. The
-# server then served BM25-only search for ever, having printed one line to
-# stderr. Measured on CPU: 72 ms per query at float16, which is why the dtype
-# is unchanged.
 DEVICE = os.environ.get("PASCO_EMBED_DEVICE") or "cuda:1"
 # HNSW is approximate, so this is the dial that trades recall for latency.
 # Measured against an exact scan over 65k passages, at the depths that actually
@@ -57,12 +50,7 @@ def bm25(con, query, limit=300):
 
 
 def dense(con, vec, limit=300):
-    """Approximate nearest neighbours under the HNSW index.
-
-    Embeddings are L2-normalised, so cosine distance ranks identically to
-    inner product; `<=>` is used because that is the operator class the index
-    was built with.
-    """
+    """Approximate nearest neighbours under the HNSW index."""
     # SET takes no bound parameters; set_config is its function form. Scoped to
     # the SESSION, not the transaction: is_local=true would be discarded before
     # the next statement on an autocommit connection, dropping ef_search back to
@@ -106,13 +94,7 @@ def rrf(*rankings, k=60):
 def search(query, limit=40, spread=None, speaker=None, kind=None,
            since=None, until=None, phase=None, case=None, outcome=None,
            body=None, device=None, con=None):
-    """Return ranked passages with their meeting metadata.
-
-    spread: max hits per meeting. Set it for "over time" questions so the
-    answer sees the whole timeline rather than one dominant meeting.
-    phase:  restrict to a part of the meeting ("public_comment" to hear the
-    podium rather than the dais). See segment.py for the vocabulary.
-    """
+    """Return ranked passages with their meeting metadata."""
     own = con is None
     con = con or db.connect()
     try:

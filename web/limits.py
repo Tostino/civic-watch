@@ -41,13 +41,7 @@ class Throttled(Exception):
 
 
 def client_ip(request):
-    """The address to hold responsible.
-
-    `request` is a Starlette Request. `request.client` is None for a scope
-    with no peer at all, which ASGI permits and a test client produces; an
-    address that cannot be read is not one that can be excused, so it falls
-    back to a constant that shares one quota rather than to no limit.
-    """
+    """The address to hold responsible."""
     peer = request.client.host if request.client else "unknown"
     if TRUST_PROXY and (peer == "::1" or peer.startswith("127.")):
         xff = request.headers.get("X-Forwarded-For", "")
@@ -176,12 +170,7 @@ def _window(book, ip, now, limit, one, many):
 
 
 def mcp_reserve(ip, tool):
-    """Claim a slot for one MCP tool call, or raise Throttled.
-
-    Returns a release() for the caller's `finally`, on the same contract as
-    `reserve`: the concurrency count is only meaningful if it always comes
-    back down.
-    """
+    """Claim a slot for one MCP tool call, or raise Throttled."""
     now = time.monotonic()
     with _mcp_lock:
         global _mcp_running

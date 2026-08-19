@@ -83,16 +83,7 @@ def chat(messages, model=MODEL, temperature=0.2, as_json=False, retries=3,
 
 def chat_raw(messages, model=MODEL, temperature=0.2, as_json=False, retries=3,
              timeout=TIMEOUT, tools=None, tool_choice=None, effort=None):
-    """The whole reply MESSAGE, so a caller can see `tool_calls`.
-
-    `effort` is 'none' | 'low' | 'medium' | 'high', or None to send nothing and
-    let the model do what it did before this argument existed. It is the only
-    control here that touches WALL CLOCK, because it is the only one that
-    changes how much gets generated: measured on one /ask question, 93% of
-    every token this project generated was reasoning nobody reads, and
-    generation is serial where a re-sent prompt is a 92% cache hit. Prompt
-    size is not what makes an answer slow. This is.
-    """
+    """The whole reply MESSAGE, so a caller can see `tool_calls`."""
     body = {"model": model, "messages": messages, "temperature": temperature}
     if effort:
         body["reasoning_effort"] = effort
@@ -178,8 +169,3 @@ def usage_report():
 # served nothing after that: its last caller was bin/eval_agent.py --agent,
 # a check that was therefore reporting on a code path no reader could
 # reach. That eval now runs web/agent.py.
-#
-# What remains is the CHAT CLIENT, which is a different thing and is used by
-# five modules: segment.py, name_speakers.py, redact.py, web/agent.py and
-# web/server.py. Keep api_key/chat/chat_raw/usage_report together - the
-# usage accounting is the only place this project measures what it spends.

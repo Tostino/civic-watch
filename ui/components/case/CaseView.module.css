@@ -395,13 +395,9 @@
   gap: var(--sp-3);
 }
 
-/* ------------------------------------------------- what was said, in place
- *
- * The speech for one appearance, under that appearance's record. It has to
- * read as part of the step rather than as a new section starting, or the page
- * becomes twelve documents again — so: full width of the step's own column, a
- * rule down the inside edge to tie it to the step, and no heading. The date in
- * the gutter to the left is still the one that applies. */
+/*
+ *  ------------------------------------------------- what was said, in place
+*/
 .spoken {
   /* Both columns of the step. The date gutter has already done its job by the
    * time the speech starts, and giving these lines the full measure is worth

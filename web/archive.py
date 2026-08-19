@@ -166,16 +166,7 @@ NAY_NAMES = re.compile(
 EXCHANGE = "(exchange)"
 
 def line(r):
-    """One row of LINES, with the speaker claim assembled into `who`.
-
-    LINES selects the claim IN PIECES - name, display_name, basis, human,
-    contested - and every surface that draws a speaker reads it as the single
-    `who` object below instead. Assembling it here rather than at each
-    call site is the whole point of this function existing: `item()` and
-    `case()` each ran LINES and shipped the pieces raw, so `Turn` destructured
-    an undefined `who` and took BOTH routes down with a 500. That is two of the
-    six public entity routes, and they are the ones every search hit and every
-    front-page dissent row links to."""
+    """One row of LINES, with the speaker claim assembled into `who`."""
     d = dict(r)
     d["who"] = who(d["name"], d["display_name"], d["basis"], d["human"],
                    d["contested"])
@@ -400,12 +391,6 @@ def highlights(con, limit=6, divided_limit=None):
 # What the county keeps coming back to. Everything else browse shows is either
 # structural or recent, so the page could say the county met 1,214 times and not
 # one thing it met ABOUT.
-#
-# This list is WRITTEN DOWN, which nothing else in this file is, because no
-# column contains it: the archive holds titles that happen to say "impact fee",
-# not a field where somebody recorded what the argument was. Deriving it was
-# tried and returns the zoning code's vocabulary ("Planned Unit Development"),
-# not the county's. Three rules keep the curation honest:
 ISSUES = [
     {"slug": "rezoning",
      "label": "Rezoning and planned developments",
@@ -595,15 +580,7 @@ def _issues_rolled(con, specs):
     return {"span": span, "heard_from": heard_from, "issues": out}
 
 def issues(con, live=False):
-    """Each issue's twelve years, in both sources and never merged.
-
-    THE VOCABULARY IS DATA NOW, not the `ISSUES` literal below. `subject` and
-    `subject_term` hold subjects a model proposed from a sample of real titles
-    and phrases a person kept after seeing what each one actually matches here
-    (`bin/subjects.py`). Both lanes are built from the SAME kept phrases, which
-    the literal could not promise: it carried a regex for the record and a
-    separate tsquery for the room, and nothing checked that the two described
-    the same subject."""
+    """Each issue's twelve years, in both sources and never merged."""
     specs = _issue_specs(con)
     if not specs:
         return {"span": [], "heard_from": None, "issues": []}
@@ -927,12 +904,7 @@ LINES = """
     ORDER BY u.idx"""
 
 def _offices(con, meeting_id):
-    """surname -> the office they held AT THIS MEETING.
-
-    "Girardi, Vice Chairman", not a bare surname - offices rotate annually, so
-    this is a per-meeting fact. Sent once as a lookup rather than repeated on
-    every one of up to 2,252 lines.
-    """
+    """surname -> the office they held AT THIS MEETING."""
     return {r[0]: {"office": r[1], "district": r[2], "full_name": r[3]}
             for r in con.execute("""
         SELECT p.surname, r.office, r.district, p.full_name
@@ -950,12 +922,6 @@ def transcript(con, video_id):
             "offices": _offices(con, v["meeting_id"])}
 
 # --------------------------------------------------------------- agenda item
-#
-# --------------------------------------------------------------- agenda item
-#
-# The longest item runs to 1,225 utterances, median 18, p90 131. So an item's
-# speech is sent whole rather than paged, with a cap that exists only so a
-# pathological span cannot take the page down, and which says so when it bites.
 MAX_ITEM_LINES = 2000
 
 # Everything ever said about one case, across every meeting that took it up.
@@ -967,12 +933,7 @@ MAX_CASE_LINES = 4000
 ONE_APPEARANCE = 60
 
 def _runs(spans):
-    """Spans -> the distinct times the item was taken up, in order.
-
-    `spans` are dicts carrying at least video_id, session_seq, start, end,
-    start_idx and end_idx. Each run keeps the full index range it covers, so
-    the caller can pull every line of it in one query.
-    """
+    """Spans -> the distinct times the item was taken up, in order."""
     out = []
     ordered = sorted(spans, key=lambda s: ((s.get("session_seq") is not None,
                                             s.get("session_seq") or 0),

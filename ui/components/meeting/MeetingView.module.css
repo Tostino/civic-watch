@@ -84,13 +84,11 @@
   transform: rotate(90deg);
 }
 
-/* What the reader needs on arrival and not again: coverage, who was seated,
+/*
+ *  What the reader needs on arrival and not again: coverage, who was seated,
  * and the county's own documents. See the note in MeetingView.tsx for why it
  * folds on engagement rather than on page scroll.
- *
- * A wrapping ROW, not a stack: coverage and the roster sit side by side
- * wherever there is room for them and fall onto their own lines where there
- * is not, which is two rows saved on a desktop and none lost on a phone. */
+*/
 .detail {
   display: flex;
   flex-wrap: wrap;
@@ -307,13 +305,10 @@
   position: relative;
 }
 
-/* The record is a document rather than a virtualised list, so it scrolls
+/*
+ *  The record is a document rather than a virtualised list, so it scrolls
  * itself here instead of pushing the page taller than the window.
- *
- * Selected by the tab it belongs to, NOT by `#panel-record`: CSS Modules
- * localises id selectors as well as class selectors, so the id in this file
- * compiles to a hashed name and matches nothing. It applied to zero elements
- * and the page grew to 21,345px. */
+*/
 .main > [aria-labelledby="tab-record"] {
   overflow-y: auto;
   /* Chains to the page — see the note in TranscriptView.module.css. */

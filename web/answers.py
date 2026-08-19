@@ -1,14 +1,4 @@
-"""Kept answers, so that a run of the agent has a URL.
-
-The one thing that cannot be read back is the prose. It is generated text that
-quotes the transcript, so it is the only copied text here and the only
-redaction surface left. Nothing deletes it: bin/redact.py replaces the span
-with its marker, in place, exactly as it does in the transcript, so the reading
-survives and the address does not. `redaction.gone_from_answers` proves that
-happened, and `redaction.answers_quoting_a_redacted_line` lists for a person
-the one case no string search can settle - an answer that cited the line and
-paraphrased the address rather than quoting it.
-"""
+"""Kept answers, so that a run of the agent has a URL."""
 import json
 import secrets
 
@@ -29,12 +19,7 @@ ID_BYTES = 9
 
 
 def save(con, result):
-    """Keep this run. Returns the id its URL is built from.
-
-    The caller is expected to treat a failure here as non-fatal: the reader has
-    already paid for this answer and is owed it whether or not it could be
-    filed.
-    """
+    """Keep this run. Returns the id its URL is built from."""
     aid = secrets.token_urlsafe(ID_BYTES)
     con.execute(
         "INSERT INTO answers (id, question, answer, cites, run) "
@@ -53,13 +38,7 @@ def save(con, result):
 
 
 def _cites(con, result):
-    """The run's citations, as handles that outlive it.
-
-    The passage ids are looked up rather than read off the hits, because a hit
-    reaches the agent from four different tools with four different projections
-    and only `id` is common to all of them. One query, in the same request that
-    produced them, while they are all still valid.
-    """
+    """The run's citations, as handles that outlive it."""
     ids = [p["id"] for p in result.get("evidence") or [] if p.get("id")]
     ranges = {}
     if ids:
@@ -88,12 +67,7 @@ def _cites(con, result):
 
 
 def load(con, aid):
-    """The stored run, rendered against the archive as it stands now, or None.
-
-    The id arrives from a URL path. It is parameterised, so the length bound is
-    not about injection - it is that an unbounded path segment becomes an
-    unbounded index probe, on an endpoint anybody can call.
-    """
+    """The stored run, rendered against the archive as it stands now, or None."""
     if not aid or len(aid) > 64:
         return None
     row = con.execute(

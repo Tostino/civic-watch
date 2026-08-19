@@ -1,10 +1,4 @@
-"""The curation console's data layer and its authentication.
-
-Everything here exists to close one loop: the review checks in bin/audit.py
-report misattributions, and until now they reported into a void - an unordered
-list, no queue, nowhere to act. This module serves the queues ORDERED BY
-IMPACT (utterances a decision fixes, ), the evidence to decide with, and
-the writes at both grains the model supports:"""
+"""The curation console's data layer and its authentication."""
 import datetime
 import hmac
 import os
@@ -324,16 +318,7 @@ def _range_rows(con, video_id, lo, hi):
 
 def _refresh(con, video_id):
     """A correction must reach the index or search keeps the old name. Failure here never looks like a failed correction: the
-    override is committed and authoritative either way.
-
-    TWO STEPS NOW, AND THE ORDER IS THE POINT. Resolution is being moved from
-    a view to a materialised table, and the day that lands,
-    a correction stops reaching the reader on its own: it writes the row it
-    always wrote, and the page keeps showing the old name until something
-    recomputes. So the resolution for this recording is refreshed FIRST, and
-    only then are its passages re-rendered and re-embedded - because the index
-    is built from the resolution and would otherwise bake in the name the
-    correction just replaced."""
+    override is committed and authoritative either way."""
     out = {}
     try:
         import speaker_claims
@@ -438,13 +423,6 @@ def decide(con, override_id, decision):
     return out
 
 # ------------------------------------------------- the two legacy writers
-#
-# ------------------------------------------------- the two legacy writers
-#
-# Recovered from web/api.py when that module was deleted, because `label()` and
-# `ignore()` below are their only callers. Unchanged in behaviour. `apply_label`
-# covers assign, split and merge in one call, and an empty name clears the
-# label, which is how a wrong one is taken back.
 
 def _apply_label(con, members, name, note):
     """Assign `name` to the given [(video_id, local_label), ...]."""
@@ -967,13 +945,7 @@ def redactions(con, status="proposed", limit=50, offset=0, video=None):
             "rows": out, "counts": counts}
 
 def redaction_decide(con, body):
-    """Accept or reject specific proposals, synchronously.
-
-    Accepting re-indexes each affected recording, so this is for the handful a
-    reviewer works through by hand - a page of fifty spanning fifty recordings
-    would sit here for three minutes. The whole queue goes through the job
-    below instead.
-    """
+    """Accept or reject specific proposals, synchronously."""
     import redact
     ids = [int(i) for i in body.get("ids", [])]
     if not ids:

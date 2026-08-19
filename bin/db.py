@@ -20,13 +20,7 @@ BM25_SQL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bm25.sql")
 
 
 class MissingConfig(RuntimeError):
-    """Required configuration is absent from the environment.
-
-    RuntimeError and not SystemExit, for the reason ask.MissingKey documents
-    at length: SystemExit is not an Exception, so a server's `except
-    Exception` cannot catch it, and the request thread dies without answering.
-    This module is imported by web/server.py on every request.
-    """
+    """Required configuration is absent from the environment."""
 
 
 def dsn():
@@ -127,14 +121,7 @@ def claim(con, stage, worker):
 
 
 def reclaim(con, worker):
-    """Release rows this worker name still holds from a previous life.
-
-    Reclaiming by worker NAME rather than by age is what makes this safe: the
-    names are fixed (dl-0, diar-1, asr-0) and run.sh refuses to start a second
-    worker under a live name, so any row still carrying this name is by
-    definition abandoned. An age-based sweep would race a healthy worker that
-    is simply slow - a four-hour meeting is not a hung one.
-    """
+    """Release rows this worker name still holds from a previous life."""
     n = con.execute("UPDATE videos SET claimed_by = NULL WHERE claimed_by = %s",
                     (worker,)).rowcount
     con.commit()
@@ -145,12 +132,7 @@ def reclaim(con, worker):
 
 
 def work_remaining(con, stage):
-    """Count videos that could still reach `stage`, including in-flight ones.
-
-    Lets a worker distinguish "nothing to do yet, upstream is still working"
-    from "the run is finished" - without this an ASR worker exits immediately,
-    before diarization has produced anything.
-    """
+    """Count videos that could still reach `stage`, including in-flight ones."""
     n = con.execute(
         f"SELECT COUNT(*) FROM videos WHERE error IS NULL AND NOT {FLAG[stage]}"
     ).fetchone()[0]
@@ -179,13 +161,7 @@ MAX_ATTEMPTS = 5
 
 
 def fail(con, video_id, message, max_attempts=MAX_ATTEMPTS):
-    """Record a stage failure. Returns True if the video was retired.
-
-    A transient failure only bumps the attempt counter and releases the claim,
-    so the video returns to the queue. `error` is written - which removes it
-    from the queue for good - only when the message says the video is actually
-    gone, or when it has failed too many times to be worth another slot.
-    """
+    """Record a stage failure. Returns True if the video was retired."""
     msg = (message or "")[:500]
     permanent = any(p in msg.lower() for p in PERMANENT)
     n = con.execute(

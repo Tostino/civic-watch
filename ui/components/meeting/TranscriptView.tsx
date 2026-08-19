@@ -18,11 +18,6 @@ import s from "./TranscriptView.module.css";
 /**
  * the transcript, synchronised to the player. Clicking a line seeks;
  * playing scrolls.
- *
- *   a cue      an explicit "take me there" - a click on the spine, a band on
- *              the chapter track, a restored link. Always obeyed.
- *   following  passive drift with the playhead. The reader turns this off by
- *              scrolling, and a cue turns it back on.
 */
 
 /** The share of the pane kept clear at each edge. A line resting on the
@@ -159,13 +154,7 @@ export function TranscriptView({
 
   /**
    * Go to utterance `idx`, which is in row `row`. Returns a cancel.
-   *
-   * Two steps, because neither half knows enough alone: where an unrendered
-   * row starts is the virtualizer's answer, since it holds the measurements,
-   * and where a line sits inside a rendered row is the DOM's. A turn arrives
-   * whole - every line of it is in the one row - so once the first step lands
-   * the second always has a box to measure.
-   */
+  */
   const goTo = useCallback(
     (row: number, idx: number, centre: boolean) => {
       const box = scrollRef.current;

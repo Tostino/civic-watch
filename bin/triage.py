@@ -1,9 +1,4 @@
-"""Which utterances and voices are worth trying to identify.
-
-Roughly a quarter of the corpus is four words or fewer and under two seconds -
-"okay.", "yeah.", "thank you." Those cannot be attributed by ear or by
-embedding, they pollute the samples a human judges a voice by, and a diarization
-speaker made only of them is not identifiable at all."""
+"""Which utterances and voices are worth trying to identify."""
 import re
 
 TRIVIAL_WORDS = 4
@@ -52,13 +47,7 @@ def is_substantive(text, duration=None):
 
 
 def substantive_words(lines):
-    """Words of identifying speech in one diarization speaker's lines.
-
-    `lines` is an iterable of text, or of (text, duration) pairs. Duration is
-    optional because callers usually have the voice's total seconds already
-    from SQL, and passing None per line would otherwise make every voice look
-    silent.
-    """
+    """Words of identifying speech in one diarization speaker's lines."""
     total = 0
     for item in lines:
         text, dur = item if isinstance(item, (tuple, list)) else (item, None)

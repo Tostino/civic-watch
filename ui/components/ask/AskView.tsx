@@ -99,9 +99,6 @@ export function AskView({ q, origin }: { q: string; origin: string }) {
           // reload part way through asks the same thing again rather than
           // losing it. It is not the URL anyone shares — when the
           // answer lands we go to /ask/<id>, which is.
-          //
-          // replaceState rather than a route change: navigating would remount
-          // and tear down the stream we are about to open.
           window.history.replaceState(null, "", `/ask?q=${encodeURIComponent(t)}`);
           setRun(fresh(true));
           open(t);

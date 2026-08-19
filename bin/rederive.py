@@ -93,13 +93,7 @@ def backup(con):
 
 
 def restore_tables(con):
-    """Put speaker_identity and voice_affinity back as the backup holds them.
-
-    Runs inside the caller's transaction, so the preflight can prove the
-    write path against a rollback before the real thing runs (the lesson of
-    a syntax error in an INSERT nobody exercised is an empty table
-    behind a log full of successes).
-    """
+    """Put speaker_identity and voice_affinity back as the backup holds them."""
     rows = {t: [] for t in TABLES}
     with gzip.open(BACKUP, "rt") as f:
         for line in f:

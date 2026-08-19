@@ -1,13 +1,5 @@
 """The archive's tool surface, served over MCP at /mcp.
 
-A reader with an MCP client can ask questions of this archive in their own
-words without going through /ask, which is a paid, bounded endpoint. The trade
-is that the answer is composed by THEIR model, so the rules web/agent.py
-enforces on our own composer have to travel with the tools. That is what the
-prompts below are, and why the non-negotiable half is repeated in
-`INSTRUCTIONS`, which every client gets at the handshake whether it asks for a
-prompt or not.
-
 PUBLIC AND METERED. The data is a public record and the tools only read it, so
 there is no authentication. The budget is MCP_* in web/limits.py, deliberately
 not Ask's: a tool call spends CPU rather than tokens, and the two must not be
@@ -92,12 +84,7 @@ No em dashes. Use a full stop, a comma pair, a colon, or brackets instead."""
 
 
 def _sources():
-    """The two-source rule, in the composer's own words.
-
-    Imported late. web/agent.py pulls in the chat client and the retrieval
-    stack at import, and this server starts whether or not there is an API
-    key; only a client that actually asks for a prompt pays for that.
-    """
+    """The two-source rule, in the composer's own words."""
     import agent
     return agent.SOURCES
 
@@ -190,13 +177,7 @@ BY_NAME = {p["name"]: p for p in PROMPTS}
 
 # -------------------------------------------------------------- the handlers
 async def _list_tools(ctx, params):
-    """The five, straight off the manifest the agent is handed.
-
-    `tools.MANIFEST` is `tools.SPECS` minus the callable, which is exactly an
-    MCP tool list with the schema key renamed. Projected rather than
-    re-declared: a tool whose arguments change in web/tools.py changes here in
-    the same edit, or it does not change at all.
-    """
+    """The five, straight off the manifest the agent is handed."""
     specs = await anyio.to_thread.run_sync(_manifest)
     return mt.ListToolsResult(tools=[
         mt.Tool(name=s["name"], description=s["description"],
@@ -210,12 +191,7 @@ async def _list_tools(ctx, params):
 
 
 def _manifest():
-    """The tool specs, with their counts measured. Off the event loop.
-
-    Same connection discipline as `_run` below, and for the same reason: this
-    is a synchronous database call and the handler that wants it is async.
-    `tools.facts` caches for an hour, so a handshake storm costs one query.
-    """
+    """The tool specs, with their counts measured. Off the event loop."""
     con = db.connect(autocommit=True)
     try:
         return tools.manifest(con)
@@ -224,13 +200,7 @@ def _manifest():
 
 
 def _run(name, args):
-    """One tool call, on a thread, with its own connection.
-
-    The connection is opened and closed HERE. web/server.py's do_GET leaked
-    one per request until it was fixed, and the failure was not local: the
-    database ran out of backends minutes later on a different endpoint. Every
-    path that opens one closes it in a finally.
-    """
+    """One tool call, on a thread, with its own connection."""
     con = db.connect(autocommit=True)
     try:
         return tools.call(con, name, args)
@@ -239,12 +209,7 @@ def _run(name, args):
 
 
 async def _call_tool(ctx, params):
-    """Meter it, run it off the event loop, hand back the JSON.
-
-    The result goes back as text rather than as structured content because
-    that is what every one of these tools already produces for the agent and
-    for /api/tool: one JSON document, the same shape in both places.
-    """
+    """Meter it, run it off the event loop, hand back the JSON."""
     name = params.name
     args = dict(params.arguments or {})
     if name not in tools.BY_NAME:
@@ -305,12 +270,7 @@ async def _get_prompt(ctx, params):
 
 
 def build():
-    """The MCP server and the ASGI app that speaks to it.
-
-    Returns `(session_manager, asgi_app)`. The caller mounts the app and MUST
-    enter `session_manager.run()` for the life of the process: it owns the
-    task group every request runs inside, and without it the first call hangs
-    rather than failing."""
+    """The MCP server and the ASGI app that speaks to it."""
     # Measured at startup. The MCP handshake takes `instructions` as a plain
     # string on the Server object, so unlike the tool list this one cannot be
     # re-read per request - it is as fresh as the process. That is a real

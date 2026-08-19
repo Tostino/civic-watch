@@ -87,11 +87,6 @@ EFFORT_VERIFY = os.environ.get("ASK_EFFORT_VERIFY") or "medium"
 # something stage two declined to replace, and ONE changed a published answer,
 # incorrectly. It cost 12.7% of wall clock and almost all its output was
 # reasoning nobody reads.
-#
-# Not deleted, because it is a genuine REGRESSION DETECTOR: if COMPOSE drifts
-# back, this number climbs. A tripwire is worth its price only where somebody
-# reads it, and that is eval_agent, not a reader's request path. `check()` is a
-# different thing and is NOT gated: a regular expression, and free.
 VERIFY_ON = (os.environ.get("ASK_VERIFY") or "").strip().lower() not in (
     "", "0", "no", "off", "false")
 
@@ -499,24 +494,12 @@ class Seen:
         self.items.setdefault(i["id"], i)
 
 # ------------------------------------------------------- rendering results
-#
-# Tool output goes to the model as text, not JSON. JSON of the raw rows costs
-# roughly three times the tokens for the same content, and the model reads the
-# laid-out version more reliably - `get_item` alone can carry 2,000 transcript
-# lines, which is the whole context window in braces and quotes.
 def _clip(s, n):
     s = " ".join((s or "").split())
     return s if len(s) <= n else s[:n].rstrip() + "…"
 
 def _who(p):
-    """Who spoke, as the model should read it.
-
-    `(exchange)` is the key's value for a passage crossing several speakers,
-    and it is an internal token: the page refuses to print it (Hits.tsx) and so
-    does this. Shared with the reference form below, because the same passage
-    reading "several speakers" in one line and "(exchange)" forty lines later
-    is the same defect wearing a different hat.
-    """
+    """Who spoke, as the model should read it."""
     who = p.get("speaker_display") or p.get("speaker") or "unidentified"
     return "several speakers" if who == "(exchange)" else who
 
@@ -525,14 +508,6 @@ def _who(p):
 # reader following a citation from an answer to the page must not be told two
 # different things about one name. Not a confidence threshold: a number would be
 # a second precedence rule about a question the utterance_speaker view owns.
-#
-#   confirmed  a person stated this name
-#   inferred   matched to a voice AT THIS MEETING, the ordinary case
-#   weak       the name this voice goes by archive-wide, no evidence about this
-#              meeting. This is the one that put two different women under one
-#              name.
-#   several    an exchange, the passage crosses speakers
-#   unknown    no name resolved
 def _name_state(p):
     """SpeakerChip's state for this passage's speaker."""
     who = p.get("speaker")
@@ -1043,14 +1018,6 @@ def brief(question, seen, trace, notes):
     return "\n\n".join(out)
 
 # ------------------------------------------------------- citations, checked
-#
-# A citation pointing at a real passage that does not contain the claim is the
-# failure this archive can least afford, and no structural test can see it: the
-# id was genuinely returned by a tool. TWO PROMPT ATTEMPTS FAILED at it, which is
-# what makes it structural. The writer is doing recall over thirty passages and
-# reaches for a plausible neighbour, so it gets a second look instead of firmer
-# instructions, and corrections are applied by code rather than by asking for the
-# answer again.
 VERIFY = """Below is a numbered list. Each entry is ONE sentence from an
 answer and EVERY citation it carries, with the text of each.
 
@@ -1319,11 +1286,6 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
         if not calls:
             # Done looking, of its own accord. What comes back is a handover,
             # not an answer.
-            #
-            # `stopped` stays None here on purpose: the page reads it as "it
-            # stopped searching early, so this may not be everything"
-            # (Answer.tsx), which is true of the budget and step-limit exits
-            # and false of this one. The reason still reaches the stream below.
             note(reply.get("content"))
             why = "gathered"
             break

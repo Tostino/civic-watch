@@ -207,12 +207,7 @@ def build():
 
 
 def _bind(value, blank):
-    """One value on its way into the sandbox.
-
-    psycopg reads a jsonb column back as a dict and will not send a dict back
-    without being told it is json - portal_events carries the county's raw API
-    payload, so the copy fails on the first row without this.
-    """
+    """One value on its way into the sandbox."""
     if blank:
         return None
     if isinstance(value, (dict, list)):

@@ -95,14 +95,7 @@ def evidence(con):
 
 
 def is_one_person(con, cluster, cache):
-    """Does this cluster hold a single voice, or several?
-
-    Rewriting a whole cluster is only correct if the cluster IS one person.
-    Measured over the 120 largest clusters, 95 are (under 2% of internal pairs
-    below 0.35) and **25 are not** - so this cannot be assumed, and a mixed
-    cluster with chair evidence would otherwise have the presiding officer's
-    name stamped over everyone else sharing their bucket.
-    """
+    """Does this cluster hold a single voice, or several?"""
     rows = con.execute(
         "SELECT video_id, local_label FROM speaker_identity WHERE cluster = %s",
         (cluster,)).fetchall()
@@ -152,13 +145,7 @@ def decide(con, ev):
 
 
 def _claim_chair(con, cluster, name):
-    """The same anchor, as evidence, per contiguous run of each voice.
-
-    Cluster-wide is how this stage WRITES - one name across every voice in a
-    cluster - and it is exactly the operation utterance_speaker's header warns
-    merges two people. A claim covers a span, so the same decision is recorded
-    per voice and per run, which is what it always meant.
-    """
+    """The same anchor, as evidence, per contiguous run of each voice."""
     try:
         import speaker_claims
     except ImportError:

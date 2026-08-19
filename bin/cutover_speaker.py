@@ -82,12 +82,7 @@ def status(con):
 
 
 def _check(con):
-    """Refuse to swap two views that are not interchangeable.
-
-    A shape mismatch here would not fail loudly at rename time - it would fail
-    at the first query from one of 58 call sites, in production, after the old
-    view had already been renamed aside.
-    """
+    """Refuse to swap two views that are not interchangeable."""
     v = _views(con)
     if NEW not in v:
         sys.exit(f"  {NEW} is not there. Nothing to cut over to.")

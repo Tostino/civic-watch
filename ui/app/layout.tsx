@@ -7,13 +7,9 @@ import { siteUrl } from "@/lib/site";
 import { Providers } from "./providers";
 import "./globals.css";
 
-/* Two families, because the archive has two kinds of truth.
- *
- * Source Serif carries the county's published record - agendas, minutes,
- * official titles - and reads as a document. Inter carries everything this
- * archive inferred: the transcript, speaker names, and all UI chrome. A reader
- * can tell them apart before reading a word, which no badge achieves, and the
- * distinction survives greyscale, high contrast and print. */
+/*
+ *  Two families, because the archive has two kinds of truth.
+*/
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 const serif = Source_Serif_4({ subsets: ["latin"], variable: "--font-serif", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono-face", display: "swap" });

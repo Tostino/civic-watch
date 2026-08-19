@@ -31,9 +31,6 @@ NOISE = {"esq", "ph", "d", "jr", "sr", "ii", "iii", "honorable"}
 # Branche", the whole matched string was stored, and 11 of 28 people carried an
 # honorific - so the speaker of 33,122 utterances would have rendered as
 # "Mr. Jaimie Girardi".
-#
-# Only personal honorifics. Offices are parsed out separately by both readers,
-# and stripping "Chairman" here would mean two places decide what an office is.
 HONORIFIC = re.compile(r"^(?:the\s+)?(?:honorable|hon|mr|mrs|ms|miss|dr)\.?\s+",
                        re.I)
 # The same rule, for the upsert below and for the audit check that asserts no

@@ -271,11 +271,6 @@ def bind_spans(con, redo=False):
             else:
                 # Real, but not an agenda item: a recess, a call to order, or a
                 # meeting whose agenda we do not hold. Kept and marked.
-                #
-                # Reused if one already exists for this span. Without the
-                # lookup a second run appends a fresh row at the next free seq
-                # instead of matching the old one, so every re-run duplicates
-                # every transcript-only item in the archive.
                 existing = con.execute(
                     "SELECT ai.id FROM agenda_items ai JOIN item_spans sp "
                     "ON sp.agenda_item_id = ai.id WHERE ai.meeting_id=%s "
@@ -336,11 +331,6 @@ def main():
     # For callers that only want the county's published agenda. bind_spans
     # derives transcript items from `segments`, and a meeting that has not
     # happened has no recording, so no segments, so nothing for it to do.
-    #
-    # It also USED to be unsafe to re-run - two runs added 447 then 262 rows -
-    # which is how this flag came to exist. That cause is fixed;
-    # the flag is kept because skipping work a caller does not need is right on
-    # its own terms, not as a guard against a bug.
     ap.add_argument("--no-spans", action="store_true",
                     help="land meetings and published items only; skip the "
                          "transcript binding, which needs segments that a "

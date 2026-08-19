@@ -28,12 +28,7 @@ def retrieve():
 
 def warm(device=None):
     """Load the embedding model. Called at startup so the first reader does
-    not pay for it; a failure here is not fatal, it costs the dense arm.
-
-    It says so EITHER WAY, on purpose. This is the one degradation in the stack
-    that does not announce itself: search keeps answering on BM25 alone and looks
-    fine until somebody notices paraphrase queries stopped working.
-    """
+    not pay for it; a failure here is not fatal, it costs the dense arm."""
     global _dense_error
     t0 = time.time()
     try:
@@ -165,15 +160,7 @@ PASSAGE_HIT = """
 
 
 def speaker_sure(con, rows):
-    """Fill in HOW WELL each passage's speaker name is known, in place.
-
-    SEPARATE FROM PASSAGE_HIT ON PURPOSE, which is why it is a function rather
-    than two more columns. `utterance_speaker` resolves through four levels per
-    row: 620 ms for 600 passages against 2 ms without it. Both search paths rank
-    600 candidates and return 25, so joining in the projection tripled the cost
-    of every search to describe 575 rows nobody sees. Called on what SURVIVED,
-    it is 16 ms.
-    """
+    """Fill in HOW WELL each passage's speaker name is known, in place."""
     # A row that cannot be keyed still gets the fields, set to null. Absent
     # and null are the same fact to a reader and two different shapes to
     # everything downstream, and this is what a hit's shape IS.
@@ -239,12 +226,6 @@ def _plain(con, ranked, limit, spread=None, **f):
 
 
 # ------------------------------------------------------- resolving citations
-#
-# A saved answer stores WHAT it cited and not the words (web/answers.py). These
-# two read the words back at render time, which is what makes a shared answer
-# quote the archive as it stands rather than as it stood: a redaction applied
-# since is already in `passages.text`, a corrected speaker name is already on
-# the row, and neither needs anything to go back and find old copies.
 def passages_at(con, ranges):
     """Passages by the utterance range each covers, keyed by that range."""
     if not ranges:

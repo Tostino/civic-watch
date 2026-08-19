@@ -148,10 +148,6 @@ def stats(con):
 # page opening: `facets` walks all 298,737 utterances through the resolution
 # chain at 3.0s, which was the whole of /search's three-second load, and
 # `issues` runs eighteen regexes and eighteen tsqueries at ~330ms on browse.
-#
-# Cached rather than precomputed by refresh.sh, because both are right to derive
-# their answers: a phase the parser learns tomorrow appears in the rail by
-# itself. A table someone has to remember to rebuild is the drift they avoid.
 class Held:
     """One derived value, rebuilt at most once every `ttl` seconds.
 
@@ -645,12 +641,7 @@ async def _body(request):
     return json.loads(raw or b"{}")
 
 def admin_post(fn):
-    """A curation write: loopback, a session, a WRITE connection, closed.
-
-    `fn(request, body, con)` runs on a worker thread. AdminError is the
-    module's way of saying the operator asked for something impossible, which
-    is a 400 and not a 500.
-    """
+    """A curation write: loopback, a session, a WRITE connection, closed."""
     @functools.wraps(fn)
     async def endpoint(request):
         if not admin.loopback(request):
@@ -849,12 +840,7 @@ def admin_app():
     )
 
 def _server(app, host, port):
-    """One uvicorn, quiet, with the socket already bound.
-
-    `access_log=False` keeps the console what it was: the old handler
-    overrode `log_message` to print nothing, and the startup lines plus
-    whatever the agent says are the whole of what belongs on stdout here.
-    """
+    """One uvicorn, quiet, with the socket already bound."""
     config = uvicorn.Config(app, host=host, port=port, log_level="warning",
                             access_log=False, lifespan="on")
     return uvicorn.Server(config), config.bind_socket()

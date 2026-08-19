@@ -297,12 +297,9 @@ export function OpsScreen() {
   );
 }
 
-/* --------------------------------------------------------------- the run
- *
- * What is running, how far in, and whether it is moving. The three clocks are
- * seeded from the server's measurement and ticked here, so they read as live
- * without ever showing the difference between two machines' clocks.
- */
+/*
+ *  --------------------------------------------------------------- the run
+*/
 function RunPanel({
   ops,
   now,
@@ -500,12 +497,9 @@ function LogView({ lines }: { lines: string[] }) {
   );
 }
 
-/* ------------------------------------------------------------- the fleet
- *
- * Six workers on two GPUs, hours per recording. "6 workers up" says they
- * exist; what says they are working is which recording each one holds, for
- * how long, and the queue emptying behind them.
- */
+/*
+ *  ------------------------------------------------------------- the fleet
+*/
 function FleetPanel({
   fleet: f,
   pending,

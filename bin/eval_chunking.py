@@ -62,13 +62,7 @@ def chunk_speaker_bounded(rows, max_words=MAX_WORDS, min_words=MIN_WORDS):
 
 
 def chunk_speaker_floor(rows, max_words=MAX_WORDS, floor=35):
-    """Speaker-bounded, but fragments below `floor` words are not indexed.
-
-    Pure speaker-bounding shatters the corpus into thousands of "Here" and
-    "Second" turns: attributable but semantically empty, and they crowd out
-    real content in the top-k. Those moments stay in the transcript and remain
-    reachable by timestamp; they are simply not retrieval units.
-    """
+    """Speaker-bounded, but fragments below `floor` words are not indexed."""
     return [p for p in chunk_speaker_bounded(rows, max_words, floor)
             if len(p["text"].split()) >= floor]
 

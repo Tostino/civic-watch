@@ -1,11 +1,4 @@
-"""Transcription stage: everything from diarization output to indexed text.
-
-Loads Parakeet once, then per video: transcribe on VAD-derived windows, audit
-for dropped speech, repair what was dropped, attach speakers, write transcript
-files, and index into the catalog.
-
-Run one per GPU.
-"""
+"""Transcription stage: everything from diarization output to indexed text."""
 import argparse
 import bisect
 import json

@@ -1,11 +1,4 @@
-"""Postgres types on the wire.
-
-Both HTTP surfaces serialise rows straight out of psycopg, and both meet the
-same two types json.dumps will not touch. It lives here rather than in either
-one because the second surface (MCP, web/mcp_server.py) arrived after the
-first and copying six lines is how two surfaces start disagreeing about what
-a timestamp looks like.
-"""
+"""Postgres types on the wire."""
 import datetime
 import decimal
 

@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Apply a batch of proposed redactions, as a job the console can watch.
-
-`bin/redact.py --apply-all` already does the work. It cannot be what the
-console calls, for one reason: applying 3,439 proposals touches 370 recordings
-and every one of them has to be re-indexed, because the address is in the
-passage text, the BM25 postings and the embedding as well as the utterance. At
-roughly four seconds a recording that is about twenty-five minutes of work, and
-a request that takes twenty-five minutes is a request that has already timed
-out somewhere between here and the browser."""
+"""Apply a batch of proposed redactions, as a job the console can watch."""
 import argparse
 import datetime
 import json

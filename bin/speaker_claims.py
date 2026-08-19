@@ -161,14 +161,7 @@ EVENTS = ("override",)
 
 def claim(cur, video_id, lo, hi, name, method, quote=None, corroborated=False,
           label=None):
-    """Append one claim. Idempotent for derived methods, append-only for human.
-
-    THE PRODUCERS CALL THIS. A pipeline pass re-asserts everything it asserted
-    last time, so without ON CONFLICT the table would grow by a quarter of a
-    million duplicate rows a run. The conflict target is the claim's identity -
-    same span, same method, same name - and what it refreshes is the SUPPORTING
-    DETAIL, because a later run may have a better quote or may have found the
-    name corroborated where the first did not."""
+    """Append one claim. Idempotent for derived methods, append-only for human."""
     if method in EVENTS:
         cur.execute("""INSERT INTO speaker_claim
                          (video_id, start_idx, end_idx, local_label, name_text,
@@ -194,14 +187,7 @@ def claim(cur, video_id, lo, hi, name, method, quote=None, corroborated=False,
 
 def append(con, video_id, lo, hi, name, method, quote=None,
            corroborated=False, label=None):
-    """`claim` for a caller that has a connection rather than a cursor.
-
-    This is the entry point the pipeline's producers use - speaker_id,
-    chair_anchor, name_speakers, voices and web/admin - so that each records
-    WHICH METHOD named a voice at the moment it knows, rather than writing a
-    name into speaker_identity and leaving the reason to be guessed at by a
-    backfill that cannot recover it.
-    """
+    """`claim` for a caller that has a connection rather than a cursor."""
     cur = con.cursor()
     claim(cur, video_id, lo, hi, name, method, quote, corroborated, label)
     return cur
@@ -209,12 +195,7 @@ def append(con, video_id, lo, hi, name, method, quote=None,
 
 # ------------------------------------------------------------------ backfill
 def backfill(con, video_id=None, commit=True):
-    """Everything the archive already decided, restated as evidence.
-
-    The point is not to change any of these - they resolve exactly as they do
-    today - but to get them into one shape so the extractor's claims can be
-    negotiated against them rather than overwriting them.
-    """
+    """Everything the archive already decided, restated as evidence."""
     cur = con.cursor()
     only, arg = ("AND video_id = %s", (video_id,)) if video_id else ("", ())
     cur.execute("DELETE FROM speaker_claim WHERE method IN "
@@ -287,15 +268,7 @@ def _letters(by_run):
     six and to the commissioner reading it for the other five, and a letter
     whose author never says their own name was not attributed at all. Most do
     not: of the correspondence read into BTQQU-4nOq8, every item is announced
-    and only some introduce themselves.
-
-    THE ANNOUNCEMENT LINE OPENS THE AUTHOR'S SPAN. It has to go one way or the
-    other and nothing here can split an utterance: "Next email is from Michael
-    Killian, [address removed], to whom it could make concern. I moved my
-    family..." is one line holding the clerk's label and the opening of the
-    letter. Given to the author it mislabels one short clause; given to the
-    reader it hands a paragraph of somebody's letter to the person reading it,
-    which is the defect this exists to fix."""
+    and only some introduce themselves."""
     out = []
     for key, utts in by_run.items():
         vid = key[0]
@@ -319,13 +292,7 @@ def _letters(by_run):
 
 
 def extract(con, video_id=None, commit=True):
-    """What the transcript says outright, which nothing has been reading.
-
-    Two forms of self-introduction, a guard for people reading somebody else's
-    letter, and a corroboration flag. This is where the new resolution differs
-    from the old one - a backfill alone would resolve identically and prove
-    nothing.
-    """
+    """What the transcript says outright, which nothing has been reading."""
     cur = con.cursor()
     only, arg = ("AND video_id = %s", (video_id,)) if video_id else ("", ())
     cur.execute("DELETE FROM speaker_claim WHERE method IN "
@@ -656,16 +623,7 @@ RESOLVE = ("INSERT INTO speaker_resolved "
 
 
 def resolve(con, video_id=None, commit=True):
-    """Materialise the resolution, for one meeting or for all of them.
-
-    ONE MEETING IS THE IMPORTANT CASE, and it is what keeps a correction
-    instant. Today an override reaches the reader the moment it is written,
-    because utterance_speaker is a view; the moment it becomes a table, a
-    correction does nothing until something recomputes it. web/admin.py's
-    `_refresh` re-renders and re-embeds the passages of one video after every
-    correction, and this is the step that has to run first - it
-    is the same shape and the same scope.
-    """
+    """Materialise the resolution, for one meeting or for all of them."""
     cur = con.cursor()
     if video_id:
         cur.execute("DELETE FROM speaker_resolved WHERE video_id = %s", (video_id,))
@@ -682,13 +640,7 @@ def resolve(con, video_id=None, commit=True):
 
 
 def refresh_video(con, video_id, commit=True):
-    """Bring one recording's resolution up to date, end to end.
-
-    THIS IS WHAT KEEPS A CORRECTION INSTANT. Today an override reaches the
-    reader the moment it is written, because utterance_speaker is a view that
-    reads speaker_override directly. The moment resolution is materialised
-    that stops being true: the correction lands in the table it always landed
-    in, and the page keeps showing the old name until something recomputes."""
+    """Bring one recording's resolution up to date, end to end."""
     backfill(con, video_id, commit=commit)
     extract(con, video_id, commit=commit)
     link(con, video_id, commit=commit)

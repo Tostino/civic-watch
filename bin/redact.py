@@ -392,13 +392,7 @@ def propose_sections(con, limit=None, video=None, write=False, model=None,
                      jobs=8, passes=1):
     """The section pass. Model calls run in parallel; the database is only
     touched before and after, on this thread - one connection shared across
-    threads is not a thing psycopg promises to survive.
-
-    IT SATURATES AT TWO. Six more proposals for a person to read buys the
-    last four addresses; a third pass adds nothing and a fourth adds only
-    review. That trade is the right way round here and only here: NOTHING IS
-    APPLIED WITHOUT A PERSON ACCEPTING IT, so a miss is the harm this exists
-    to prevent while a wrong span costs one glance."""
+    threads is not a thing psycopg promises to survive."""
     import concurrent.futures as cf
 
     passes = max(1, passes)
@@ -549,12 +543,7 @@ def scrub_answers(con, pairs):
 
 
 def _settle(con, rows, device, verb):
-    """Republish every line the decision touched, then re-index its recording.
-
-    The re-index is not optional: the address is in the passage text, the BM25
-    postings and the embedding as well as the utterance, and a redaction that
-    stopped at `utterances` would leave search able to find it.
-    """
+    """Republish every line the decision touched, then re-index its recording."""
     pairs = {(r[1], r[2]) for r in rows}
     republish(con, pairs)
     con.commit()

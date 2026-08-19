@@ -1,15 +1,5 @@
 """Phase and agenda-item segmentation for meeting transcripts.
 
-ONE CALL PER MEETING-DAY. Agenda structure is a global property, so the model
-sees the whole day at once: the largest day renders to ~73k tokens and the
-model accepts ~194k. A model that cannot see the whole agenda has to be told
-what item it is in the middle of, and guesses at boundaries near the seam.
-
-THE PUBLISHED AGENDA IS PART OF THE PROMPT. Without it the model was asked to
-recover "R-58" from ASR output of somebody saying "R fifty eight" while the
-exact string sat in `agenda_items`. It returns `code` now, checked against that
-day's real codes.
-
 Verification is load-bearing here in a way it is not elsewhere: titles are
 injected into the search index, so one hallucinated subject would create false
 hits for it across the whole archive. Words that were never spoken are struck
@@ -284,12 +274,7 @@ WORD = re.compile(r"[A-Za-z0-9']+")
 
 
 def is_content(word):
-    """Does this word carry subject identity, and so need to be verified?
-
-    All-caps short tokens count: PDE, PD, MPUD, LDC are case prefixes, and
-    dropping them turns "PDE 260033" into a bare number that matches nothing
-    and joins to no thread.
-    """
+    """Does this word carry subject identity, and so need to be verified?"""
     w = word.lower()
     if w in GENERIC:
         return False
@@ -434,12 +419,7 @@ def write(con, sessions, segs, commit=True):
 
 
 def reground(con, write_it):
-    """Recompute every stored search_title from its display title.
-
-    The grounding rules are the part of this most likely to need tightening,
-    and they are pure code over data already on disk. Re-deriving them costs
-    nothing, where re-segmenting costs an LLM pass over the whole archive.
-    """
+    """Recompute every stored search_title from its display title."""
     texts = {}
     for r in con.execute("SELECT video_id, idx, text FROM utterances"):
         texts.setdefault(r["video_id"], {})[r["idx"]] = r["text"]

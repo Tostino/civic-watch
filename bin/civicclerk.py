@@ -1,11 +1,4 @@
-"""Ingest Pasco County's published agendas and minutes from CivicClerk.
-
-  PAGE SIZE IS FIXED AT 15. `$top` is accepted and ignored. Enumeration must
-  follow @odata.nextLink; asking for 250 and believing the answer gets you 15
-  events and a wrong conclusion about how much exists.
-
-  THE SINGLE-ENTITY FORM 404s. `Events(1798)` does not resolve, and it is the
-  form that omits publishedFiles anyway. Use the collection with a filter."""
+"""Ingest Pasco County's published agendas and minutes from CivicClerk."""
 import argparse
 import concurrent.futures as cf
 import json

@@ -137,12 +137,6 @@ def build_passages(con, video_id=None):
                 # Accumulate this SPEAKER's run up to MAX_WORDS. Bounded by
                 # local_label rather than cluster: 30 (video, cluster) pairs hold
                 # two diarization labels, so the cluster is not the voice.
-                #
-                # AND BOUNDED BY THE RESOLVED NAME TOO, the same argument one
-                # level up: the voice is not the speaker. A clerk reading
-                # correspondence is one local_label across six letters by six
-                # people, so a voice-bounded chunk ran through every author change
-                # and took chunk[0]'s name for all of it.
                 chunk, words = [], 0
                 voice, who = r["local_label"], r["speaker"]
                 while (i < len(vrows) and vrows[i]["local_label"] == voice
@@ -245,13 +239,7 @@ def attach_items(con, passages):
 
 
 def refresh_video(con, video_id, device="cuda:1", verbose=True):
-    """Bring one recording's passages back in step with the transcript.
-
-    Passage BOUNDARIES cannot move here: they are set by `local_label` and word
-    counts, neither of which a name correction touches. That is asserted rather
-    than assumed - if the ranges have shifted, something upstream changed and
-    this refuses instead of writing mismatched rows over good ones.
-    """
+    """Bring one recording's passages back in step with the transcript."""
     fresh = build_passages(con, video_id)
     attach_items(con, fresh)
     fresh = indexable(fresh)
@@ -359,13 +347,7 @@ def rebuild_video(con, video_id, device="cuda:1", verbose=True):
 
 
 def embed(con, texts, device="cuda:1"):
-    """Embed, reusing vectors for any text seen in a previous run.
-
-    A full rebuild is 60k+ embeddings, but re-indexing after a segmentation
-    pass changes only the passages whose item gained a title. The cache is
-    keyed on the exact indexed string, so unchanged passages cost nothing and
-    the iteration loop stays minutes rather than an hour.
-    """
+    """Embed, reusing vectors for any text seen in a previous run."""
     hashes = [hashlib.sha1(t.encode()).hexdigest() for t in texts]
     uniq = list(dict.fromkeys(hashes))
     have = {}

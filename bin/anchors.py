@@ -5,13 +5,6 @@ import numpy as np
 
 # Measured against the 59 human-labelled voices (938 same-person pairs, 773
 # different-person pairs), raw cosine separates the two cases completely:
-#
-#     same person      mean 0.898   p10 0.796   p25 0.872
-#     different person mean 0.104   p90 0.179   p99 0.251   MAX 0.342
-#
-# There is nothing between 0.35 and 0.79, so the floor is not a delicate
-# trade-off. At 0.70, 98.6% of same-person pairs survive and no different-
-# person pair in the ground truth passes.
 SIM_FLOOR = 0.70
 TOP_K = 3              # average the k best anchor matches, to resist outliers
 ROUNDS = 3
@@ -63,12 +56,7 @@ def similarity(vecs, keys, refs):
 
 
 def assign(vecs, refs, restrict_unique=None, floor=SIM_FLOOR):
-    """Assign every voice to its best person above `floor`.
-
-    restrict_unique: set of names that may appear at most once per meeting
-    (the commissioners). Public commenters are unconstrained - several
-    different people speak in one meeting and none of them recur.
-    """
+    """Assign every voice to its best person above `floor`."""
     from scipy.optimize import linear_sum_assignment
 
     if not refs:

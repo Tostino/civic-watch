@@ -136,13 +136,7 @@ def verify(p):
 
 
 def _claim(con, p):
-    """Record the proposal as evidence, WITH the quote that justified it.
-
-    Per CONTIGUOUS RUN of each voice in the cluster, not per cluster: a claim
-    covers a span, and a voice's utterances are interleaved with everybody
-    else's, so one span from its first line to its last would swallow the
-    meeting.
-    """
+    """Record the proposal as evidence, WITH the quote that justified it."""
     try:
         import speaker_claims
     except ImportError:

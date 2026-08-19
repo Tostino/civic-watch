@@ -2,11 +2,7 @@
 
 Two tabs must be scraped: /streams holds the live-broadcast meetings (which is
 almost all of them) and /videos holds everything else. They do not overlap, and
-querying only /videos silently misses the entire meeting archive.
-
-Meeting dates are parsed from titles ("8.11.26 ...", "09.19.2023 ...") because
-the flat playlist listing does not expose upload dates.
-"""
+querying only /videos silently misses the entire meeting archive."""
 import argparse
 import re
 import subprocess
@@ -95,12 +91,7 @@ def fetch(tab):
 
 
 def redate(con):
-    """Give a date to catalogued videos that have none. Returns how many.
-
-    The insert in main() is ON CONFLICT DO NOTHING, so a better parser reaches
-    nothing already in the table - which is how 17 recordings stayed undated
-    across every re-run. This closes that: the parser and the rows it already
-    wrote stay in step."""
+    """Give a date to catalogued videos that have none. Returns how many."""
     todo = [(r["id"], r["title"]) for r in con.execute(
         "SELECT id, title FROM videos WHERE upload_date IS NULL").fetchall()]
     fixed = [(parse_date(t), v) for v, t in todo]

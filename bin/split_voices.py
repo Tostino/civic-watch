@@ -162,9 +162,6 @@ def pairs(name, cent, weight, roster, name_min, total, seen):
     # centroid is dominated by mic, seat and room (see speaker_id.py). Emitting
     # a row per cluster combination printed 'Girardi / Gerardi' four times with
     # four different weights and buried the actual queue.
-    #
-    # The pair is scored by its CLOSEST cluster match: if any Girardi cluster
-    # sits near the Gerardi one, that is the evidence they are one person.
     best = {}
     for p in out:
         k = tuple(sorted((p["keep_name"], p["drop_name"])))

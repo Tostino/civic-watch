@@ -167,13 +167,7 @@ def sentence_case(label):
 
 
 def short_query(q, label):
-    """Two or three searchable words, never a question.
-
-    Falls back to the label's own content words, which is where a usable query
-    was going to come from anyway: the row's title IS the subject, and the
-    link under it should search for that rather than for a sentence the search
-    page will tear into fragments.
-    """
+    """Two or three searchable words, never a question."""
     q = (q or "").strip()
     if q and not QUESTION.match(q) and len(q.split()) <= 4 and "?" not in q:
         return q
@@ -191,13 +185,7 @@ def short_query(q, label):
 # what a subject was without anything saying so.
 
 def rx(phrase):
-    r"""A phrase as a Postgres regex, at word boundaries.
-
-    `\m` and `\M` are what stop `SHIP` matching `township`, which is not a
-    hypothetical: without them it matched 942 titles instead of 25. Internal
-    whitespace is loosened because ASR and the county's own typing disagree
-    about how many spaces are in "State  Housing Initiatives".
-    """
+    r"""A phrase as a Postgres regex, at word boundaries."""
     return r"\m" + r"\s+".join(re.escape(w) for w in phrase.split()) + r"\M"
 
 
@@ -229,12 +217,7 @@ THEME_COUNT = 8
 
 
 def theme(con, n=THEME_COUNT):
-    """Group the top-level subjects under a handful of themes.
-
-    A THEME HAS NO VOCABULARY OF ITS OWN, and that is the point. Nobody files an
-    item about "public safety", so a theme's pattern is the union of what it
-    contains: its count needs no curation and cannot disagree with its children.
-    """
+    """Group the top-level subjects under a handful of themes."""
     subs = [dict(r) for r in con.execute("""
         SELECT s.slug, s.label, s.blurb, COALESCE(SUM(y.items), 0) AS items
           FROM subject s LEFT JOIN subject_year y ON y.slug = s.slug
@@ -307,12 +290,7 @@ def patterns(con, slug=None):
         return "|".join(rx(p) for p in d["pos"]) if d["pos"] else None
 
     def effective(s, seen=()):
-        """This subject's pattern, or the union of everything under it.
-
-        `seen` guards a cycle. The schema cannot express one today, but a
-        parent edited by hand could, and the failure would be a hung front
-        page rather than a wrong number.
-        """
+        """This subject's pattern, or the union of everything under it."""
         if s in seen:
             return None
         parts = [p for p in [own(s)]
@@ -437,13 +415,7 @@ def split(con, slug=None):
 # --------------------------------------------------------------- proposing
 
 def _sample(con):
-    """Titles to propose from: stratified by year, deduplicated on a prefix.
-
-    The county files the same boilerplate thousands of times, so a uniform
-    sample is mostly one sentence repeated. Cutting on the first 60 characters
-    of a normalised title is enough to spread the sample over what the items
-    are actually about.
-    """
+    """Titles to propose from: stratified by year, deduplicated on a prefix."""
     rows = con.execute("""
         WITH t AS (
             SELECT ai.title, left(m.date, 4) AS year,
@@ -817,13 +789,7 @@ will belong to none - that is the expected answer and reporting it is wrong.
 
 
 def recall(con, n=200):
-    """What the vocabulary is missing, sampled and asked about.
-
-    This is the right place for model spend. Labelling all 21,274 titles
-    produces 21,274 judgements nobody reviews; sampling the UNMATCHED ones
-    produces a recall estimate and a list of phrases to add, both of which a
-    person can check in a minute.
-    """
+    """What the vocabulary is missing, sampled and asked about."""
     live = patterns(con)
     if not live:
         sys.exit("  nothing kept yet - run --propose, --terms and --keep first.")
