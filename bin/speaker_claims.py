@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Resolve a speaker's name once, from evidence rather than from a verdict.
 
-the design notes is the argument; this is the shadow build of it. Nothing here
-is read by any page. `--compare` is the whole point: it puts the new
-resolution beside the old one and says what changed, so the change can be
-judged before it is switched on.
+A shadow build. Nothing here is read by any page, and `--compare` is the point:
+it puts the new resolution beside the old one and says what changed.
 
     bin/speaker_claims.py --backfill   existing tables -> claims
     bin/speaker_claims.py --extract    transcripts -> self / read_aloud claims
@@ -12,22 +10,17 @@ judged before it is switched on.
     bin/speaker_claims.py --compare    speaker_resolved vs utterance_speaker
     bin/speaker_claims.py --all        all four, in order
 
-Run it against a sandbox first (`bin/sandbox.py --build`), which is what the
-maintainer asked for and what makes this non-destructive: it only ever writes
-the four new tables, but a full extract over 299k utterances is not something
-to try out on production for the first time.
+Run it against a sandbox first (`bin/sandbox.py --build`). It only ever writes
+the four new tables, but a full extract over 299k utterances is not something to
+try on production for the first time.
 
-WHY THE PRECEDENCE IS A TABLE. `speaker_method` holds the ranking, so the one
-judgement nobody could settle from the transcript - whether an isolated
-self-ID should outrank a voiceprint - is a single UPDATE rather than a code
-change:
+`speaker_method` holds the ranking as data, so whether an isolated self-ID
+should outrank a voiceprint is a single UPDATE rather than a code change:
 
     UPDATE speaker_method SET rank = 9 WHERE method = 'self_weak';   -- strict
 
-It ships lenient (rank 3, beside `self`) because 8% of self-IDs are isolated
-and demoting them throws away names that are probably right. The maintainer's
-verdict on the one case put to them was "need to listen to tell", so this is
-the reversible default rather than a measured one.
+It ships lenient because 8% of self-IDs are isolated and demoting them throws
+away names that are probably right.
 """
 import argparse
 import collections
@@ -40,18 +33,14 @@ import db
 # matched: a name, an address, and "I have been sworn". 581 utterances use the
 # second form, which is how a voice saying "Shelley Johnson, 6400 Madison
 # Street, and I have been sworn" is currently named "What".
-# The trigger is case-insensitive, the NAME is not - and that distinction has
-# to be scoped, not global. With re.I on the whole pattern `[A-Z]` matches
-# lowercase too, so "my name is Dina Fox and I live at" captured "Dina Fox
-# and". Every name in the first run came out with a trailing conjunction.
-# The name pattern is speaker_id.QUEUE_NAME's, and it is borrowed rather than
-# rewritten for a measured reason: an internal capital is PART of a surname -
-# McBride, DeSantis, O'Neil - and a pattern that stops at one truncates the
-# name instead of failing loudly. Written fresh here, it turned "Barbara
-# McGuinness" into "Barbara Mc" and "Cheryl McElho" into "Cheryl Mc", and
-# those were CORROBORATED claims outranking a correct archive name. The
-# existing extractor has known this since it was written; this one had to be
-# told twice.
+# The trigger is case-insensitive, the NAME is not, and that must be scoped
+# rather than global: with re.I on the whole pattern `[A-Z]` matches lowercase
+# and every name comes out with a trailing conjunction.
+# The name pattern is borrowed from speaker_id.QUEUE_NAME rather than rewritten,
+# because an internal capital is PART of a surname (McBride, DeSantis, O'Neil)
+# and a pattern that stops at one truncates the name instead of failing loudly.
+# Written fresh here it produced "Barbara Mc" and "Cheryl Mc", as CORROBORATED
+# claims outranking a correct archive name.
 _WORD = r"[A-Z][a-z']+(?:[A-Z][a-z']+)*"
 # A name particle that CARRIES A FULL STOP and is not the end of the sentence.
 # Without these the name ended at the period: "my name is Margaret St. James"
@@ -79,13 +68,10 @@ PODIUM = re.compile(
 SWORN = re.compile(r"\b(?:i have been sworn|been duly sworn|i was sworn)\b", re.I)
 
 # SOMEBODY ASKING FOR A NAME, which means the answer that follows is not the
-# asker's. The chair says "name and address for the record" and the commenter
-# answers, and when the diarizer merges the two into one utterance the
-# self-introduction sits inside the CHAIR's turn. Measured: Commissioner
-# Yeager asks a fourth-grader "Say your name and what school you're from. My
-# name is Hunter" - one utterance, two people - and the commissioner is named
-# Hunter. 24 of 1,668 self-ID utterances have this shape, and like read-aloud
-# it puts a member of the public's name on a commissioner's voice.
+# asker's. When the diarizer merges the chair's request and the commenter's
+# answer into one utterance, the self-introduction sits inside the CHAIR's turn:
+# 24 of 1,668 self-ID utterances have this shape, each putting a member of the
+# public's name on a commissioner's voice.
 PROMPTED = re.compile(
     r"(?:say|state|give|need|with|proceed with)\s+(?:us\s+)?(?:your|the)\s+name"
     r"|name\s+and\s+address"
@@ -96,17 +82,13 @@ PROMPTED = re.compile(
 # Without this a staffer reading "My name is Corey Ward and I live at..." is
 # confidently named Corey Ward, above the voiceprint.
 # WHO IS BEING READ, and where their letter starts. A clerk reads a stack of
-# correspondence in one go and announces each item - "Next email is from
-# Michael Killian", "And I believe this is the last email. It is um sent in by
-# Daniel Honeywell" - so the announcements cut the run into letters. READING
-# below finds the run; this finds the seams inside it.
-# AN ANNOUNCEMENT, NOT A MENTION, and the determiner is what tells them apart.
-# "Next email is from Michael Killian" hands the floor to Michael Killian;
-# "there was also a letter from BayCare stating that masks should be worn" and
-# "it's right behind the letter from Witlicucci" are somebody talking ABOUT a
-# letter in the middle of their own remarks. Without the ordinal both matched,
-# and each took the following 14 to 16 utterances of the speaker's own words
-# with it - a commissioner's speech filed under an organisation's name.
+# correspondence in one go and announces each item, so the announcements cut the
+# run into letters. READING below finds the run; this finds the seams inside it.
+# AN ANNOUNCEMENT, NOT A MENTION, and the determiner tells them apart. "Next
+# email is from Michael Killian" hands over the floor; "there was also a letter
+# from BayCare" is somebody talking ABOUT a letter mid-remark. Without the
+# ordinal both matched, each taking 14 to 16 following utterances of the
+# speaker's own words with it.
 READ_FROM = re.compile(
     r"(?i:\b(?:next|last|first|second|third|fourth|fifth|final|another|following)\s+"
     r"(?:\w+\s+){0,2}?(?:e-?mails?|letters?|correspondence|comment cards?)\b"
@@ -267,13 +249,10 @@ def backfill(con, video_id=None, commit=True):
             claim(cur, r["video_id"], lo, hi, r["name"], m, label=r["local_label"])
             n[m] += 1
 
-    # The archive-wide cluster majority: the weakest thing here, the largest
-    # by utterance count, and the one carrying two vetoes that are easy to
-    # lose. They do NOT live in `voice_name` - they are conditions on
-    # utterance_speaker's join to it - so reading the view directly hands back
-    # names the live path refuses. Measured: 144 utterances in ten meetings
-    # gained a cluster name this way before the vetoes were restored, which is
-    # a shadow build being LESS safe than what it replaces.
+    # The archive-wide cluster majority: the weakest thing here and the one
+    # carrying two vetoes that are easy to lose. They do NOT live in
+    # `voice_name`, they are conditions on utterance_speaker's join to it, so
+    # reading the view directly hands back names the live path refuses.
     for r in con.execute(f"""
             SELECT DISTINCT u.video_id, u.local_label, vn.name
               FROM utterances u
@@ -403,13 +382,10 @@ def extract(con, video_id=None, commit=True):
         if len(name.split()) > 3 or len(name) < 4:
             continue
         # READ-ALOUD IS TESTED FIRST, and the order is the decision. A
-        # commissioner reading a resident's letter is precisely the case that
-        # must be attributed to its author - the maintainer's call - and the
-        # board-voice guard below would otherwise swallow it, because the
-        # voice IS a commissioner's and the name IS somebody else's. Putting
-        # that guard first silently reverted the design: read_aloud fell from
-        # 29 claims to 9 and every one of the 20 letters a commissioner read
-        # went back to carrying the commissioner's name.
+        # commissioner reading a resident's letter must be attributed to its
+        # author, and the board-voice guard below would otherwise swallow it,
+        # because the voice IS a commissioner's and the name IS somebody else's.
+        # Putting that guard first took read_aloud from 29 claims to 9.
         # Reading somebody else's words: the name belongs to the author and
         # the claim covers only this utterance, so the reader keeps her own
         # name either side of it.
@@ -423,15 +399,11 @@ def extract(con, video_id=None, commit=True):
             (r["video_id"], *next(
                 (sp for sp in voice_runs.get((r["video_id"], r["local_label"]), [])
                  if sp[0] <= r["idx"] <= sp[1]), (r["idx"], r["idx"])))).fetchone()["x"]
-        # The words that carry the name, with enough either side to read as a
-        # sentence. Assigned HERE, above every branch that records a claim,
-        # because it used to be assigned below them: the read_aloud branch
-        # then wrote whichever quote the PREVIOUS iteration had left in the
-        # variable, and did so for all 29 of its claims. Lynn Morrissey's
-        # letter was filed with the evidence "My name is Linda Shalk", which
-        # names a different member of the public - the name was right and the
-        # sentence offered to justify it was somebody else's. Found by
-        # audit.py claims.quotes_are_verbatim; nothing else looks.
+        # The words that carry the name. Assigned HERE, above every branch that
+        # records a claim: assigned below them, the read_aloud branch wrote
+        # whichever quote the PREVIOUS iteration had left in the variable, so a
+        # letter was filed with evidence naming a different member of the public.
+        # Found by audit.py claims.quotes_are_verbatim; nothing else looks.
         quote = text[max(0, m.start() - 30):m.end() + 40]
 
         if READING.search(text) or reading_run:
@@ -454,13 +426,10 @@ def extract(con, video_id=None, commit=True):
 
         # A BOARD MEMBER'S VOICE DOES NOT INTRODUCE ITSELF AS SOMEBODY ELSE.
         # Where the archive already has a commissioner on this voice and the
-        # self-introduction names a different person, that is diarization
-        # merging a commenter's turn into the chair's - not a correction.
-        # Measured, all of one shape: at BynZ97-d3bI utterance 632 SPEAKER_22
-        # says "My name is Richard Ronan", and two lines later the SAME
-        # SPEAKER_22 says "Richard, we need your name and address, please."
-        # That voice is the chair. Twelve distinct names arrived this way,
-        # every one of them a member of the public landing on a commissioner.
+        # self-introduction names a different person, that is diarization merging
+        # a commenter's turn into the chair's, not a correction. Twelve distinct
+        # names arrived this way, every one a member of the public landing on a
+        # commissioner.
         held = con.execute("""
             SELECT si.name FROM speaker_identity si
              WHERE si.video_id = %s AND si.local_label = %s
@@ -531,13 +500,11 @@ def link(con, video_id=None, commit=True):
         voices[(r["video_id"], r["local_label"])].append(
             (r["name_text"], r["corroborated"]))
 
-    # A SELF-ID DECIDES WHO, NOT HOW IT IS SPELLED. The archive's name for a
-    # voice comes from a vote over every time the room said it; a self-ID is
-    # one utterance of ASR. So where the two are near-identical they are one
-    # person - same voice, same meeting - and the better-attested SPELLING
-    # should win rather than the better-ranked METHOD. Without this, `self`
-    # outranking `voice` turned "Skip Geiger" into "Ski Geiger" and "Ali
-    # Atefi" into "Alia Tefi": the right person, spelled worse, 55 of them.
+    # A SELF-ID DECIDES WHO, NOT HOW IT IS SPELLED. The archive's name comes
+    # from a vote over every time the room said it; a self-ID is one utterance
+    # of ASR. Where the two are near-identical the better-attested SPELLING wins
+    # rather than the better-ranked METHOD. Without this, `self` outranking
+    # `voice` turned "Skip Geiger" into "Ski Geiger", 55 times.
     import difflib
     for r in con.execute(f"""SELECT video_id, local_label, name FROM speaker_identity
                              WHERE name IS NOT NULL {only}""", arg):
@@ -586,15 +553,12 @@ def link(con, video_id=None, commit=True):
         if row:
             pid = row["id"]
         else:
-            # surname is NULL for a member of the public, and that is section
-            # 2.7 in practice rather than in principle: `people` is
-            # UNIQUE (surname), so storing "Poole" for Sean Poole is refused
-            # outright because a commissioner named Christopher B. Poole
-            # already owns it. A surname is the roster's key for board
-            # members and nothing else's; a resident is keyed by id and
-            # displayed by full name. Postgres lets any number of rows share
-            # a NULL, so the constraint keeps protecting the roster and stops
-            # obstructing everybody else.
+            # surname is NULL for a member of the public: `people` is
+            # UNIQUE (surname), so storing "Poole" for a resident is refused
+            # because a commissioner already owns it. A surname is the roster's
+            # key for board members and nothing else's. Postgres lets any number
+            # of rows share a NULL, so the constraint keeps protecting the roster
+            # and stops obstructing everybody else.
             # A surname is kept for everybody - it is in the transcript and
             # it is part of the record. It is an attribute here, not a key:
             # 228 people already share one.

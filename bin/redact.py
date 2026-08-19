@@ -38,15 +38,12 @@ ADDRESS = re.compile(rf"\b\d{{2,6}}\s+([A-Za-z0-9'.\-]+\s+){{0,4}}{SUFFIX}\b",
 # silently matches nothing at all. `\m` and `\M` are the word edges.
 ADDRESS_SQL = (rf"\m\d{{2,6}}\s+([A-Za-z0-9'.-]+\s+){{0,4}}{SUFFIX}\M")
 
-# THE HOUSE NUMBER IS USUALLY NOT A NUMBER.
-#
-# This is a machine transcript of people speaking, and the ASR writes what it
-# hears: "I reside at one four three eight two Ashmont Drive". A digits-only
-# pattern finds none of those, and they are not an edge case - 1,480 lines
-# carry a spelled-out number in front of a street name, and 45% of every line
-# containing "I live at" had no digit-address in it at all. Recall is capped
-# by CANDIDATE GENERATION, because the model only ever adjudicates what the
-# regex hands it: a miss here is a miss that nothing downstream can rescue.
+# THE HOUSE NUMBER IS USUALLY NOT A NUMBER. The ASR writes what it hears: "I
+# reside at one four three eight two Ashmont Drive". 1,480 lines carry a
+# spelled-out number in front of a street name, and 45% of lines containing "I
+# live at" had no digit-address at all. Recall is capped by CANDIDATE
+# GENERATION, because the model only adjudicates what the regex hands it: a
+# miss here is one nothing downstream can rescue.
 NUMWORD = (r"(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve"
            r"|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen"
            r"|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred"
@@ -431,14 +428,10 @@ def propose_sections(con, limit=None, video=None, write=False, model=None,
             kept, mv, dr = verify(found, ch)
             moved += mv
             dropped += dr
-            # Written HERE, on this thread, as each section lands. Buffering
-            # two thousand calls to the end means an interrupted run - a
-            # dropped connection, a rate limit, a laptop lid - throws away
-            # every model call it already paid for.
-            # `made` counts DISTINCT proposals, not model returns: with
-            # passes > 1 the same address comes back every pass, and store()
-            # rejects the repeat. Counting returns instead would report three
-            # passes as three times the work.
+            # Written HERE, as each section lands: buffering to the end means an
+            # interrupted run throws away every model call it already paid for.
+            # `made` counts DISTINCT proposals, not model returns, or three
+            # passes would report as three times the work.
             if write:
                 for idx, span in kept:
                     if store(con, s["video_id"], idx, span,
@@ -524,16 +517,11 @@ def republish(con, pairs):
             (text, video_id, idx))
 
 
-# Whether a span could LOCATE somebody's home on its own, as opposed to being
-# a fragment of one. A number and a place-name together locate a house: '9641
-# Jerome', '2027 Essex Drive'. Neither half alone does - '34110' is a ZIP,
-# 'Palm Harbor' is a town, 'Florida' is a state - and the applied set is full
-# of those halves, because a reviewer accepting a redaction accepts whatever
-# the detector proposed, fragments included.
-#
-# The length arm is for the addresses the recogniser SPELLED OUT: 'Sixty three,
-# twenty seven Grand Boulevard' has no digit in it and is a home address. No
-# fragment in this archive is that long.
+# Whether a span could LOCATE somebody's home on its own rather than being a
+# fragment of one. A number and a place-name together locate a house; neither
+# half alone does, and the applied set is full of halves, because a reviewer
+# accepts whatever the detector proposed. The length arm is for addresses the
+# recogniser spelled out, which carry no digit at all.
 LOCATING = ("((%(span)s ~ '[0-9]' AND %(span)s ~ '[A-Za-z]{3}')"
             " OR length(%(span)s) >= 20)")
 
@@ -543,14 +531,12 @@ def scrub_answers(con, pairs):
     many rows changed."""
     n = 0
     for video_id, span in {(v, s) for v, s in pairs if v and s}:
-        # Containment rather than expanding the array per row, for two reasons.
-        # It is what `answers_cited_video` indexes - measured over 5,000 saved
-        # answers, 10.1 ms per span expanding, 1.3 ms through the index, and
-        # this runs once per span inside the apply. And `@>` simply returns
-        # false on a row whose `cites` is malformed, where jsonb_array_elements
-        # RAISES: inside the transaction that applies a redaction, that
-        # difference is between "this answer did not match" and "removing this
-        # address failed", which would leave the address published.
+        # Containment rather than expanding the array per row. It is what
+        # `answers_cited_video` indexes, 1.3 ms against 10.1 ms, once per span
+        # inside the apply. And `@>` returns false on a malformed `cites` where
+        # jsonb_array_elements RAISES: inside the transaction that applies a
+        # redaction that is the difference between "this answer did not match"
+        # and "removing this address failed", which leaves it published.
         n += con.execute(f"""
             UPDATE answers a
                SET answer = replace(a.answer, %(span)s, %(marker)s)

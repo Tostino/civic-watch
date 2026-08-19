@@ -81,63 +81,39 @@ ANSWERS = [
                    "returned rather than from what the county decided",
     },
     {
-        # RULES THAT CHANGED WHILE THEY WERE BEING MADE. The other three
-        # questions all have a settled thing to find; this one punishes an
-        # agent for reporting an EARLIER state of the record as the current
-        # one, and it is the failure a resident would actually be harmed by.
-        # A reader asking this is deciding whether to buy four hens.
+        # RULES THAT CHANGED WHILE THEY WERE BEING MADE. The other questions have
+        # a settled thing to find; this one punishes an agent for reporting an
+        # EARLIER state of the record as the current one. A reader asking it is
+        # deciding whether to buy four hens.
         #
-        #   PDE-25-0469  [item:21646]  Planning Commission, 18 Sep 2025.
-        #                NO recorded outcome, 102 transcript lines. What the
-        #                planning commission recommended exists only on tape.
-        #   PDE-26-0001  [item:21812]  BCC, 21 Oct 2025, outcome `no_action`
-        #                [item:21922]  BCC, 12 Nov 2025, `adopted`
-        #                Land Development Code s530.25: WHERE chickens may be
-        #                kept. Prohibited in multifamily districts, unchanged
-        #                for estate residential and agricultural, and it does
-        #                not override an HOA covenant.
-        #   PDE-26-0028  [item:21923]  BCC, 12 Nov 2025, `adopted`
-        #                Code of Ordinances ch.14, ss14-150 to 14-153: HOW
-        #                they may be kept. Limits the number of hens, bans
-        #                roosters, sets coop size and siting, sanitation and
-        #                disease rules. THESE ARE THE RULES THE QUESTION ASKS
-        #                FOR, and they are a different case decided at the
-        #                same meeting - so get_case on the ordinance an agent
-        #                finds first cannot reach them.
+        #   PDE-25-0469  [item:21646]  Planning Commission, 18 Sep 2025. No
+        #                recorded outcome; the recommendation exists only on tape.
+        #   PDE-26-0001  [item:21812]  BCC 21 Oct, `no_action`
+        #                [item:21922]  BCC 12 Nov, `adopted`.  WHERE hens may
+        #                be kept.
+        #   PDE-26-0028  [item:21923]  BCC 12 Nov, `adopted`.  HOW they may be
+        #                kept, and THESE ARE THE RULES THE QUESTION ASKS FOR. A
+        #                different case decided at the same meeting, so get_case
+        #                on the ordinance found first cannot reach them.
         #
-        # THREE TRAPS, and an agent can fall in each one separately:
+        # THREE TRAPS, and an agent can fall in each separately:
         #
-        # 1. `no_action` on 21 October reads as a rejection. It is not: the
-        #    minutes say in as many words that this was the first of two
-        #    public hearings and that adoption was set for 12 November.
-        # 2. The obvious search misses half the answer. `search_record
-        #    ("backyard chickens")` returns exactly three items and NOT
-        #    [item:21923], whose title says "Conditions For The Keeping Of
-        #    Chickens" and never says "backyard". Reaching it means either
-        #    opening the 12 November agenda, where P61 and P62 sit next to
-        #    each other, or searching the county's words rather than the
-        #    question's. Both are routes the tools support; neither is the
-        #    first thing anyone would try.
-        # 3. THE DRAFT IS NOT THE ORDINANCE. Two requirements that a reader
-        #    would care about most were written, discussed at length, and then
-        #    taken out: a county permit, dropped between the October and
-        #    November hearings after Weightman argued it made keeping hens
-        #    "so cumbersome ... so bureaucratic" and Yeager said "I'm for no
-        #    permit as well"; and a mandatory education course, struck at the
-        #    adoption hearing itself by amending the motion. An agent that
-        #    reads the September or October discussion and stops has the rules
-        #    backwards, and would tell a resident to go and get a permit that
-        #    does not exist.
+        # 1. `no_action` on 21 October reads as a rejection. The minutes say it
+        #    was the first of two hearings, with adoption set for 12 November.
+        # 2. The obvious search misses half the answer: search_record
+        #    ("backyard chickens") never returns [item:21923], whose title says
+        #    "Conditions For The Keeping Of Chickens".
+        # 3. THE DRAFT IS NOT THE ORDINANCE. A county permit and a mandatory
+        #    education course were both written, discussed at length and then
+        #    taken out. An agent that reads the earlier discussion and stops
+        #    would tell a resident to go and get a permit that does not exist.
         "q": "What rules did Pasco County adopt for backyard chickens?",
-        # The permit coming out. EVERY passage that carries it, because this
-        # assertion was written with three of them and promptly failed an
-        # answer that was right: it cited staff confirming the removal at the
-        # adoption hearing, which is the best evidence there is and was not on
-        # the list. The judge passed the same answer on `must_say_what` in the
-        # same run, so the harness was contradicting itself about one fact.
-        # If a sixth passage turns up, it belongs here too - the rule for this
-        # field is EVERY way of saying the load-bearing thing, or it tests
-        # which phrasing the writer happened to choose.
+        # The permit coming out. EVERY passage that carries it: written with
+        # three, this failed a right answer that cited staff confirming the
+        # removal, and the judge passed the same answer in the same run, so the
+        # harness contradicted itself about one fact. The rule for this field is
+        # EVERY way of saying the load-bearing thing, or it tests which phrasing
+        # the writer happened to choose.
         "moments_any": [("R0bQZ5v6ubg", 848.9),    # staff, at adoption
                         ("R0bQZ5v6ubg", 1144.5),   # staff, again
                         ("lqYZTbWi9_4", 1016.1),   # staff, the earlier draft

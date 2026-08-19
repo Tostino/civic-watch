@@ -48,16 +48,14 @@ def load_rosters(con):
         "WHERE kind = 'board' AND surname IS NOT NULL")}
 
     # A meeting with no published agenda still has a knowable board: whoever's
-    # term spans that date. Falling back to *everyone* let commissioners who
-    # had left years earlier be assigned voices, which is exactly the failure
-    # this function exists to prevent.
-    # A term belongs to a BODY, and that is not decoration. This fallback was
-    # matching on date alone, so every Planning Commission meeting - a
-    # different board, with different people - inherited whichever County
-    # Commissioners were seated that day. The guard downstream then waved them
-    # through, because those names really were "seated" by this reckoning.
-    # 54,000 utterances in Planning Commission meetings, 21% of the archive,
-    # were attributed to commissioners who were never in the room.
+    # term spans that date. Falling back to everyone let commissioners who left
+    # years earlier be assigned voices.
+    #
+    # A term belongs to a BODY, and that is not decoration. Matching on date
+    # alone gave every Planning Commission meeting whichever County
+    # Commissioners were seated that day, and the guard downstream waved them
+    # through because those names really were seated by that reckoning: 54,000
+    # utterances, 21% of the archive.
     terms = [(r[0], r[1], r[2], r[3]) for r in con.execute(
         "SELECT lower(p.surname), bt.first_seen, bt.last_seen, bt.body "
         "FROM board_terms bt JOIN people p ON p.id = bt.person_id")]
@@ -575,14 +573,11 @@ def main():
         # Hoisted: this was re-running a full table scan once per voice.
         labeled = {(r["video_id"], r["local_label"]) for r in con.execute(
             "SELECT video_id, local_label FROM speaker_label")}
-        # The roster check belongs HERE, not only in assign_per_meeting().
-        # Constraining the matcher alone was not enough: the anchor pass
-        # propagates identities across the archive by voice similarity and is
-        # completely date-blind, so it happily spread a correctly-bounded seed
-        # over meetings years outside that commissioner's term - which made
-        # misattribution worse, not better (23% -> 31%). Every route to a name
-        # passes through this loop, so this is the one place that cannot be
-        # bypassed by adding another one.
+        # The roster check belongs HERE, not only in assign_per_meeting(). The
+        # anchor pass propagates identities by voice similarity and is date-blind,
+        # so constraining the matcher alone spread a correctly-bounded seed over
+        # meetings outside the commissioner's term and made misattribution worse,
+        # 23% -> 31%. Every route to a name passes through this loop.
         rows, blocked = [], 0
         for (vid, lab), c in assign.items():
             if (vid, lab) in labeled:
@@ -642,24 +637,16 @@ def main():
         print(f"one seat one voice: {split} assignments dropped - the name was "
               f"already on a better-evidenced voice in that meeting", flush=True)
         with con.cursor() as cur:
-            # THIS STAGE OWNS THE ROWS IT LEFT NULL, AND NOTHING ELSE.
+            # THIS STAGE OWNS THE ROWS IT LEFT NULL, AND NOTHING ELSE. `source`
+            # records which stage last decided a name, and every value except NULL
+            # belongs to a stage that runs AFTER this one. The upsert used to
+            # write source = NULL over every row unconditionally, so one bare
+            # `refresh.sh speakers` silently reverted both of them.
             #
-            # `source` records which stage last decided a voice's name, and
-            # every value except NULL belongs to a stage that runs AFTER this
-            # one in the documented order: name_speakers writes 'llm',
-            # chair_anchor writes 'chair'. The upsert used to write
-            # source = NULL over every row unconditionally - and speaker_id is
-            # the ONLY writer of that column - so one bare `refresh.sh
-            # speakers` silently reverted both of them.
-            #
-            # ONE EXCEPTION, and leaving it out is a regression this fix would
-            # otherwise have introduced: a HUMAN LABEL. chair_anchor refuses to
-            # touch a voice that already carries one, but a label written AFTER
-            # it ran lands on a row marked source='chair' - and "never
-            # overwrite a sourced row" would then hold the machine's answer
-            # over a person's, which is the precedence rule upside down and would take
-            # `speaker.labels_honoured` red. Those rows come back to this
-            # stage, name and source both.
+            # ONE EXCEPTION: a HUMAN LABEL. A label written after chair_anchor ran
+            # lands on a row marked source='chair', and "never overwrite a sourced
+            # row" would hold the machine's answer over a person's, which is the
+            # precedence rule upside down. Those rows come back to this stage.
             mine = ("(speaker_identity.source IS NULL OR EXISTS ("
                     "SELECT 1 FROM speaker_label sl "
                     "WHERE sl.video_id = speaker_identity.video_id "
@@ -704,18 +691,14 @@ def main():
                 print(f"  claims not recorded ({type(e).__name__}: {e}); "
                       f"the assignments above are unaffected")
 
-            # RETRACT. Until now this stage only ever added and updated.
+            # RETRACT, and a voice a human has LABELLED is never retracted. The
+            # two tables do not overlap today, so this spares nothing now; it is
+            # here because both are human statements and one silently deleting the
+            # other is not a resolution the pipeline gets to make.
             #
-            # A voice a human has LABELLED is never retracted. speaker_ignore
-            # and speaker_label do not overlap today (measured: 0 voices carry
-            # both), so this spares nothing now; it is here because the two are
-            # both human statements and one silently deleting the other is not
-            # a resolution the pipeline gets to make - and because
-            # `speaker.labels_honoured` reads a missing row as a broken label.
-            # One statement rather than an executemany, so `rowcount` is the
-            # number of rows that actually went - most held-out voices have no
-            # row to begin with, and reporting the size of `drop` would claim
-            # a retraction that did not happen.
+            # One statement rather than an executemany, so `rowcount` is the rows
+            # that actually went: most held-out voices have no row to begin with,
+            # and reporting len(drop) would claim a retraction that did not happen.
             retract = skip - labeled          # membership test, per utterance
             drop = sorted(retract)
             n_retracted = 0

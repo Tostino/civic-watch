@@ -1,39 +1,16 @@
 #!/usr/bin/env python3
 """Derive what the county keeps coming back to, and the words it uses for it.
 
-WHY THIS EXISTS. `web/archive.py` held eighteen subjects as a literal, each
-with a hand-written regex over agenda titles and a hand-written tsquery over
-the transcript. Both halves were guesses, and the guess was measurably bad:
-`affordable housing|workforce housing` matched 23 published items, while the
-SHIP program - the State Housing Initiatives Partnership, which is how Florida
-funds affordable housing - is 66 more that it caught none of, and Community
-Development Block Grants are 129 more that it caught one of. The row said 23
-where the subject is 304, and the shape a reader saw was the pattern's rather
-than the county's.
+A model is used for VOCABULARY and never for classification: it proposes the
+subjects and the phrases a Florida county actually uses, every candidate phrase
+is grounded against its real count and a sample title, and a person keeps or
+drops each one. Matching then stays lexical, deterministic and in SQL, which is
+what keeps this surface on the record side of the two-sources rule. A per-item
+model label would make every number here an inference.
 
-WHAT REPLACES IT, AND WHAT DELIBERATELY DOES NOT. A model is good at knowing
-that SHIP means housing in Florida and that a human writing regexes will not
-think of it. A model is not good at 21,274 separate judgements nobody will
-ever read. So it is used for VOCABULARY and never for classification:
-
-    propose   a stratified sample of real titles -> the subjects themselves
-    terms     each subject -> the phrases a Florida county actually uses
-    ground    every candidate phrase -> its count in this corpus, and a real
-              sample title, BEFORE anybody decides whether to keep it
-    review    a person keeps or drops each phrase, on the count and the sample
-
-Matching then stays lexical, deterministic and in SQL. That is not
-conservatism: counting published titles by phrase is an exact operation over
-the county's own words, which is what keeps this surface on the record side of
-the design notes A per-item model label or a cosine threshold would
-make every number in that section an inference and oblige it to be drawn as
-one.
-
-WHY GROUNDING IS THE LOAD-BEARING STEP. Proposed phrases are wrong in ways that
-are invisible in the phrase and obvious in the count. `SHIP` as a substring
-matches 942 titles, nearly all of them containing "township"; at a word
-boundary it matches 25. Nobody could have told those apart by reading the
-pattern, and nobody would have found it buried in 21,274 individual labels.
+Grounding is the load-bearing step, because proposed phrases are wrong in ways
+invisible in the phrase and obvious in the count: `SHIP` as a substring matches
+942 titles, nearly all of them "township", and 25 at a word boundary.
 
     bin/subjects.py --propose        sample titles, ask for subjects
     bin/subjects.py --terms          ask for phrases, ground every one
@@ -46,7 +23,7 @@ pattern, and nobody would have found it buried in 21,274 individual labels.
     bin/subjects.py --drop SLUG…     reject one
     bin/subjects.py --status         what state the derivation is in
     bin/subjects.py --recall         sample UNMATCHED items and ask what we
-                                     are missing - the audit worth paying for
+                                     are missing
 """
 import argparse
 import json
@@ -155,12 +132,9 @@ Rules:
 
 # ------------------------------------------------------------ house style
 #
-# Enforced here rather than only asked for. The first run returned every label
-# in Title Case and every `q` as a full question - "What impact fees does the
-# county charge on new development?" - which would have shipped as the row's
-# heading and as its /search link. The prompt now says both plainly AND these
-# repair what comes back, because a prompt is a request and a surface needs a
-# guarantee.
+# Enforced here rather than only asked for: the prompt says it plainly AND
+# these repair what comes back, because a prompt is a request and a surface
+# needs a guarantee.
 
 # PHRASES, not words. A word list gets this wrong in both directions and did:
 # "Development" is a proper noun in "Community Development District" and a
@@ -257,13 +231,9 @@ THEME_COUNT = 8
 def theme(con, n=THEME_COUNT):
     """Group the top-level subjects under a handful of themes.
 
-    A THEME HAS NO VOCABULARY OF ITS OWN, and that is the point rather than a
-    shortcut. A subject is a thing the county words - it has phrases, they are
-    grounded, a person kept them. A theme is not: nobody files an item about
-    "public safety". So its pattern is the union of what it contains, which
-    means its count needs no curation, cannot disagree with its children, and
-    contains them by construction instead of by a constraint somebody has to
-    remember to apply.
+    A THEME HAS NO VOCABULARY OF ITS OWN, and that is the point. Nobody files an
+    item about "public safety", so a theme's pattern is the union of what it
+    contains: its count needs no curation and cannot disagree with its children.
     """
     subs = [dict(r) for r in con.execute("""
         SELECT s.slug, s.label, s.blurb, COALESCE(SUM(y.items), 0) AS items
@@ -664,13 +634,9 @@ def rollup(con):
         print("  nothing kept - subject_year left as it is")
         return
 
-    # MEMBERSHIP FIRST, COUNTS SECOND, and that ordering is the whole fix.
-    #
-    # So the regexes run ONCE EACH, only for the subjects that actually have
-    # phrases, into a set of (subject, item). Containment becomes a set
-    # intersection and a theme becomes a union - both of which are what those
-    # words meant all along, and both of which Postgres does on an indexed
-    # integer column instead of by re-reading titles.
+    # MEMBERSHIP FIRST, COUNTS SECOND. The regexes run once each, into a set of
+    # (subject, item), so containment is a set intersection and a theme is a
+    # union, both on an indexed integer column instead of by re-reading titles.
     leaves = {s: d for s, d in live.items() if d["pos"]}
     cur = con.cursor()
     cur.execute("DROP TABLE IF EXISTS pg_temp.m_item")
@@ -678,13 +644,10 @@ def rollup(con):
     cur.execute("DROP TABLE IF EXISTS pg_temp.m_utt")
     cur.execute("CREATE TEMP TABLE m_utt (slug text, video_id text, idx integer)")
     # ITS OWN PHRASES, not `record`. `patterns()` hands back the EFFECTIVE
-    # pattern - own phrases unioned with everything beneath - because that is
-    # what a row displays. Seeding membership with it makes a parent's set
-    # already contain its children's, so the containment step below intersects
-    # a child with a set it is inside by construction and does nothing.
-    # Measured when it happened: "Ordinances and boundaries" went from 21
-    # items to 1,219, which is its parent's whole subtree wearing a child's
-    # name. Own here, union afterwards, in that order.
+    # pattern, own unioned with everything beneath, so seeding membership with
+    # it makes a parent's set already contain its children's and the containment
+    # step does nothing. "Ordinances and boundaries" went from 21 items to
+    # 1,219. Own here, union afterwards, in that order.
     for s, d in leaves.items():
         own_rx = "|".join(rx(p) for p in d["pos"])
         own_ts = " | ".join(f"({tsq(p)})" for p in d["pos"] if tsq(p))
