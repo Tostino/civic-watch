@@ -256,7 +256,6 @@ corpus before it got used. The labelled ground-truth files stay out of git.
 
 ## Documents
 
-* `LAUNCH.md` is the deployment plan and the questions still open.
 * `COPY.md` has the copy conventions, but only the numbered list at the top is
 mine. The rest got reverse-engineered by an assistant from copy an assistant
 wrote, and it's been wrong more than once.
