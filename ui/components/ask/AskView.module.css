@@ -158,11 +158,21 @@
   text-wrap: pretty;
 }
 
+/* Cards rather than a bulleted column. Four questions two lines long each
+ * read as a paragraph broken into pieces when they are plain links in a
+ * stack; boxed, the reader sees four things to choose between, and the kind
+ * tag can say which of the archive's two sources the question leans on
+ * without a sentence explaining it. Two columns where there is room, one
+ * where there is not, and the cards keep equal height so the tags line up. */
 .tries {
   list-style: none;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
   gap: var(--sp-2);
+}
+
+.tries li {
+  display: flex;
 }
 
 /*
@@ -230,11 +240,6 @@
   }
 }
 
-.connectLead {
-  font-size: var(--text-xs);
-  color: var(--ink-3);
-}
-
 /* One control, whether it navigates or copies. They are the same size and the
  * same weight on purpose: the reader is choosing a program, not choosing
  * between two kinds of mechanism, and which of the two it turns out to be is
@@ -267,14 +272,6 @@
   border-color: var(--ok);
 }
 
-.connectSep {
-  align-self: stretch;
-  width: 1px;
-  min-height: 1.2em;
-  margin: 0 var(--sp-1);
-  background: var(--accent-line);
-}
-
 .connectMore {
   margin-left: auto;
   font-size: var(--text-xs);
@@ -283,7 +280,43 @@
 
 
 .try {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: var(--sp-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.try:hover,
+.try:focus-visible {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+/* Which of the two sources the question leans on. Small, and above the
+ * question rather than beside it: beside it, the longest tag sets a column
+ * width and the questions stop starting in the same place. */
+.tryKind {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.try:hover .tryKind,
+.try:focus-visible .tryKind {
+  color: var(--accent);
+}
+
+.tryQ {
   font-family: var(--font-record);
   font-size: var(--text-sm);
+  line-height: var(--leading-normal);
   color: var(--accent);
+  text-wrap: pretty;
 }

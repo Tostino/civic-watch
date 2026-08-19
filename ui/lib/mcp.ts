@@ -43,9 +43,45 @@ export type Client = {
   note?: string;
 };
 
+/**
+ * ORDER IS THE ARGUMENT. The two apps come first and the two terminals after,
+ * because /about renders these as tabs and shows the first one by default: a
+ * reader who has never opened a terminal used to arrive at `claude mcp add
+ * --transport http`, which answers a question they did not ask and reads as
+ * "this is not for you". "Anything else" stays last; it is the one to reach
+ * for once none of the four named ones matched.
+ */
 export function clients(origin: string): Client[] {
   const url = mcpUrl(origin);
   return [
+    {
+      id: "claude",
+      name: "Claude",
+      lede: "In the app, on the web, or on a phone.",
+      wantsAddress: true,
+      steps: [
+        "Open Settings, then Connectors.",
+        "Choose Add custom connector.",
+        "Paste the address, and save.",
+      ],
+      note:
+        "Anthropic keeps custom connectors on the paid plans. That is their limit and not ours: " +
+        "the endpoint itself asks nothing of anybody.",
+    },
+    {
+      id: "chatgpt",
+      name: "ChatGPT",
+      lede: "In the app or on the web.",
+      wantsAddress: true,
+      steps: [
+        "Open Settings, then Connectors.",
+        "Add a connector, and paste the address.",
+        "Turn the connector on for the conversation you want it in.",
+      ],
+      note:
+        "OpenAI keeps custom connectors on the paid plans, and on some of them behind developer mode. " +
+        "That is their limit and not ours.",
+    },
     {
       id: "claude-code",
       name: "Claude Code",
@@ -74,34 +110,6 @@ export function clients(origin: string): Client[] {
         text: `[mcp_servers.${MCP_NAME}]\nurl = "${url}"`,
         label: "Copy the config",
       },
-    },
-    {
-      id: "claude",
-      name: "Claude",
-      lede: "In the app, on the web, or on a phone.",
-      wantsAddress: true,
-      steps: [
-        "Open Settings, then Connectors.",
-        "Choose Add custom connector.",
-        "Paste the address, and save.",
-      ],
-      note:
-        "Anthropic keeps custom connectors on the paid plans. That is their limit and not ours: " +
-        "the endpoint itself asks nothing of anybody.",
-    },
-    {
-      id: "chatgpt",
-      name: "ChatGPT",
-      lede: "In the app or on the web.",
-      wantsAddress: true,
-      steps: [
-        "Open Settings, then Connectors.",
-        "Add a connector, and paste the address.",
-        "Turn the connector on for the conversation you want it in.",
-      ],
-      note:
-        "OpenAI keeps custom connectors on the paid plans, and on some of them behind developer mode. " +
-        "That is their limit and not ours.",
     },
     {
       id: "other",

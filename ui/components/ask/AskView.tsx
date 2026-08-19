@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { Answer, Lookups, TOOL_LABEL, type Lookup } from "./Answer";
 import { CopyButton } from "@/components/CopyButton";
-import { clients, mcpUrl } from "@/lib/mcp";
+import { mcpUrl } from "@/lib/mcp";
+import type { AskExample } from "./examples";
 import type { AskResult, AskStage } from "@/lib/types";
 import s from "./AskView.module.css";
 
@@ -27,7 +28,10 @@ const fresh = (running: boolean): Run => ({
   stages: [], result: null, error: null, running,
 });
 
-export function AskView({ q, origin }: { q: string; origin: string }) {
+export function AskView(
+  { q, origin, examples, placeholder }:
+    { q: string; origin: string; examples: AskExample[]; placeholder: string },
+) {
   const [question, setQuestion] = useState(q);
   const [run, setRun] = useState<Run>(() => fresh(Boolean(q.trim())));
   const es = useRef<EventSource | null>(null);
@@ -113,7 +117,7 @@ export function AskView({ q, origin }: { q: string; origin: string }) {
             className={s.input}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder="What was decided about the school zone speed cameras?"
+            placeholder={placeholder}
             autoComplete="off"
             aria-describedby="ask-hint"
           />
@@ -154,7 +158,7 @@ export function AskView({ q, origin }: { q: string; origin: string }) {
           failed and there is no row to go to. */}
       {result ? <Answer r={result} /> : null}
 
-      {!stages.length && !result && !error ? <Examples /> : null}
+      {!stages.length && !result && !error ? <Examples examples={examples} /> : null}
     </div>
   );
 }
@@ -212,7 +216,6 @@ function currently(x: AskStage | undefined): string {
  * endpoint, and by then the sentence had been replaced by a trace.
 */
 function Connect({ origin }: { origin: string }) {
-  const commands = clients(origin).filter((c) => c.snippet?.lang === "shell");
   return (
     <aside className={s.connect} aria-label="Connecting your own assistant">
       <div className={s.connectHead}>
@@ -222,39 +225,29 @@ function Connect({ origin }: { origin: string }) {
           assistant of your own reads the archive through the same tools, and is not.
         </p>
       </div>
+      {/* THE ADDRESS, AND NOTHING ELSE. This row used to carry a ready-made
+          install command for each shell client beside it, which put three
+          controls on a page whose subject is not installation: a reader who
+          knows what an MCP address is needs the address, and a reader who
+          does not is not served by a command they cannot place. Both are one
+          click from /about#connect, which has the room to say which client
+          wants which form of it. */}
       <div className={s.connectRow}>
-        <span className={s.connectLead}>Add it to</span>
-        {commands.map((c) => (
-          <CopyButton
-            key={c.id}
-            className={s.install}
-            value={c.snippet!.text}
-            label={c.name}
-            done="Command copied"
-          />
-        ))}
-        <span className={s.connectSep} aria-hidden />
         <CopyButton
           className={s.install}
           value={mcpUrl(origin)}
-          label="The address"
+          label="Copy the address"
           done="Address copied"
         />
         <Link className={s.connectMore} href="/about#connect">
-          Claude, ChatGPT and the rest
+          Setting it up in Claude, ChatGPT and the rest
         </Link>
       </div>
     </aside>
   );
 }
 
-function Examples() {
-  const qs = [
-    "What was decided about the school zone speed cameras?",
-    "What happened to the Evans County Line 80 rezoning?",
-    "What did people say about the license plate cameras?",
-    "How has the board handled impact fees since 2023?",
-  ];
+function Examples({ examples }: { examples: AskExample[] }) {
   return (
     <div className={s.examples}>
       <h2 className={s.examplesHead}>Questions this can answer</h2>
@@ -266,10 +259,11 @@ function Examples() {
           is real and stays; where it belongs is the footer, stated when it has
           actually fired and removed something. */}
       <ul className={s.tries}>
-        {qs.map((x) => (
-          <li key={x}>
-            <Link href={`/ask?q=${encodeURIComponent(x)}`} className={s.try}>
-              {x}
+        {examples.map((x) => (
+          <li key={x.q}>
+            <Link href={`/ask?q=${encodeURIComponent(x.q)}`} className={s.try}>
+              <span className={s.tryKind}>{x.kind}</span>
+              <span className={s.tryQ}>{x.q}</span>
             </Link>
           </li>
         ))}
