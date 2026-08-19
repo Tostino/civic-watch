@@ -58,11 +58,14 @@
 }
 
 /* Worded, not a glyph: /search keeps the worded button on the page where the
- * field IS the page, and here it always is. */
+ * field IS the page, and here it always is. Its measurements too - 13px at
+ * 1rem, not 15px at 1.1 - because the two fields sit one nav click apart and
+ * the button was visibly the larger of the two. */
 .go {
   flex: none;
-  padding: 0 1.1rem;
+  padding: 0 1rem;
   font: inherit;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--accent-ink);
   background: var(--accent);
@@ -70,6 +73,18 @@
   cursor: pointer;
 }
 
+.go:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+/* ONLY WHILE IT RUNS. This fired on an empty box too, which is the state the
+ * page is in every time somebody arrives: the button sat at 55% of the
+ * accent, a pale wash of the solid slab /search shows one nav click away,
+ * and it read as the page's colour being wrong rather than as a control
+ * being unavailable. Submitting empty was never possible anyway - the form's
+ * own handler returns on a blank question - so nothing is lost by letting it
+ * look like what it is. While a run is in flight the label says "Working…",
+ * which is the part worth dimming. */
 .go:disabled {
   opacity: 0.55;
   cursor: default;

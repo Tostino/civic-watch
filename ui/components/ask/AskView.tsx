@@ -122,7 +122,7 @@ export function AskView(
             autoComplete="off"
             aria-describedby="ask-hint"
           />
-          <button type="submit" className={s.go} disabled={running || !question.trim()}>
+          <button type="submit" className={s.go} disabled={running}>
             {running ? "Working…" : "Ask"}
           </button>
         </div>
