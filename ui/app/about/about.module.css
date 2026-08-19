@@ -143,12 +143,16 @@
   margin-bottom: var(--sp-4);
 }
 
+/* `white-space: nowrap` because every other copy control on the site sets it
+ * and a two-line "Copy" is one bad measurement away. It is not what made this
+ * button the wrong size; see `.endpoint` below for that. */
 .copy {
   flex: none;
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
   padding: 0 var(--sp-3);
+  white-space: nowrap;
   font: inherit;
   font-size: var(--text-sm);
   font-weight: 600;
@@ -168,7 +172,12 @@
   border-color: var(--ok);
 }
 
-.endpoint {
+/* `.wrap p` beats a bare `.endpoint` on specificity, so `margin: 0` here was
+ * losing to a 12px bottom margin meant for prose. In a stretch row that
+ * margin is part of the line: the row measured the field at 49 plus 12, and
+ * the button, which has no margin, stretched to 61 and stood 12px taller than
+ * the thing it belongs to. */
+.wrap .endpoint {
   flex: 1;
   min-width: 0;
   margin: 0;
