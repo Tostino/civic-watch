@@ -30,12 +30,9 @@ def warm(device=None):
     """Load the embedding model. Called at startup so the first reader does
     not pay for it; a failure here is not fatal, it costs the dense arm.
 
-    It says so EITHER WAY, on purpose. A healthy server used to print nothing
-    here, so the only way to know the dense arm was alive was to grep for the
-    absence of the failure line - and "no output is the pass" is a check nobody
-    runs and nobody trusts. This is the one degradation in the whole stack that
-    does not announce itself: search keeps answering, on BM25 alone, and looks
-    fine until someone notices paraphrase queries stopped working.
+    It says so EITHER WAY, on purpose. This is the one degradation in the stack
+    that does not announce itself: search keeps answering on BM25 alone and looks
+    fine until somebody notices paraphrase queries stopped working.
     """
     global _dense_error
     t0 = time.time()
@@ -170,14 +167,12 @@ PASSAGE_HIT = """
 def speaker_sure(con, rows):
     """Fill in HOW WELL each passage's speaker name is known, in place.
 
-    SEPARATE FROM PASSAGE_HIT ON PURPOSE, and this is the whole reason it is a
-    function rather than two more columns. `utterance_speaker` resolves a name
-    through four levels, one of which recomputes the archive-wide cluster
-    majority, and Postgres runs that per row: measured, 620 ms for 600
-    passages against 2 ms without it. Both search paths rank 600 candidates
-    and return 25, so joining in the projection tripled the cost of every
-    search - a whole search's worth of time again - to describe 575 rows
-    nobody would see. Called on what SURVIVED, it is 16 ms.
+    SEPARATE FROM PASSAGE_HIT ON PURPOSE, which is why it is a function rather
+    than two more columns. `utterance_speaker` resolves through four levels per
+    row: 620 ms for 600 passages against 2 ms without it. Both search paths rank
+    600 candidates and return 25, so joining in the projection tripled the cost
+    of every search to describe 575 rows nobody sees. Called on what SURVIVED,
+    it is 16 ms.
     """
     # A row that cannot be keyed still gets the fields, set to null. Absent
     # and null are the same fact to a reader and two different shapes to
@@ -450,14 +445,10 @@ SPECS = [
             "type": "object",
             "required": ["query"],
             "properties": {
-                # ORDER IS PART OF THE INTERFACE. A model reads this list top
-                # to bottom and reaches for what it read first, so it runs:
-                # what to look for, WHERE to look (the aiming facets, which
-                # cannot hide anything), how much to take back, and only then
-                # the filters that exclude silently. It used to open with
-                # limit, spread, speaker, phase - two shaping knobs and the
-                # two traps - with since/until, the pair measured to work,
-                # buried at eighth and ninth.
+                # ORDER IS PART OF THE INTERFACE. A model reads this list top to
+                # bottom and reaches for what it read first, so it runs: what to
+                # look for, WHERE to look, how much to take back, and only then
+                # the filters that exclude silently.
                 "query": {"type": "string",
                           "description": "Natural language, or exact terms. "
                                          "Both arms run on every call, so a "

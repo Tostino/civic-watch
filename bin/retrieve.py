@@ -12,14 +12,12 @@ MODEL_ID = "microsoft/harrier-oss-v1-0.6b"
 # Where the query encoder runs. `cuda:1` is this workstation; the reader
 # container sets `PASCO_EMBED_DEVICE=cpu` and has no GPU at all.
 #
-# This exists because the default used to be the literal string "cuda:1" in
-# four signatures, and `PASCO_EMBED_DEVICE` was read only by web/admin.py -
-# which is not in the read path. So a CPU deployment asked for cuda:1, failed,
-# and `tools.warm()` swallowed it by design ("a failure here is not fatal, it
-# costs the dense arm"). The server then served BM25-only search for ever,
-# having printed one line to stderr. Half the retrieval product, silently
-# absent, on a box that looked healthy. Measured on CPU before choosing the
-# default: 72 ms per query at float16, which is why the dtype is unchanged.
+# The default used to be the literal "cuda:1" in four signatures while
+# `PASCO_EMBED_DEVICE` was read only outside the read path, so a CPU deployment
+# asked for cuda:1, failed, and `tools.warm()` swallowed it by design. The
+# server then served BM25-only search for ever, having printed one line to
+# stderr. Measured on CPU: 72 ms per query at float16, which is why the dtype
+# is unchanged.
 DEVICE = os.environ.get("PASCO_EMBED_DEVICE") or "cuda:1"
 # HNSW is approximate, so this is the dial that trades recall for latency.
 # Measured against an exact scan over 65k passages, at the depths that actually
@@ -378,15 +376,12 @@ def items_for(con, passages, limit=18):
             hits[p["agenda_item_id"]] = hits.get(p["agenda_item_id"], 0) + 1
     if not hits:
         return []
-    # Follow the case to every other meeting that took it up, INCLUDING
-    # meetings we hold no recording of. A rezoning is heard by the Planning
-    # Commission, transmitted by the Board and adopted months later, and the
-    # meeting that finally decides it is often one we have no video for - so
-    # the deciding item has no passages, and an items-from-passages rule can
-    # never reach it. Asked what was decided about a rezoning that WAS
-    # approved, the agent answered "continued, no final approval recorded",
-    # because the two approvals were exactly the items it could not see.
-    # The published record does not depend on whether a camera was running.
+    # Follow the case to every other meeting that took it up, INCLUDING meetings
+    # we hold no recording of. The meeting that finally decides a rezoning is
+    # often one we have no video for, so an items-from-passages rule can never
+    # reach it: asked about a rezoning that WAS approved, the agent answered
+    # "continued, no final approval recorded". The published record does not
+    # depend on whether a camera was running.
     rows = con.execute("""
         WITH seed AS (SELECT id FROM agenda_items WHERE id = ANY(%s)),
              threads AS (

@@ -126,21 +126,14 @@ def upsert_meetings(con):
                           WHERE m.date = v.upload_date
                             AND m.body = COALESCE(k.body, v.kind))
         GROUP BY v.upload_date, COALESCE(k.body, v.kind)""")
-    # STICKY, and deterministic when it has to choose. Keying a link on
-    # (date, body) alone is ambiguous: 74 date+body pairs in this archive carry
-    # several meeting rows, and every one of them is a DIFFERENT committee of
-    # the same parent - MPO's Technical, Citizens and Bicycle & Pedestrian
-    # advisory committees all meet on 2027-01-11. There are zero true
-    # duplicates; the `body` column simply cannot tell them apart.
-    #
-    # The old form ended `AND v.meeting_id IS DISTINCT FROM m.id`, which does
-    # not mean "fix wrong links" - it means "relink whenever the current
-    # meeting is not THIS sibling", so with several siblings matching, the
-    # winner is whichever row Postgres happens to yield. 32 of 432 transcribed
-    # recordings sit on such a date, and they migrated on every run. That is
-    # the engine behind the stranded transcript items : the video
-    # moves, bind_spans no longer finds the item under the new meeting_id, and
-    # creates another.
+    # STICKY, and deterministic when it has to choose. Keying on (date, body)
+    # alone is ambiguous: 74 date+body pairs carry several meeting rows, each a
+    # DIFFERENT committee of the same parent, and the `body` column cannot tell
+    # them apart. The old form ended `AND v.meeting_id IS DISTINCT FROM m.id`,
+    # which means "relink whenever the current meeting is not THIS sibling", so
+    # the winner was whichever row Postgres yielded and 32 of 432 recordings
+    # migrated on every run. That is what stranded the transcript items: the
+    # video moves, bind_spans no longer finds the item, and creates another.
     con.execute("""
         WITH candidate AS (
             SELECT v.id AS video_id, m.id AS meeting_id,

@@ -1,18 +1,17 @@
 """The archive's tool surface, served over MCP at /mcp.
 
-WHAT IT IS FOR. A reader with an MCP client can ask questions of this archive
-in their own words and get the passages and published items behind the answer,
-without going through /ask - which is a paid, bounded endpoint with a model
-this project pays for. The trade is that the answer is composed by THEIR
-model, which means the rules web/agent.py enforces on our own composer have to
-travel with the tools. That is what the prompts below are, and why the
-non-negotiable half is repeated in `INSTRUCTIONS`, which every client gets at
-the handshake whether it asks for a prompt or not.
+A reader with an MCP client can ask questions of this archive in their own
+words without going through /ask, which is a paid, bounded endpoint. The trade
+is that the answer is composed by THEIR model, so the rules web/agent.py
+enforces on our own composer have to travel with the tools. That is what the
+prompts below are, and why the non-negotiable half is repeated in
+`INSTRUCTIONS`, which every client gets at the handshake whether it asks for a
+prompt or not.
 
 PUBLIC AND METERED. The data is a public record and the tools only read it, so
-there is no authentication. There is a budget: see MCP_* in web/limits.py.
-It is not Ask's budget - a tool call spends CPU rather than tokens, and the
-two must not be able to close each other.
+there is no authentication. The budget is MCP_* in web/limits.py, deliberately
+not Ask's: a tool call spends CPU rather than tokens, and the two must not be
+able to close each other.
 """
 import json
 import os
@@ -345,12 +344,10 @@ def build():
 class _PostOnly:
     """Refuse GET, and say why.
 
-    A CLASS, not a closure, and that is load-bearing. Starlette's `Route`
-    decides what it was handed with `inspect.isfunction`: a plain function is
-    wrapped as a request handler and called with one `Request`, so the first
-    version of this answered 405 to POST and 500 to GET. An instance with
-    `__call__` is treated as the ASGI app it is, which is how the SDK's own
-    `StreamableHTTPASGIApp` reaches the same route.
+    A CLASS, not a closure, and that is load-bearing. Starlette's `Route` decides
+    what it was handed with `inspect.isfunction`, so a plain function is wrapped
+    as a request handler and this answered 405 to POST and 500 to GET. An
+    instance with `__call__` is treated as the ASGI app it is.
     """
 
     def __init__(self, app):

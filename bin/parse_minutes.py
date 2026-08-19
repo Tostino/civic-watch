@@ -22,15 +22,11 @@ CODE = re.compile(r"\b([A-Z]{1,3})\s?-?\s?(\d{1,3})\b")
 # 17" in the middle of an outcome is what a swallowed line looks like.
 PAGE = re.compile(r"^\d{1,3}\s+of\s+\d{1,3}$")
 
-# These minutes carry the video offset after the sentence:
-#
-#     Continued to June 20, 2017 in New Port Richey.  (3:29:46)
-#
-# which is furniture, and it defeated the "has this sentence finished" test in
-# parse(). The sentence then stayed open and swallowed the next eight lines -
-# the following item's heading, its File Number, its Recommendation - so `cur`
-# never advanced and every outcome after it was filed under the wrong item.
-# Measured: 86 stored outcomes contained a later item's heading. Now 0.
+# These minutes carry the video offset after the sentence, which is furniture
+# and defeated the "has this sentence finished" test in parse(). The sentence
+# stayed open and swallowed the next eight lines, so `cur` never advanced and
+# every outcome after it was filed under the wrong item: 86 stored outcomes
+# contained a later item's heading.
 TAIL = re.compile(r"\s*\(\d{1,2}:\d{2}(?::\d{2})?\)\s*$")
 
 # Motions that are NOT an outcome for the item.
@@ -220,18 +216,15 @@ def parse(text):
         buf, target = None, None
 
     for ln in lines:
-        # An OPEN outcome sentence swallows everything until it ends. This
-        # is not fussiness: the exception list wraps, and its second line reads
-        # "C69 which were pulled for discussion ..." - which matches ITEM. Let
-        # that break the sentence and the exception list silently loses every
-        # code after the line break, so items the minutes say were WITHDRAWN
-        # get recorded as approved by the bulk motion.
+        # An OPEN outcome sentence swallows everything until it ends, because the
+        # exception list wraps and its second line matches ITEM. Break the
+        # sentence there and the list loses every code after the line break, so
+        # items the minutes say were WITHDRAWN are recorded as approved.
         #
-        # Two guards on that swallow, both earned. The video offset is stripped
-        # before asking whether the sentence has ended (TAIL), and a line that
-        # begins the NEXT item is never eaten however unfinished this sentence
-        # looks - being wrong about where an item ends is worse than truncating
-        # an outcome, because it silently re-parents everything after it.
+        # Two guards, both earned. The video offset is stripped before asking
+        # whether the sentence ended, and a line that begins the NEXT item is
+        # never eaten however unfinished this one looks: being wrong about where
+        # an item ends silently re-parents everything after it.
         if buf is not None:
             done = TAIL.sub("", " ".join(buf).rstrip()).endswith(".")
             if (not done and len(buf) < 8
@@ -305,15 +298,9 @@ def resolve(occurrences, bulk, items, by_code):
                     out.setdefault(it["id"],
                                    (sentence, classify(sentence), "bulk_included"))
             continue
-        # Exception form. The sentence has two halves that mean different
-        # things, and classifying it whole gets the majority exactly backwards:
-        #
-        #   "Approved the Consent Agenda | with the exception of C29, C48, C50
-        #    and C69 which were pulled ... and C27 and C72 which were withdrawn."
-        #
-        # The lead clause disposes of everything in the section. The tail says
-        # what happened INSTEAD to the few it names. Scanning the whole string
-        # for "withdraw" marks all ~180 approved items as withdrawn.
+        # Exception form. The lead clause disposes of everything in the section;
+        # the tail says what happened INSTEAD to the few it names. Scanning the
+        # whole string for "withdraw" marks all ~180 approved items as withdrawn.
         lead = re.split(r"\bwith the exception\b|\bexcept\b", sentence, 1,
                         flags=re.I)[0]
         bulk_outcome = classify(lead)

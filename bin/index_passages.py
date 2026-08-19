@@ -75,14 +75,10 @@ def build_passages(con, video_id=None):
         pad = 0
         if exchange:
             # Label each turn, so a retrieved vote still says who said what.
-            #
             # Unnamed turns are lettered WITHIN THIS PASSAGE. They used to be
-            # written as "Group 465", a diarization id that reads as a name,
-            # is reshuffled by every re-clustering run, and - because this text
-            # is what gets embedded and indexed - was sitting inside 19,457
-            # vectors and their BM25 postings. A passage-local letter claims
-            # nothing durable while still distinguishing two people saying
-            # "aye".
+            # "Group 465", a diarization id that reads as a name and is
+            # reshuffled by every re-clustering run, sitting inside 19,457
+            # vectors and their BM25 postings.
             letters, parts, last = {}, [], object()
             for r in chunk:
                 # The DISPLAY name, so the string that gets embedded and posted
@@ -139,21 +135,14 @@ def build_passages(con, video_id=None):
             long_turn = len(r["text"].split()) >= TURN_WORDS
             if long_turn:
                 # Accumulate this SPEAKER's run up to MAX_WORDS. Bounded by
-                # local_label rather than cluster: 30 (video, cluster) pairs
-                # hold two diarization labels, so the cluster is not the voice
-                # and grouping by it merges two people into one passage.
+                # local_label rather than cluster: 30 (video, cluster) pairs hold
+                # two diarization labels, so the cluster is not the voice.
                 #
-                # AND BOUNDED BY THE RESOLVED NAME TOO, which is the same
-                # argument one level up: the voice is not the speaker. A clerk
-                # reading correspondence into the record is one local_label
-                # across six letters by six people, so a voice-bounded chunk
-                # ran straight through every author change and took
-                # chunk[0]'s name for all of it - passage 329-331 of
-                # BTQQU-4nOq8 was Michael Killian's letter, Joanne Killian's
-                # first two lines, and Michael Killian's name on the lot.
-                # Before read_aloud attributed whole letters, one voice really
-                # was one speaker for the length of a run and this could not
-                # happen.
+                # AND BOUNDED BY THE RESOLVED NAME TOO, the same argument one
+                # level up: the voice is not the speaker. A clerk reading
+                # correspondence is one local_label across six letters by six
+                # people, so a voice-bounded chunk ran through every author change
+                # and took chunk[0]'s name for all of it.
                 chunk, words = [], 0
                 voice, who = r["local_label"], r["speaker"]
                 while (i < len(vrows) and vrows[i]["local_label"] == voice
