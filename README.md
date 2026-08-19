@@ -2,7 +2,9 @@
 
 `civic-watch` mirrors what a county publishes about its meetings, transcribes
 the recordings, and lets you ask questions against both. The first instance is
-Pasco County, Florida, running at [pasco.watch](https://pasco.watch).
+**Pasco Watch**, covering Pasco County, Florida, at
+[pasco.watch](https://pasco.watch). `civic-watch` stays the name of the code
+and of the container image; Pasco Watch is what the site calls itself.
 
 Two different things go into the archive. The county publishes agendas and
 minutes, and that's the authority on what was decided. It covers every meeting

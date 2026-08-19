@@ -83,7 +83,7 @@ export default async function AboutPage() {
   return (
     <article className={s.wrap}>
       <header className={s.head}>
-        <h1>About this archive</h1>
+        <h1>About Pasco Watch</h1>
         <p className={s.lead}>
           The public meeting record of Pasco County, in one place you can search, read and cite
           {o ? (

@@ -285,7 +285,7 @@ def build():
     server = Server(
         NAME,
         version=VERSION,
-        title="Pasco County meeting archive",
+        title="Pasco Watch",
         instructions=instructions,
         on_list_tools=_list_tools,
         on_call_tool=_call_tool,

@@ -14,7 +14,13 @@ const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap
 const serif = Source_Serif_4({ subsets: ["latin"], variable: "--font-serif", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono-face", display: "swap" });
 
-const TITLE = "Pasco County meeting record";
+/* The name and what it is, kept apart on purpose. BRAND is what a tab says
+ * once a reader is deep in the archive ("Search · Pasco Watch") and what a
+ * share card signs itself with; it matches the header wordmark and the
+ * domain. TITLE is the homepage's own line, where the name alone would tell
+ * a first-time visitor nothing. */
+const BRAND = "Pasco Watch";
+const TITLE = `${BRAND} · The Pasco County meeting record`;
 const DESCRIPTION =
   "A searchable, citable record of Pasco County government meetings: the county's published " +
   "agendas and minutes, joined to the recordings and to who spoke.";
@@ -27,12 +33,12 @@ const DESCRIPTION =
  * for why the fallback is deliberately, visibly local. */
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
-  title: { default: TITLE, template: `%s · ${TITLE}` },
+  title: { default: TITLE, template: `%s · ${BRAND}` },
   description: DESCRIPTION,
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    siteName: TITLE,
+    siteName: BRAND,
     title: TITLE,
     description: DESCRIPTION,
     url: "/",

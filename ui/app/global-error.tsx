@@ -34,7 +34,7 @@ export default function GlobalError({
           lineHeight: 1.6,
         }}
       >
-        <title>Something went wrong · Pasco County meeting record</title>
+        <title>Something went wrong · Pasco Watch</title>
         <style>{`
           @media (prefers-color-scheme: dark) {
             body { background: #14161a !important; color: #e9e7e2 !important; }

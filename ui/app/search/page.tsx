@@ -30,8 +30,8 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 
 export async function generateMetadata({ searchParams }: Props) {
   const q = one((await searchParams).q);
-  // The layout already appends " · Pasco County meeting record" (its title
-  // template), so repeating it here doubled the archive's name in the tab.
+  // The layout already appends " · Pasco Watch" (its title template), so
+  // repeating it here doubled the archive's name in the tab.
   // `·` is the separator layout.tsx templates with, and what /item already
   // uses. This route was the odd one out on an em dash.
   return { title: q ? `${q} · search` : "Search" };

@@ -32,20 +32,26 @@
   flex: none;
 }
 
-/* A seal, abstracted: a filled square for the published record with a hollow
- * ring for what is inferred from it. The same two shapes the ProvenanceMark
- * uses, which is the whole idea of the archive in 16 pixels. */
+/* The name over what it is. Two lines rather than one because "Pasco Watch"
+ * is a name and names do not explain themselves; the second line is what a
+ * first-time reader needs and it is the first thing dropped below 40rem,
+ * where the name and the mark still say enough. */
 .wordmark {
   display: flex;
   flex-direction: column;
   line-height: 1.05;
 }
 
-.county {
+/* The site's name, and it is a name rather than a description: the domain is
+ * pasco.watch. What the site IS still has to be said, so `.what` carries it
+ * on the line below. Set a step above --text-sm because "Pasco Watch" is two
+ * short words where "Pasco County" was the whole subject - at 13px the
+ * lockup read as a caption beside a 24px mark rather than as a masthead. */
+.name {
   font-family: var(--font-record);
-  font-size: var(--text-sm);
+  font-size: 0.9375rem;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.005em;
 }
 
 .what {

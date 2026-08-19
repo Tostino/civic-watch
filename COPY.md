@@ -1,4 +1,4 @@
-# Copy conventions — Pasco County meeting record
+# Copy conventions — Pasco Watch
 
 Supplied by the maintainer 2026-08-13 and applied to the shipped copy from
 that date. The final section arrived cut off mid-sentence; the truncation is

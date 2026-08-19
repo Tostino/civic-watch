@@ -47,9 +47,9 @@ export function SiteHeader() {
     <header className={s.header}>
       <div className={s.inner}>
         <Link href="/" className={s.brand}>
-          <Mark size={22} />
+          <Mark size={24} />
           <span className={s.wordmark}>
-            <span className={s.county}>Pasco County</span>
+            <span className={s.name}>Pasco Watch</span>
             <span className={s.what}>meeting record</span>
           </span>
         </Link>
