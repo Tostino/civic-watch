@@ -190,7 +190,6 @@ export interface Line {
   display_name: string | null;
   /** The same facts as the loose fields above, in the shape SpeakerChip takes. */
   who: Speaker;
-  confidence: number | null;
   /** A person stated this. Outranks everything derived. */
   human: boolean;
   /**

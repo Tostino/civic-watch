@@ -837,11 +837,16 @@ def meeting(con, meeting_id):
 
     # What the county published, and whether we can actually read it. An
     # image-only agenda is a coverage gap, not a parse failure, and the reader
-    # is owed the distinction.
+    # is owed the distinction. `extracted` is false rather than null for a file
+    # whose text is not held at all, which is every Agenda Packet: those run to
+    # 100MB and bin/civicclerk.py does not fetch them. A caller that sees a
+    # file_id must be able to tell whether asking for its text is worth a
+    # round trip.
     out["files"] = [{**dict(r), "url": FILE.format(file_id=r["file_id"])}
                     for r in con.execute("""
         SELECT f.file_id, f.kind, f.name, f.published_at, f.chars,
-               (f.chars >= %s) AS extracted, f.event_id
+               (f.body_text IS NOT NULL AND f.chars >= %s) AS extracted,
+               f.event_id
         FROM portal_files f
         JOIN portal_events pe ON pe.id = f.event_id
         WHERE pe.meeting_id = %s
@@ -887,7 +892,7 @@ def meeting(con, meeting_id):
 LINES = """
     SELECT u.video_id, u.idx, u.start, u."end", u.text,
            u.cluster AS voice, u.local_label,
-           us.name, us.display_name, us.confidence, us.human,
+           us.name, us.display_name, us.human,
            -- How the name was arrived at, so the page can say so rather than
            -- presenting four very different kinds of claim identically
            --. 'cluster' is the weakest: it is the archive-wide
@@ -1040,7 +1045,8 @@ def item(con, item_id):
                      "inline": f"/api/file/{x['file_id']}"}
                     for x in con.execute("""
         SELECT f.file_id, f.kind, f.name, f.published_at, f.chars,
-               (f.chars >= %s) AS extracted, f.event_id
+               (f.body_text IS NOT NULL AND f.chars >= %s) AS extracted,
+               f.event_id
         FROM portal_files f
         JOIN portal_events pe ON pe.id = f.event_id
         WHERE pe.meeting_id = %s

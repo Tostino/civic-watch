@@ -295,12 +295,13 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
         where.append("ai.outcome IS NULL")
     clause = " AND ".join(where)
 
-    def run(tsq, order_by=order_by):
+    def run(tsq, order_by=order_by, floor=None):
+        cl = clause + (f" AND {floor}" if floor else "")
         n = con.execute(f"""
             SELECT COUNT(*) FROM agenda_items ai
             JOIN meetings m ON m.id = ai.meeting_id
             CROSS JOIN (SELECT {tsq} AS tsq) q
-            WHERE {clause}""", args).fetchone()[0]
+            WHERE {cl}""", args).fetchone()[0]
         if not n:
             return n, []
         return n, [dict(r) for r in con.execute(f"""
@@ -315,7 +316,7 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
             FROM agenda_items ai
             JOIN meetings m ON m.id = ai.meeting_id
             CROSS JOIN (SELECT {tsq} AS tsq) q
-            WHERE {clause}
+            WHERE {cl}
             ORDER BY {order_by}
             LIMIT %(limit)s OFFSET %(offset)s""", args)]
 
@@ -344,7 +345,19 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
         args["terms"] = [w for w in re.findall(r"[\w'-]{3,}", query)][:8]
         matched = (f"(SELECT COUNT(*) FROM unnest(%(terms)s::text[]) tt "
                    f"WHERE {ITEM_FTS} @@ plainto_tsquery('english', tt))")
-        total, rows = run(tsq, f"{matched} DESC, {order_by}")
+        # AND A FLOOR UNDER IT, because OR with no floor answers a three-word
+        # question with items matching one word. Half the words, rounded up,
+        # and never all of them - that is the AND pass which just returned
+        # nothing. So "license plate cameras" still reaches "License Plate
+        # Detection Systems" on two of three, and a one-word coincidence stays
+        # out. Reported without one, this pass put a brewery conditional use in
+        # front of a wellfield question.
+        n_terms = len(args["terms"])
+        args["floor"] = min(max(n_terms - 1, 1), max((n_terms + 1) // 2, 1))
+        # No countable terms means nothing to hold a floor against, and
+        # applying one would refuse every row.
+        cap = f"{matched} >= %(floor)s" if n_terms else None
+        total, rows = run(tsq, f"{matched} DESC, {order_by}", floor=cap)
         loosened = bool(total)
 
     return {"total": total, "items": rows, "loosened": loosened}
