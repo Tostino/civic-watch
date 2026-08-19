@@ -53,6 +53,12 @@
   display: flex;
 }
 
+/* A card on this site is a hairline AND a 3px coloured edge, on paper rather
+ * than on white: that is ItemCard, which is the card a reader meets most.
+ * These had the hairline alone - `--rule` is #e3ded3 against a #faf8f4 page -
+ * so four of them read as four faint rectangles floating on beige, which is
+ * the flatness. The edge is the accent because an example is a way in, not a
+ * record object; `--record-rule` gold is what the county published. */
 .card {
   flex: 1;
   display: flex;
@@ -61,6 +67,7 @@
   padding: var(--sp-3);
   background: var(--surface);
   border: 1px solid var(--rule);
+  border-inline-start: 3px solid var(--accent-line);
   border-radius: var(--radius);
   text-decoration: none;
   transition: border-color 120ms ease, background-color 120ms ease;
@@ -68,7 +75,7 @@
 
 .card:hover,
 .card:focus-visible {
-  border-color: var(--accent-line);
+  border-color: var(--accent);
   background: var(--accent-soft);
 }
 
