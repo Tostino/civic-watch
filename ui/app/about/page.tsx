@@ -37,15 +37,38 @@ const CONTACT = process.env.SITE_CONTACT?.trim() || null;
 
 /** What each tool is for, in a reader's terms. The manifest carries its own
  *  descriptions and they are written for a model - a paragraph each, about
- *  when to call it. The names come from the server, so a tool added there
- *  appears here whether or not anyone writes it a line. */
+ *  when to call it, in a register a resident should not have to read.
+ *
+ *  This map is the preferred line and NOT the only one. See `gloss`. */
 const GLOSS: Record<string, string> = {
   search_transcript: "what people said, in the meetings that were recorded",
   search_record: "the agendas and minutes the county published",
   get_item: "one agenda item, with the outcome the minutes recorded for it",
   get_case: "one case, across every meeting that took it up",
+  get_document: "the county’s own agenda or minutes for a meeting, as text",
   get_meeting: "one meeting, with its agenda in order",
 };
+
+/** A reader's line for one tool: the hand-written one, or the server's own
+ *  first sentence.
+ *
+ *  THE FALLBACK IS THE POINT. The names come from the server so that a tool
+ *  added there cannot go unlisted, and the old code paired that with a gloss
+ *  that was allowed to be missing - which rendered the name alone, with no
+ *  colon and nothing after it. `get_document` shipped and sat like that on
+ *  the live page: a list of five explained tools and one bare word, which
+ *  reads as a bug in the archive rather than a line nobody wrote.
+ *
+ *  So the server's description is the floor. It is written for a model and
+ *  its first sentence is longer than a gloss, but it is always there and it
+ *  is always true, and neither is a naked identifier. */
+function gloss(name: string, description?: string): string | null {
+  if (GLOSS[name]) return GLOSS[name];
+  const text = (description ?? "").replace(/\s+/g, " ").trim();
+  // First sentence, or the whole thing if it is one. Split on a full stop
+  // followed by a space so "23,130 agenda items" survives.
+  return text.split(/(?<=\.)\s/)[0] || null;
+}
 
 /** A window in words. The server sends seconds, and "every 60 seconds" is not
  *  how anyone says a minute. */
@@ -78,7 +101,11 @@ export default async function AboutPage() {
   // Which bodies a camera actually reached. All 283 recordings are of two of
   // the sixteen, and that is the single most load-bearing gap here.
   const filmed = bodies?.filter((b) => b.recorded > 0).map((b) => b.body) ?? [];
-  const names = t?.tools.map((x) => x.name) ?? Object.keys(GLOSS);
+  // The tools as the server lists them, descriptions included: the fallback
+  // in `gloss` needs them, and dropping to names alone is what let a tool
+  // reach the page with nothing to say about it.
+  const listed = t?.tools
+    ?? Object.keys(GLOSS).map((name) => ({ name, description: "" }));
 
   return (
     <article className={s.wrap}>
@@ -226,12 +253,15 @@ export default async function AboutPage() {
             install rows and with none of its own, it read as a fifth one. */}
         <p className={s.installsLead}>What it can read</p>
         <ul className={s.list}>
-          {names.map((n) => (
-            <li key={n}>
-              <code>{n}</code>
-              {GLOSS[n] ? `: ${GLOSS[n]}` : null}
-            </li>
-          ))}
+          {listed.map((tool) => {
+            const line = gloss(tool.name, tool.description);
+            return (
+              <li key={tool.name}>
+                <code>{tool.name}</code>
+                {line ? `: ${line}` : null}
+              </li>
+            );
+          })}
         </ul>
         {t ? (
           <p>
