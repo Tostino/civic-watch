@@ -255,7 +255,8 @@ function Examples({ examples }: { examples: AskExample[] }) {
      the box above it already uses. */
   return (
     <ExampleCards
-      label="Questions this can answer"
+      title="What you can ask"
+      label="Examples"
       items={examples.map((x) => ({
         tag: x.kind,
         text: x.q,

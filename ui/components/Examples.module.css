@@ -15,6 +15,20 @@
   gap: var(--sp-2);
 }
 
+/* Browse's `.title`, and /search's. /ask had no dark line anywhere on it:
+ * an 11px caps label, a field, mid-grey sentences and two pale blues, which
+ * is a page with nothing to look at first. Every other route opens with this.
+ */
+.title {
+  font-family: var(--font-record);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  text-wrap: balance;
+  margin-block-end: var(--sp-1);
+}
+
 /* The same eyebrow both boxes label themselves with, so the page reads as
  * field, then hint, then this - three labels of one kind, not two kinds. */
 .head {
@@ -66,7 +80,7 @@
   font-weight: 700;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 .card:hover .tag,

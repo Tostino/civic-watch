@@ -20,10 +20,13 @@ export type Example = {
 };
 
 export function Examples({
+  title,
   label,
   items,
   mono = false,
 }: {
+  /** The page's own dark line. Optional: /search sets its own above a lede. */
+  title?: string;
   label: string;
   items: Example[];
   /** Set for literal strings a reader could have typed. */
@@ -31,6 +34,7 @@ export function Examples({
 }) {
   return (
     <div className={s.wrap}>
+      {title ? <h1 className={s.title}>{title}</h1> : null}
       <h2 className={s.head}>{label}</h2>
       <ul className={s.grid}>
         {items.map((x) => (

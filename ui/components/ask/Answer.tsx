@@ -3,7 +3,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 
-import { OutcomeBadge } from "@/components/OutcomeBadge";
+import { ItemCard } from "@/components/ItemCard";
 import { ProvenanceMark } from "@/components/ProvenanceMark";
 import { SpeakerChip } from "@/components/SpeakerChip";
 import { DisputePassage } from "@/components/admin/DisputePassage";
@@ -510,23 +510,33 @@ function RefNo({
 function RecordCite({ item, n }: { item: RecordHit; n: number | undefined }) {
   return (
     <div className={s.recRow} id={n === undefined ? undefined : `ref-${n}`}>
+      {/* The citation chrome, and only that: which reference this row bears,
+          which meeting took it up. Everything below it is the item itself and
+          belongs to the component that draws an item everywhere else. */}
       <div className={s.recTop}>
         <RefNo n={n} />
         <Link href={`/meeting/${item.meeting_id}`} className={s.when}>
           {meetingDate(item.date, "short")}
         </Link>
         <span className={s.bodyTag}>{shortBody(item.body)}</span>
-        {item.code ? <span className={s.code}>{item.code}</span> : null}
-        <OutcomeBadge outcome={item.outcome} size="sm" />
       </div>
-      <Link href={`/item/${item.id}`} className={s.recTitle}>
-        {shortTitle(item.title, 150) || "(no title published)"}
-      </Link>
-      {item.outcome_text ? (
-        <p className={s.outcomeText}>{item.outcome_text}</p>
-      ) : (
-        <p className={s.noOutcome}>The minutes record no outcome for this item.</p>
-      )}
+      {/* ItemCard's own note has claimed four contexts since it was written -
+          the spine, a case timeline, search results, the agent's evidence -
+          and this was the one that was not true. An item the agent cites was
+          drawn by hand here: same code, same badge, same title, same minutes,
+          all a little different, so the object a reader had learned to read
+          on every other page arrived unfamiliar on the one page that most
+          needs to be believed.
+
+          The line "The minutes record no outcome for this item" goes with it.
+          The badge already says `No outcome in the minutes`, two inches
+          above, and saying it twice was an artefact of the two drawings not
+          knowing about each other. */}
+      <ItemCard
+        item={item}
+        href={`/item/${item.id}`}
+        caseHref={item.case_id ? `/case/${encodeURIComponent(item.case_id)}` : undefined}
+      />
     </div>
   );
 }

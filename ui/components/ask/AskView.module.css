@@ -159,7 +159,10 @@
   gap: var(--sp-2);
   padding: var(--sp-3);
   background: var(--accent-soft);
-  border-left: 3px solid var(--accent-line);
+  /* `--accent-line` is the tint used for hairlines under text. On a 3px edge
+     against a tinted fill it disappears, and the panel reads as a grey-blue
+     smudge rather than as a marked aside. */
+  border-left: 3px solid var(--accent);
   border-radius: var(--radius);
 }
 
