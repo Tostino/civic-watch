@@ -837,11 +837,12 @@ def meeting(con, meeting_id):
 
     # What the county published, and whether we can actually read it. An
     # image-only agenda is a coverage gap, not a parse failure, and the reader
-    # is owed the distinction. `extracted` is false rather than null for a file
-    # whose text is not held at all, which is every Agenda Packet: those run to
-    # 100MB and bin/civicclerk.py does not fetch them. A caller that sees a
-    # file_id must be able to tell whether asking for its text is worth a
-    # round trip.
+    # is owed the distinction. `extracted` is false rather than null for a row
+    # whose text is not held at all, so a caller can treat it as a boolean
+    # instead of guessing what null meant. Only Agenda and Minutes are ever
+    # listed - bin/civicclerk.py's WANT skips the Agenda Packet, which runs to
+    # 100MB - so this guards a fetch that failed rather than a kind that is
+    # skipped by policy.
     out["files"] = [{**dict(r), "url": FILE.format(file_id=r["file_id"])}
                     for r in con.execute("""
         SELECT f.file_id, f.kind, f.name, f.published_at, f.chars,

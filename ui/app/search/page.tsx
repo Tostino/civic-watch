@@ -194,13 +194,12 @@ function Empty() {
   ];
   return (
     <div className={s.empty}>
-      <h1 className={s.emptyHead}>Two sources, one search</h1>
+      <h1 className={s.emptyHead}>Search the record and the transcript</h1>
       <p className={s.emptyWhy}>
         <b>What the county recorded</b> is every agenda item and the outcome its
         approved minutes recorded, whether or not a camera was running.{" "}
         <b>What was said</b> is the transcript, and only the meetings that were
-        recorded have one. Searching only one of them is how you conclude the archive
-        holds nothing.
+        recorded have one.
       </p>
       <ul className={s.tries}>
         {tries.map(([q, why]) => (

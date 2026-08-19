@@ -93,7 +93,8 @@ def rrf(*rankings, k=60):
 
 def search(query, limit=40, spread=None, speaker=None, kind=None,
            since=None, until=None, phase=None, case=None, outcome=None,
-           body=None, device=None, con=None):
+           body=None, meeting_id=None, agenda_item_id=None,
+           device=None, con=None):
     """Return ranked passages with their meeting metadata."""
     own = con is None
     con = con or db.connect()
@@ -159,6 +160,16 @@ def search(query, limit=40, spread=None, speaker=None, kind=None,
             if kind and kind != "all" and m["kind"] != kind:
                 continue
             if body and m["body"] != body:
+                continue
+            # NARROWS WHAT WAS FOUND; it does not search inside the scope.
+            # Ranking happens over the whole archive and these run against the
+            # survivors, like every filter above them, so a scope holding no
+            # passage in the global top 600 comes back empty. Read that as
+            # "not among the best matches archive-wide", never as "this item
+            # does not discuss it" - get_item is what reads an item whole.
+            if meeting_id and m["meeting_id"] != meeting_id:
+                continue
+            if agenda_item_id and m["agenda_item_id"] != agenda_item_id:
                 continue
             # The MEETING's date, falling back to the upload date for the 17
             # recordings that never got joined to one (see STATE, honest
@@ -345,13 +356,40 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
         args["terms"] = [w for w in re.findall(r"[\w'-]{3,}", query)][:8]
         matched = (f"(SELECT COUNT(*) FROM unnest(%(terms)s::text[]) tt "
                    f"WHERE {ITEM_FTS} @@ plainto_tsquery('english', tt))")
-        # AND A FLOOR UNDER IT, because OR with no floor answers a three-word
-        # question with items matching one word. Half the words, rounded up,
-        # and never all of them - that is the AND pass which just returned
-        # nothing. So "license plate cameras" still reaches "License Plate
-        # Detection Systems" on two of three, and a one-word coincidence stays
-        # out. Reported without one, this pass put a brewery conditional use in
-        # front of a wellfield question.
+        # AND A FLOOR UNDER IT, counted over the words that DISCRIMINATE.
+        #
+        # OR with no floor answers a three-word question with items matching
+        # one word, which is how a brewery conditional use came back for a
+        # wellfield query. A raw count is not enough on its own either: this
+        # county's own name is in most titles, so "east pasco wellfield
+        # desalination" cleared a floor of two on "east" and "pasco" alone and
+        # returned 1,067 items.
+        #
+        # So a term matching more than a fifth of the archive is dropped before
+        # counting. What is left is the part of the query that actually names
+        # the subject, and the floor is half of that, rounded up, never all of
+        # it - all of it is the AND pass that just returned nothing. If every
+        # word is common the query has no discriminating half, and the raw
+        # terms stand rather than refusing everything.
+        terms = args["terms"]
+        if terms:
+            n_items = con.execute(
+                "SELECT count(*) FROM agenda_items").fetchone()[0] or 1
+            # r[0], never `for t, n in ...`: db.Row is a Mapping, so unpacking
+            # one yields its COLUMN NAMES. A dict built that way looks fine,
+            # scores every term at zero, and drops nothing.
+            #
+            # One statement per term rather than a correlated subquery over
+            # unnest, which the planner turns into 2.4 seconds. Four terms cost
+            # 8ms this way, and only on the loosened path.
+            ceiling = n_items * 0.2
+            keep = [t for t in terms
+                    if con.execute(
+                        f"SELECT count(*) FROM agenda_items ai "
+                        f"WHERE {ITEM_FTS} @@ plainto_tsquery('english', %s)",
+                        (t,)).fetchone()[0] <= ceiling]
+            if keep:
+                args["terms"] = keep
         n_terms = len(args["terms"])
         args["floor"] = min(max(n_terms - 1, 1), max((n_terms + 1) // 2, 1))
         # No countable terms means nothing to hold a floor against, and

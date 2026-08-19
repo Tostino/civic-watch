@@ -95,7 +95,8 @@ def canonical_speaker(con, name):
 # -------------------------------------------------------- search_transcript
 def search_transcript(con, query, limit=12, spread=None, speaker=None,
                       phase=None, case=None, body=None, since=None,
-                      until=None, outcome=None):
+                      until=None, outcome=None, meeting_id=None,
+                      agenda_item_id=None):
     """What was SAID. Hybrid retrieval over the passage index."""
     speaker = canonical_speaker(con, speaker)
     r = retrieve()
@@ -103,7 +104,8 @@ def search_transcript(con, query, limit=12, spread=None, speaker=None,
     try:
         hits = r.search(query, limit=limit, spread=spread, speaker=speaker,
                         phase=phase, case=case, body=body, since=since,
-                        until=until, outcome=outcome, con=con)
+                        until=until, outcome=outcome, meeting_id=meeting_id,
+                        agenda_item_id=agenda_item_id, con=con)
     except Exception as e:                                   # noqa: BLE001
         # The dense arm is a GPU and someone else's library. Losing it costs
         # recall on paraphrase; it must not cost the reader their search, and
@@ -112,7 +114,8 @@ def search_transcript(con, query, limit=12, spread=None, speaker=None,
         ranked = r.rrf(r.bm25(con, query, 300), r.thread_hits(con, query, 200))
         hits = _plain(con, ranked, limit, speaker=speaker, phase=phase,
                       case=case, body=body, since=since, until=until,
-                      outcome=outcome, spread=spread)
+                      outcome=outcome, spread=spread, meeting_id=meeting_id,
+                      agenda_item_id=agenda_item_id)
     # Here rather than in either arm's projection, so both arms describe a
     # speaker the same way and neither pays for the 575 candidates it threw
     # out. This is the one place a hit becomes a hit.
@@ -206,6 +209,9 @@ def _plain(con, ranked, limit, spread=None, **f):
             continue
         when = m["meeting_date"] or m["upload_date"] or ""
         if ((f.get("speaker") and m["speaker"] != f["speaker"])
+                or (f.get("meeting_id") and m["meeting_id"] != f["meeting_id"])
+                or (f.get("agenda_item_id")
+                    and m["agenda_item_id"] != f["agenda_item_id"])
                 or (f.get("phase") and m["phase"] != f["phase"])
                 or (f.get("case") and m["case_id"] != f["case"])
                 or (f.get("outcome") and m["outcome"] != f["outcome"])
@@ -406,6 +412,50 @@ def fill(node, f):
     return node
 
 
+def _outline(row, words=12):
+    """An item stripped to what it costs to open: who spoke, when, and the
+    opening of each turn.
+
+    `get_item` is all or nothing, and the whole item is sometimes a fifth of an
+    evidence budget - measured at 39,695 characters for one of them. A caller
+    with no way to price the call either pays it blind or avoids the right tool
+    and approximates with searches, which is lossier and costs more round
+    trips. This is the price tag: the same record and the same turns, with the
+    text cut to its first few words.
+    """
+    # The speech lives under `item`, not at the top level: archive.item returns
+    # {item, meeting, offices, prev, next}. Reducing the wrapper instead of the
+    # item is a silent no-op, which is what the first version of this did.
+    inner = row.get("item")
+    if not isinstance(inner, dict):
+        return row
+    out = dict(row)
+    item = {k: v for k, v in inner.items() if k not in ("lines", "runs")}
+    out["item"] = item
+    seen = {}
+    runs = []
+    for r in inner.get("runs") or []:
+        turns = []
+        for ln in r.get("lines") or []:
+            who = (ln.get("display_name") or ln.get("name")
+                   or "(unidentified)")
+            seen[who] = seen.get(who, 0) + 1
+            text = (ln.get("text") or "").split()
+            turns.append({"idx": ln.get("idx"), "start": ln.get("start"),
+                          "speaker": who,
+                          "opens": " ".join(text[:words])
+                                   + ("…" if len(text) > words else "")})
+        runs.append({**{k: v for k, v in r.items() if k != "lines"},
+                     "turns": turns})
+    item["runs"] = runs
+    out["outline"] = True
+    out["census"] = {
+        "turns": sum(len(r["turns"]) for r in runs),
+        "speakers": sorted(seen.items(), key=lambda kv: -kv[1]),
+    }
+    return out
+
+
 SPECS = [
     {
         "name": "search_transcript",
@@ -454,30 +504,44 @@ SPECS = [
                                          "every extra hit is paid for twice: "
                                          "once to read, and again in the room "
                                          "it leaves for everything after it."},
-                "spread": {"type": "integer",
-                           "description": "Max hits per meeting. Set it (2-3) "
-                                          "for 'how did this evolve' "
-                                          "questions, or the top hits pile "
-                                          "into whichever meeting discussed "
-                                          "it most and the earliest "
-                                          "occurrence never surfaces."},
                 "case": CASE, "body": BODY,
+                "meeting_id": {
+                    "type": "integer",
+                    "description": "Only passages from this meeting, as "
+                                   "returned in `meeting_id`. It NARROWS what "
+                                   "was already found rather than searching "
+                                   "inside the meeting, so an empty result "
+                                   "means nothing here was among the best "
+                                   "matches archive-wide, not that the meeting "
+                                   "is silent on it. To read a meeting whole, "
+                                   "use get_meeting."},
+                "agenda_item_id": {
+                    "type": "integer",
+                    "description": "Only passages under this item, as returned "
+                                   "in `agenda_item_id`. Narrows rather than "
+                                   "searches, exactly as meeting_id does. "
+                                   "get_item is what reads one item whole."},
                 "outcome": OUTCOME, "phase": PHASE,
                 "speaker": {"type": "string",
                             "description": "A speaker name as it appears on "
                                            "the passages you have been shown, "
                                            "e.g. 'Jack Mariano' or 'Mariano' "
                                            "- board members match on either. "
-                                           "RARELY worth it, and never for "
-                                           "'how has X argued': {pct_no_name}% of "
-                                           "passages carry no usable name - "
-                                           "every cross-speaker exchange is "
-                                           "one of them, and an exchange is "
-                                           "where an argument happens - so "
-                                           "this drops two thirds of the "
-                                           "corpus on a name inferred from "
-                                           "voice. Search the subject and "
-                                           "read the names off the results."},
+                                           "IT IS ONE-SIDED. What comes back "
+                                           "really is theirs; what does NOT "
+                                           "come back proves nothing, because "
+                                           "{pct_no_name}% of passages carry no "
+                                           "usable name and every "
+                                           "cross-speaker exchange is one of "
+                                           "them. So use it to confirm that "
+                                           "somebody spoke to a subject, or to "
+                                           "thin a broad result - never to "
+                                           "establish that they did not, and "
+                                           "not for 'how has X argued', since "
+                                           "an argument mostly happens in the "
+                                           "exchanges this cannot see. For "
+                                           "that, search the subject and read "
+                                           "the names off the results."},
             },
         },
     },
@@ -561,12 +625,28 @@ SPECS = [
             "meeting was recorded - the transcript of the item itself. "
             "Call this after a search puts an item in play; it is how you get "
             "from 'this looks relevant' to what actually happened.",
-        "run": lambda con, item_id: archive.item(con, item_id),
+        "run": lambda con, item_id, outline=False: (
+            _outline(archive.item(con, item_id)) if outline
+            else archive.item(con, item_id)),
         "parameters": {
             "type": "object", "required": ["item_id"],
-            "properties": {"item_id": {"type": "integer",
-                                       "description": "As returned by any "
-                                                      "search, in `id`."}},
+            "properties": {
+                "item_id": {"type": "integer",
+                            "description": "As returned by any search, in "
+                                           "`id`."},
+                "outline": {"type": "boolean", "default": False,
+                            "description": "Return the record in full but the "
+                                           "transcript as one line per turn: "
+                                           "who spoke, when, and the first "
+                                           "few words. Use it when an item "
+                                           "might be long and you want to "
+                                           "know what opening it costs before "
+                                           "you spend it. `census` says how "
+                                           "many turns there are and who did "
+                                           "the talking, which answers 'is "
+                                           "the person I am asking about even "
+                                           "in here' without reading it."},
+            },
         },
     },
     {
