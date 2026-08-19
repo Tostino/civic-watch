@@ -1,10 +1,5 @@
 -- Schema for the Pasco meeting archive on PostgreSQL 17 + pgvector 0.8.
 --
--- One database holds what used to be three stores: the SQLite catalog, the
--- FTS5 index, and a 257 MB passages.npy that had to be loaded whole into RAM
--- and matmul'd in full for every query. Vectors now live beside the rows they
--- belong to, with an HNSW index instead of a linear scan.
---
 -- "end" is a reserved word in SQL and is quoted everywhere it appears. It is
 -- not renamed, so every Python dict key that reads a row stays as it was.
 
@@ -40,10 +35,9 @@ CREATE TABLE IF NOT EXISTS utterances (
     start       double precision NOT NULL,
     "end"       double precision NOT NULL,
     speaker     text,
-    -- What the archive PUBLISHES. Equal to text_raw until a redaction is
-    -- applied, after which it is text_raw with the addresses replaced by a
-    -- marker (bin/redact.py: republish). Everything derived comes from this
-    -- column: tsv below, and passages with their BM25 postings and embeddings.
+    -- What the archive PUBLISHES: text_raw until a redaction is applied, then
+    -- text_raw with the addresses replaced by a marker. Everything derived comes
+    -- from this column, never from text_raw.
     text        text    NOT NULL,
     cluster     integer,
     local_label text,
@@ -52,11 +46,9 @@ CREATE TABLE IF NOT EXISTS utterances (
     tsv         tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
     PRIMARY KEY (video_id, idx)
 );
--- The recogniser's own words, written once by db.index_video and never again.
--- A redaction removes an address from what is published without destroying
--- what was transcribed, so a revert recomputes rather than trusting a copy
--- taken at the time. Deliberately not indexed and deliberately not read by any
--- reader-facing query: it is the record, not the publication.
+-- The recogniser's own words, written once and never again. Deliberately not
+-- indexed and not read by any reader-facing query: it is the record, not the
+-- publication, and a revert recomputes from it rather than trusting a copy.
 ALTER TABLE utterances ADD COLUMN IF NOT EXISTS text_raw text;
 CREATE INDEX IF NOT EXISTS utt_video   ON utterances (video_id, start);
 CREATE INDEX IF NOT EXISTS utt_cluster ON utterances (cluster);
@@ -74,11 +66,10 @@ CREATE TABLE IF NOT EXISTS segments (
     phase        text    NOT NULL,
     title        text,             -- for display; may contain unspoken words
     search_title text,             -- verified subset; safe to put in the index
-    -- The PUBLISHED agenda code this stretch is, when the model matched it to
-    -- one. Separate from `title` on purpose: the title is what was SAID and is
-    -- grounded against the transcript, this is which county item it WAS and is
-    -- checked against the published agenda. Reading a code out of the title
-    -- string with a regex conflated the two and recovered 47%.
+        -- The published agenda code, separate from `title` on purpose: the title is
+        -- what was SAID and is grounded against the transcript, this is which county
+        -- item it WAS. Reading a code out of the title with a regex conflated the
+        -- two and recovered 47%.
     code         text,
     continued    boolean NOT NULL DEFAULT false,
     UNIQUE (video_id, seq)
@@ -143,16 +134,10 @@ CREATE TABLE IF NOT EXISTS speaker_ignore (
 -- The name a voice goes by IN A GIVEN MEETING.
 -- ---------------------------------------------------------------- BM25
 --
--- This cluster has no pg_search, and Postgres' own ts_rank_cd is not BM25 -
--- it has no real IDF and no document-length saturation, and this corpus is
--- full of proper nouns and case numbers where those two terms are exactly
--- what does the work. So BM25 is materialised: postings, document lengths,
--- and document frequencies, scored with the Okapi formula at query time.
---
--- Both sides go through to_tsvector('english', ...), so the analyzer that
--- builds the postings is the same one that parses the query. That is the
--- part most likely to be got wrong, and it is why neither side ever
--- tokenises by hand.
+-- This cluster has no pg_search and ts_rank_cd is not BM25: no real IDF, no
+-- length saturation, and this corpus is full of proper nouns and case numbers
+-- where those two do the work. So BM25 is materialised. Both sides go through
+-- to_tsvector('english', ...), so neither ever tokenises by hand.
 CREATE TABLE IF NOT EXISTS passage_terms (
     passage_id integer  NOT NULL,
     term       text     NOT NULL,
@@ -183,12 +168,10 @@ CREATE TABLE IF NOT EXISTS vec_cache (
 -- The tables above model artifacts: a video file, a span of a video, a name
 -- string. These model what the archive is actually about.
 
--- A meeting is the real-world event. It is NOT a video: roughly half of these
--- run as a morning and an afternoon recording on one continuous agenda, and a
--- day may also carry a workshop or budget hearing that is a separate meeting
--- sharing the date. Recordings whose order cannot be established (a dropped
--- stream restarted, an unlabelled session) become their own meeting rather
--- than being guessed into a sequence - see segment.day_groups().
+-- A meeting is the real-world event, NOT a video: roughly half run as a morning
+-- and an afternoon recording on one agenda, and a day may carry a workshop that
+-- is a separate meeting sharing the date. Recordings whose order cannot be
+-- established become their own meeting rather than being guessed into one.
 CREATE TABLE IF NOT EXISTS meetings (
     id    integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     date  text,                        -- YYYY-MM-DD, parsed from the title
@@ -233,15 +216,10 @@ CREATE INDEX IF NOT EXISTS spans_item  ON item_spans (agenda_item_id, part);
 CREATE INDEX IF NOT EXISTS spans_video ON item_spans (video_id, start_idx);
 
 -- ================================================== authoritative source
--- Pasco publishes its agendas and minutes through CivicClerk. Those carry the
--- official structure - item numbers, titles, departments, case numbers, the
--- motion, mover, seconder and vote - which we were otherwise inferring from
--- 78%-precise voice matching over an ASR transcript.
---
--- Landed raw first, on purpose. The portal is someone else's system and its
--- shape will change; keeping the untouched payload means a parsing bug is
--- re-runnable from disk instead of re-scraped, and provenance for any derived
--- claim is a row away.
+-- Pasco publishes agendas and minutes through CivicClerk, carrying the official
+-- structure we were otherwise inferring from voice matching over ASR. Landed
+-- raw first: the portal is someone else's system, so keeping the untouched
+-- payload makes a parsing bug re-runnable from disk instead of re-scraped.
 CREATE TABLE IF NOT EXISTS portal_events (
     id           integer PRIMARY KEY,      -- CivicClerk event id
     name         text,
@@ -291,13 +269,10 @@ ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS file_number    text;
 ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS case_id        text REFERENCES cases(id);
 ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS districts      text;
 ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS recommendation text;
--- Renamed from `disposition` on 2026-08-18. The county uses that word for
--- disposal of records and property, which is not what this holds, and the
--- reader-facing copy stopped using it. Guarded both ways so this file stays
--- what it claims to be - safe to re-run - and so a fresh database and an
--- existing one converge on the same schema. It MUST precede the ADD COLUMN
--- below: the other order creates an empty `outcome_text`, skips the rename,
--- and strands 17,532 sentences in a column nothing reads.
+-- Renamed from `disposition`, which the county uses for disposal of records and
+-- property. Guarded both ways so this file stays safe to re-run. It MUST
+-- precede the ADD COLUMN below: the other order creates an empty `outcome_text`,
+-- skips the rename, and strands 17,532 sentences in a column nothing reads.
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns
@@ -319,38 +294,21 @@ ALTER TABLE agenda_items ADD COLUMN IF NOT EXISTS source         text NOT NULL D
 CREATE INDEX IF NOT EXISTS agenda_case ON agenda_items (case_id) WHERE case_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS agenda_meeting ON agenda_items (meeting_id, seq);
 
--- How many times a stage has failed on this video. A transient failure must
--- not poison the row: claim() filters on `error IS NULL`, so writing an error
--- on the first stumble removes the video from the queue permanently. Errors
--- are now only written once a video has genuinely run out of attempts.
+-- Attempts per video. claim() filters on `error IS NULL`, so writing an error on
+-- the first stumble would remove the video from the queue permanently; errors
+-- are written only once a video has run out of attempts.
 ALTER TABLE videos ADD COLUMN IF NOT EXISTS attempts integer NOT NULL DEFAULT 0;
 
--- Who actually sat on the board, and when. Extracted from the roster block at
--- the top of every published agenda.
---
--- This exists because speaker_id.py matched voices against a HARDCODED list of
--- the five current commissioners and applied it to every meeting in the
--- archive. Measured against these rosters, 23% of commissioner voice
--- assignments were to someone not seated that day - Yeager was credited with
--- 14,148 utterances from before she took office. A roster with dates is the
--- only thing that makes per-meeting assignment honest.
+-- Who actually sat on the board, and when, from the roster block at the top of
+-- every published agenda. speaker_id.py used to match against a hardcoded list
+-- of the five current commissioners and apply it archive-wide: 23% of
+-- commissioner assignments were to someone not seated that day.
 CREATE TABLE IF NOT EXISTS people (
     id       integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    -- A PERSON'S SURNAME. An attribute, like full_name, and nothing more:
-    -- not a key, not unique, and nothing joins on it.
-    --
-    -- It was UNIQUE while `people` held 28 commissioners, and that was always
-    -- a natural key made of data that changes - ASR renders a name three ways,
-    -- a correction rewrites it, and two boards may seat the same surname. The
-    -- moment everybody named goes in here it stopped being defensible: a
-    -- resident called Sean Poole could not exist because a commissioner named
-    -- Christopher B. Poole owned "Poole". Storing NULL for the public was a
-    -- way to keep the constraint, and it threw away a name the transcript
-    -- states plainly and the record is entitled to keep.
-    --
-    -- What used to lean on the uniqueness now says what it means instead:
-    -- display_name() and name_supported() test kind = 'board' rather than
-    -- presence in this table. See SPEAKER_PLAN.md section 2.7.
+        -- A PERSON'S SURNAME. An attribute, not a key: nothing joins on it. It was
+        -- UNIQUE while `people` held only commissioners, which meant a resident called
+        -- Sean Poole could not exist beside a commissioner named Poole. What leaned on
+        -- the uniqueness now tests kind = 'board' instead.
     surname  text,
     full_name text,
     kind     text NOT NULL DEFAULT 'board'
@@ -396,22 +354,17 @@ CREATE INDEX IF NOT EXISTS agenda_outcome ON agenda_items (outcome)
 ALTER TABLE passages ADD COLUMN IF NOT EXISTS agenda_item_id integer;
 CREATE INDEX IF NOT EXISTS pass_item ON passages (agenda_item_id);
 
--- The published record has to be searchable in its OWN right, not only
--- reachable from a transcript passage. Only 1,622 of the 17,988 items the
--- minutes record an outcome for are bound to a recording - 9%. Everything else was
--- decided at a meeting this archive holds no video of, and a passage-only
--- index cannot see any of it: ask what the board decided about one of those
--- and the honest answer used to be "nothing in the indexed meetings matches".
+-- The published record has to be searchable in its OWN right. Only 9% of items
+-- the minutes record an outcome for are bound to a recording, so a passage-only
+-- index cannot see the rest.
 CREATE INDEX IF NOT EXISTS agenda_fts ON agenda_items
     USING gin (to_tsvector('english',
         coalesce(title, '') || ' ' || coalesce(case_id, '') || ' ' ||
         coalesce(department, '') || ' ' || coalesce(outcome_text, '')));
 
--- This column was added without a foreign key, and it dangled: rebuilding the
--- spans deletes the transcript-derived items, and every passage still pointing
--- at one kept pointing at a row that no longer existed. SET NULL rather than
--- CASCADE - losing an item binding must not delete the transcript passage
--- itself, which is the only copy of what was actually said.
+-- SET NULL rather than CASCADE: losing an item binding must not delete the
+-- transcript passage itself, which is the only copy of what was said. Added
+-- without a foreign key once, and it dangled.
 DO $$ BEGIN
     ALTER TABLE passages ADD CONSTRAINT passages_item_fk
         FOREIGN KEY (agenda_item_id) REFERENCES agenda_items(id)
@@ -419,41 +372,30 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- ================================================ corrections (§5.8)
+-- ================================================ corrections
 --
--- The model above attaches a name to a VOICE, where a voice is
--- (video_id, local_label) from diarization. That is a clean model and it
--- cannot express the most common error, which is why the workbench hit a wall:
+-- A name attaches to a VOICE, meaning (video_id, local_label) from diarization,
+-- and that model cannot express the most common error: diarization merges two
+-- people into one label, and renaming the voice renames every line it covers.
+-- So the finest addressable unit for a correction is the UTTERANCE.
 --
---   * diarization merges two people into one local_label, so the transcript
---     shows a back-and-forth entirely under one name and no whole-voice
---     operation can separate it;
---   * a reader can see that one stretch is wrong and has no way to say "not
---     this", because renaming the voice renames every line it covers.
---
--- So the finest addressable unit for a correction is the UTTERANCE, and a
--- correction is expressible over a contiguous range of them (R5.8.1).
---
--- Keyed on (video_id, idx range) and NEVER on a cluster id: only ~2% of
--- cluster ids survive a re-clustering run (R5.8.5). Utterance idx is stable -
--- it is the 0-based row position within a video, verified across all 298,737
--- rows - and survives everything except a re-transcription.
+-- Keyed on (video_id, idx range) and NEVER on a cluster id: only ~2% of cluster
+-- ids survive a re-clustering run, while utterance idx survives everything
+-- except a re-transcription.
 CREATE TABLE IF NOT EXISTS speaker_override (
     id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     video_id   text    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
     start_idx  integer NOT NULL,
     end_idx    integer NOT NULL,
-    -- The vocabulary of R5.8.2. `detach` is the one the old model could not
-    -- say: this range is NOT who it currently claims, and I do not know who it
-    -- is. Being unable to state that without also supplying a name is the
-    -- specific dead end that was reported.
+        -- `detach` is the one the old model could not say: this range is NOT who it
+        -- claims, and I do not know who it is.
     action     text    NOT NULL
                CHECK (action IN ('reassign', 'detach', 'identify', 'split')),
     name       text,
     note       text,
     author     text,
-    -- An admin's correction applies at once; a stranger's is a proposal that
-    -- changes nothing a reader sees until it is reviewed (R5.8.8, R9.6).
+        -- An admin's correction applies at once; a stranger's changes nothing a reader
+        -- sees until it is reviewed.
     status     text    NOT NULL DEFAULT 'applied'
                CHECK (status IN ('applied', 'pending', 'rejected')),
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -467,20 +409,16 @@ CREATE INDEX IF NOT EXISTS override_pending ON speaker_override (status, created
 -- Is this name allowed to be shown for this recording?
 --
 -- A name belonging to a known board member has to be supported for THAT
--- meeting, by the published roster or by a term on the same body. Names that
--- are not board members - staff, applicants, public comment - are unaffected.
--- This is the guard from the voice_name view, factored out so the per-voice
--- name and the cluster fallback cannot drift apart on it. 528 voice clusters
--- appear under both bodies; without this, 10,715 utterances showed County
--- Commissioners speaking at Planning Commission meetings.
+-- meeting, by the published roster or by a term on the same body. Names that are
+-- not board members are unaffected. Factored out of voice_name so the per-voice
+-- name and the cluster fallback cannot drift apart: 528 clusters appear under
+-- both bodies, and without this 10,715 utterances showed County Commissioners
+-- speaking at Planning Commission meetings.
 CREATE OR REPLACE FUNCTION name_supported(v_id text, nm text)
 RETURNS boolean LANGUAGE sql STABLE AS $$
-    -- "nm is not a board member's name, so the roster has no opinion on it."
-    -- Scoped to the board explicitly: `people` holds members of the public now
-    -- too, and without the test a commenter who happens to be called Starkey -
-    -- or Smith - would be roster-restricted at every meeting and vetoed
-    -- archive-wide. That failure would be silent, and it would look like the
-    -- archive simply not knowing who spoke.
+        -- Scoped to the board explicitly. `people` holds members of the public too, and
+        -- without the test a commenter called Starkey would be roster-restricted at
+        -- every meeting and vetoed archive-wide, silently.
     SELECT NOT EXISTS (SELECT 1 FROM people p
                         WHERE p.kind = 'board' AND lower(p.surname) = lower(nm))
         OR EXISTS (SELECT 1 FROM videos v
@@ -500,40 +438,19 @@ RETURNS boolean LANGUAGE sql STABLE AS $$
                           BETWEEN bt.first_seen - 120 AND bt.last_seen + 400);
 $$;
 
--- What a reader should SEE for this name.
+-- What a reader should SEE. Board members are stored, matched and filtered by
+-- SURNAME and that is deliberate: it is a KEY. It reads badly, though, so this
+-- is the one place it becomes a name, and everything that is not a board member
+-- passes through untouched.
 --
--- Board members are stored, matched and filtered by SURNAME, and that is
--- deliberate: every guard above keys on it, `speaker_id` assigns from it, and
--- admin.canonical_name folds a full name back to it on write. It is a KEY.
--- It is a poor thing to read, though - 148,237 of 233,963 named utterances
--- (63%) showed a bare "Starkey" where the county's own roster says Kathryn
--- Starkey - and the fix for that must not disturb the key.
---
--- So the surname stays the key and this is the one place it becomes a name.
--- Everything that is not a board member passes through untouched: staff,
--- applicants and public comment already arrive as full names.
---
--- Deliberately NOT a stored column on speaker_identity, speaker_label or
--- speaker_override. A rendered name denormalised into a row is how the archive
--- gets two spellings of one person and no way to tell which is current; the
--- one exception is passages.text, which has to carry the name because the name
--- is embedded and indexed (see bin/index_passages.py).
---
--- `people` is UNIQUE (surname), so this returns at most one row - and the day
--- two boards seat the same surname that uniqueness is already the defect, and
--- audit's people.one_body_per_surname check is what says so.
+-- Deliberately NOT a stored column anywhere. A rendered name denormalised into a
+-- row is how the archive gets two spellings of one person; the one exception is
+-- passages.text, where the name is embedded and indexed.
 CREATE OR REPLACE FUNCTION display_name(nm text)
 RETURNS text LANGUAGE sql STABLE AS $$
-    -- BOARD MEMBERS ONLY, and explicitly so. This exists for one job: the
-    -- roster stores a commissioner by surname and the page should print the
-    -- full name the county publishes. Everybody else already gives their whole
-    -- name and passes straight through.
-    --
-    -- It used to say "any person whose surname matches", which was the same
-    -- thing only while `people` held nothing but the board. It is a SCALAR
-    -- subquery, so the day two people share a surname it does not return the
-    -- wrong name - it raises, on every page that renders one. LIMIT 1 and the
-    -- kind test are what let `people` hold everybody.
+        -- BOARD MEMBERS ONLY. It is a SCALAR subquery, so the day two people share a
+        -- surname it raises rather than returning the wrong name. LIMIT 1 and the kind
+        -- test are what let `people` hold everybody.
     SELECT COALESCE((SELECT p.full_name FROM people p
                       WHERE p.kind = 'board'
                         AND lower(p.surname) = lower(nm)
@@ -541,17 +458,11 @@ RETURNS text LANGUAGE sql STABLE AS $$
                       LIMIT 1), nm);
 $$;
 
--- Does a voice actually sound like the person its cluster is named after?
---
--- Most speakers get a name only by inheriting one from their cluster, which
--- assumes cluster membership means same person. On this corpus that assumption
--- does not hold - per-recording centroids are dominated by mic, seat and room,
--- which is why anchors replaced blind clustering - so it is measured instead of
--- trusted. bin/affinity.py fills this; the resolver below refuses to hand out a
--- cluster name to a voice that scores below the floor.
---
--- 486 of 1,836 inheritable voices (26.5%) fail, and 476 of those sit under
--- 0.35, where no same-person pair has ever been observed in the ground truth.
+-- Does a voice actually sound like the person its cluster is named after? Most
+-- speakers get a name by inheriting the cluster's, which assumes membership means
+-- same person. Per-recording centroids are dominated by mic, seat and room, so it
+-- is measured instead of trusted: 26.5% of inheritable voices fail, and the
+-- resolver refuses to hand a cluster name to a voice below the floor.
 CREATE TABLE IF NOT EXISTS voice_affinity (
     video_id    text NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
     local_label text NOT NULL,
@@ -565,51 +476,28 @@ CREATE INDEX IF NOT EXISTS affinity_weak ON voice_affinity (similarity);
 
 -- Which utterances a passage is made of.
 --
--- The speaker's name is part of what gets embedded and indexed - deliberately,
--- because "what did Starkey say about X" is a real query and a passage without
--- its speaker cannot answer it. That makes a wrong name an index defect, not a
--- display defect: it pulls the passage toward the wrong person in vector space
--- and puts the wrong surname in the BM25 postings, so the passage is retrieved
--- for someone who never spoke and missed for the person who did. No amount of
--- resolving names at read time repairs that.
---
--- So corrections have to reach the index, and reaching it must be cheap or it
--- will not happen. This range is what makes a correction addressable: an
--- override over (video_id, idx range) maps to exactly the passages it touches,
--- and only those are re-rendered, re-embedded and re-posted.
+-- The speaker's name is embedded and indexed, so a wrong name is an INDEX defect,
+-- not a display defect: the passage is retrieved for someone who never spoke and
+-- missed for the person who did, and no read-time resolution repairs it. This
+-- range is what makes a correction addressable to exactly the passages it touches.
 ALTER TABLE passages ADD COLUMN IF NOT EXISTS start_idx integer;
 ALTER TABLE passages ADD COLUMN IF NOT EXISTS end_idx   integer;
 CREATE INDEX IF NOT EXISTS pass_idx_range ON passages (video_id, start_idx, end_idx);
 
 -- ============================================================ VIEWS, LAST
 --
--- Both of these read tables defined above them, so they must be created after
--- every table exists. They used to sit beside the tables they are ABOUT, which
--- reads better and cannot be applied: voice_name references meetings and
--- people, and utterance_speaker references voice_affinity, each of which was
--- created later in the file.
---
--- Nothing caught it because this schema was never applied top to bottom. The
--- production database was built up statement by statement during the SQLite
--- migration, and every run since has been against a database that already had
--- these objects. bin/sandbox.py creating an empty database is what found it —
--- which also means a rebuild from nothing, i.e. disaster recovery, would have
--- failed at exactly the moment it was needed. See gotcha 68.
+-- Both views read tables defined above them, so they must come after every table
+-- exists. They used to sit beside the tables they are ABOUT, which reads better
+-- and cannot be applied. Nothing caught it because this file was never applied
+-- top to bottom, which means disaster recovery would have failed exactly when
+-- it was needed.
 
 --
--- This was once keyed on cluster alone - the name asserted most often across
--- the archive, applied everywhere that cluster appeared. That is a global map,
--- and a global map cannot respect a per-meeting roster: speaker_id.py refuses
--- to name a commissioner at a meeting they did not sit in, and this view then
--- handed the name back at display time anyway. 528 voice clusters appear under
--- both bodies, and 10,715 utterances in Planning Commission meetings were
--- shown as County Commissioners who do not sit on that board.
---
--- Cluster-level propagation is still what gives most speakers a name, so it is
--- kept - and then checked. A name that belongs to a known board member must be
--- supported for THAT meeting, by the published roster or by a term on the same
--- body. Names that are not board members (staff, applicants, public comment)
--- are unaffected. Coverage 84.9% -> 72.4%; cross-body errors 10,715 -> 0.
+-- Once keyed on cluster alone: the name asserted most often archive-wide, applied
+-- everywhere. A global map cannot respect a per-meeting roster, so 10,715
+-- utterances showed commissioners at meetings of a board they do not sit on.
+-- Cluster propagation still gives most speakers a name, and is now checked
+-- against the roster. Coverage 84.9% -> 72.4%; cross-body errors 10,715 -> 0.
 CREATE OR REPLACE VIEW voice_name AS
 WITH cluster_pick AS (
     SELECT cluster, name, confidence FROM (
@@ -636,88 +524,47 @@ video_body AS (
 SELECT o.video_id, o.cluster, cp.name, cp.confidence
 FROM occurrence o
 JOIN cluster_pick cp ON cp.cluster = o.cluster
--- name_supported(), NOT a second copy of it. This clause used to spell out
--- the same three tests - is it a board name, was that person on this
--- meeting's roster, did their term span this date - and a rule stated twice
--- is a rule that will disagree with itself. It duly did: scoping the FUNCTION
--- to kind = 'board' and leaving this alone meant that the moment `people`
--- held members of the public, a cluster named "Alvarez" was refused here
--- because a resident called Alvarez looked like an unseated commissioner.
--- Three passages, silently unnamed, and the archive contradicting its own
--- index.
---
--- BOARD MEMBERSHIP IS TEMPORAL and that is what the function is for: the
--- first test asks whether the name belongs to the board AT ALL, and the other
--- two ask whether that person was actually seated at THIS meeting - by
--- published roster, or by a term spanning the date. A single flag on a person
--- could never answer the second question.
+-- name_supported(), NOT a second copy of it. This clause used to spell out the
+-- same three tests, and a rule stated twice is a rule that will disagree with
+-- itself. It duly did. Board membership is TEMPORAL, which is what the function
+-- is for: is this a board name at all, and was that person seated at THIS
+-- meeting, by roster or by a term spanning the date.
 WHERE name_supported(o.video_id, cp.name);
 
-
--- Who a given utterance is attributed to, and on what basis.
---
--- Precedence (R5.8.7) - a human statement at any granularity outranks
--- everything derived, and the finer statement outranks the coarser:
+-- Who a given utterance is attributed to, and on what basis. A human statement at
+-- any granularity outranks everything derived, and the finer outranks the coarser:
 --
 --   1. an utterance-range override      a person, about this stretch
 --   2. speaker_label                    a person, about this whole voice
---   3. speaker_identity                 the pipeline, about this voice in THIS meeting
---   4. the cluster majority             the pipeline, about this voice archive-wide
+--   3. speaker_identity                 the pipeline, about this voice HERE
+--   4. the cluster majority             the pipeline, about it archive-wide
 --
--- Level 3 before level 4 is the correction of a real defect, not a
--- refinement. The old display path read the name straight from the
--- archive-wide cluster majority and applied it to every meeting the cluster
--- appeared in, overriding the per-meeting assignment already stored beside it:
--- 24,445 utterances (10.7% of all named lines) were shown as one person while
--- the assignment for that voice in that meeting said another. Cluster 192
--- alone was labelled Starkey in 36 meetings and Yeager in 10 - two different
--- women - and every one of them displayed as Starkey.
+-- Level 3 before level 4 fixes a real defect: reading the name from the
+-- archive-wide majority overrode the per-meeting assignment stored beside it,
+-- and cluster 192 alone was Starkey in 36 meetings and Yeager in 10.
 --
--- Keyed on (video_id, local_label), the VOICE, not (video_id, cluster): 30
--- (video, cluster) pairs hold two diarization labels, and collapsing them
--- merges two people at display time.
+-- Keyed on the VOICE (video_id, local_label), not (video_id, cluster): 30 pairs
+-- hold two diarization labels, and collapsing them merges two people.
 --
--- `display_name` is the last column and is computed OVER the resolved name,
--- not beside it. Written inline it would need the precedence CASE a second
--- time, and a precedence rule stated twice is a precedence rule that will
--- disagree with itself - which is the exact defect the level-3-before-level-4
--- paragraph above is about.
-
+-- `display_name` is computed OVER the resolved name, not beside it, so the
+-- precedence CASE is not written twice.
 
 -- ------------------------------------------------------------- redaction
 --
--- The home address of a member of the public, spoken at the podium.
+-- The home address of a member of the public, spoken at the podium. Florida's
+-- public-comment convention has every speaker state a name and an address, so the
+-- transcripts carry ~2,500. They were always public; what changed is that this
+-- archive makes them SEARCHABLE.
 --
--- Florida's public-comment convention has every speaker state a name and an
--- address before they say anything, so the transcripts carry ~2,500 of them.
--- They are on the public record and always were; what changed is that this
--- archive makes them SEARCHABLE, and "obscure but public" and "indexed and
--- findable by name" are not the same fact about a person's home.
+-- Two things are deliberately NOT redacted: the matter itself (a subject
+-- property, a road, a site under discussion, which IS the issue), and a
+-- business address given by an attorney or engineer appearing professionally.
 --
--- Redaction is therefore applied to what this archive DERIVED - the
--- transcript and everything built from it - and never to the county's own
--- published agendas and minutes, which are reproduced as published (R2.2).
---
--- Two things are deliberately NOT redacted:
---
---   the matter itself   a subject property, a road, a site under discussion.
---                       Addresses the county published in an agenda item are
---                       protected from this by construction: they ARE the
---                       issue, and removing them would gut the record.
---   a business address  stated by an attorney, engineer or lobbyist
---                       appearing in a professional capacity. They are on
---                       the record acting for an applicant, and which firm
---                       appeared for which application is part of the story.
---
--- The row keeps `before_text` - the WHOLE utterance as it read before this
--- redaction - rather than an offset, because the text it points into is
--- rewritten in place and offsets would not survive it. Reversal restores
--- `before_text`; applying several to one utterance and reverting them in
--- reverse order therefore returns exactly the original.
---
--- `span` is the string that was taken out, and it is the load-bearing column
--- for the audit: bin/audit.py asserts that no span in `applied` status can
--- still be found in any surface a reader can reach.
+-- The row keeps `before_text`, the whole utterance as it read, rather than an
+-- offset, because the text is rewritten in place. Reversal restores it, so
+-- several applied and reverted in reverse order return exactly the original.
+-- `span` is what was taken out and is load-bearing for the audit, which asserts
+-- no applied span can still be found on any surface a reader can reach.
 CREATE TABLE IF NOT EXISTS redaction (
     id          integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     video_id    text    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
@@ -728,9 +575,9 @@ CREATE TABLE IF NOT EXISTS redaction (
                 CHECK (kind IN ('residence', 'other')),
     note        text,
     author      text,
-    -- Nothing a reader sees changes until a person accepts it. A detector
-    -- that redacted on its own judgement would be deciding, unreviewed, to
-    -- alter the transcript of a public meeting.
+        -- Nothing a reader sees changes until a person accepts it. A detector that
+        -- redacted on its own judgement would be altering the transcript of a public
+        -- meeting, unreviewed.
     status      text    NOT NULL DEFAULT 'proposed'
                 CHECK (status IN ('proposed', 'applied', 'rejected')),
     created_at  timestamptz NOT NULL DEFAULT now(),
@@ -741,59 +588,39 @@ CREATE INDEX IF NOT EXISTS redaction_queue ON redaction (status, created_at DESC
 
 -- ================================================== SPEAKER CLAIMS (shadow)
 --
--- SPEAKER_PLAN.md. Built alongside the live path, read by nothing, and
--- removed by a DROP: none of this is switched on until the diff in
--- bin/speaker_claims.py --compare says it is better.
---
--- The one idea: `speaker_identity` holds a VERDICT and throws the evidence
--- away, so when two methods disagree one wins at write time and the other is
--- gone. Here every producer appends what it observed and a single resolver
--- negotiates. speaker_id.py's docstring already promised "disagreement is
--- reported rather than silently resolved" and reported it to stdout.
+-- Built alongside the live path, read by nothing, removed by a DROP: none of it
+-- is switched on until --compare says it is better. `speaker_identity` holds a
+-- VERDICT and throws the evidence away, so when two methods disagree one wins at
+-- write time and the other is gone. Here every producer appends what it observed
+-- and a single resolver negotiates.
 
--- Who a firm, an agency, an association or a subdivision is. Mirrors `people`
--- and is seeded from the county's own documents rather than from speech,
--- because the agenda names the applicant and the transcript only mispronounces
--- them.
+-- Who a firm, an agency or a subdivision is. Seeded from the county's documents
+-- rather than from speech, because the agenda names the applicant and the
+-- transcript only mispronounces them.
 CREATE TABLE IF NOT EXISTS organizations (
     id      integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     name    text NOT NULL,
-    -- One line, because audit.schema.matches_definition parses this file as
-    -- column definitions and a CHECK spilling onto a third line reads as a
-    -- column called 'association'.
+        -- One line: audit.schema.matches_definition parses this file as column
+        -- definitions, and a CHECK spilling onto a third line reads as a column.
     kind    text
             CHECK (kind IN ('applicant','vendor','firm','agency','association','subdivision','county')),
     UNIQUE (name)
 );
 
 -- Every rendering ever heard, pointing at one row. This is where ASR variants
--- live: "Jack Brummet" beside "Jack Brummett", "Barbara Will Hyde" beside
--- Barbara Wilhite. Having them here is what stops a spelling argument from
--- becoming a resolution rule.
--- A member of the public is identified by their name and nothing else, so two
--- rows for one name are two records of one person. The archive-wide link pass
--- clears and rebuilds them; the per-recording one cannot, and minted a second
--- "Henry" the first time it ran twice. Board members are excluded: the roster
--- is their identity and it may legitimately seat two people with one full name.
+-- live ("Jack Brummet" beside "Jack Brummett"), which is what stops a spelling
+-- argument from becoming a resolution rule.
+-- A member of the public is identified by name alone, so two rows for one name
+-- are two records of one person. Board members are excluded: the roster is
+-- their identity and may legitimately seat two people with one full name.
 CREATE UNIQUE INDEX IF NOT EXISTS people_public_name
     ON people (lower(full_name)) WHERE kind = 'public';
 
--- A BOARD member IS keyed by surname, and only a board member. bin/roster.py
--- has always upserted on it - `ON CONFLICT (surname)` - and the constraint
--- that made that legal is dropped forty lines above, deliberately: once every
--- resident who speaks went into this table, one Christopher B. Poole owned
--- "Poole" and a member of the public called Sean Poole could not exist. There
--- are twelve Johnsons in here now.
---
--- So the uniqueness comes back scoped to the people it was ever true of. The
--- roster is 28 board members with no repeated surname, while `surname` stays
--- a plain attribute for the other 1,270.
---
--- Without this, roster.py raises `there is no unique or exclusion constraint
--- matching the ON CONFLICT specification` and takes the whole chain with it -
--- rebuild.sh at its second stage, and the console's "Fetch county documents"
--- at step two of seven. Nothing caught it because nothing had rebuilt a
--- roster from empty since the constraint was dropped.
+-- A BOARD member IS keyed by surname, and only a board member: roster.py upserts
+-- ON CONFLICT (surname), and the unconditional constraint is dropped above so
+-- residents can share one. Without this scoped version roster.py raises `there is
+-- no unique or exclusion constraint matching the ON CONFLICT specification` and
+-- takes the whole chain with it.
 CREATE UNIQUE INDEX IF NOT EXISTS people_board_surname
     ON people (surname) WHERE kind = 'board';
 
@@ -806,9 +633,8 @@ CREATE TABLE IF NOT EXISTS organization_alias (
     org_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE
 );
 
--- The precedence, as DATA rather than a CASE, so the audit can read it and a
--- reviewer can see it. Ordered by what kind of evidence it is, not by which
--- script produced it.
+-- Precedence as DATA rather than a CASE, so the audit can read it and a reviewer
+-- can see it. Ordered by what kind of evidence it is, not by which script made it.
 CREATE TABLE IF NOT EXISTS speaker_method (
     method text PRIMARY KEY,
     rank   integer NOT NULL,
@@ -824,88 +650,63 @@ INSERT INTO speaker_method (method, rank, quoted, note) VALUES
     ('llm',       6, true,  'inference over the same text, quote verified'),
     ('voice',     7, false, 'voiceprint match at this meeting'),
     ('cluster',   8, false, 'the name this voice goes by archive-wide'),
-    -- An isolated self-ID: evidence about a NAME and not about which voice
-    -- said it. It ships at rank 3, beside `self`, because 8% of self-IDs land
-    -- here and demoting them throws away names that are probably right - and
-    -- because the one case put to a human got "need to listen to tell".
-    -- Making it strict is one row, which is the reason precedence is data:
-    --     UPDATE speaker_method SET rank = 9 WHERE method = 'self_weak';
+        -- An isolated self-ID: evidence about a NAME, not about which voice said it. It
+        -- ships at rank 3 because 8% of self-IDs land here and demoting them throws away
+        -- names that are probably right. Making it strict is one row, which is the
+        -- reason precedence is data:
+        --     UPDATE speaker_method SET rank = 9 WHERE method = 'self_weak';
     ('self_weak', 3, true,  'a self-ID whose attribution cannot be supported'),
     -- Somebody reading another person's words. Covers only the read span, so
     -- the reader keeps every claim either side of it.
     ('read_aloud', 3, true, 'the author of words being read aloud')
 ON CONFLICT (method) DO NOTHING;
 
--- The evidence. Append-only: a correction is a new row, which is how
--- speaker_override already behaves.
+-- The evidence. Append-only: a correction is a new row.
 CREATE TABLE IF NOT EXISTS speaker_claim (
     id         integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     video_id   text    NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
-    -- The SPAN, which is what lets specificity break a tie instead of write
-    -- order. An override covers a range, a label covers a voice's run, a
-    -- cluster claim covers everything that voice says.
+        -- The SPAN, which lets specificity break a tie instead of write order.
     start_idx  integer NOT NULL,
     end_idx    integer NOT NULL,
-    -- WHICH VOICE this claim is about, where the claim is about a voice at
-    -- all. It is evidence in its own right: two claims on one voice in one
-    -- meeting are two claims about one person, which is how "Jeffrey
-    -- Montcallian" and "Jeffrey Moncani" - the same man introducing himself
-    -- twice, one utterance apart, ASR rendering it two ways - are linked
-    -- without any fuzzy string matching.
+        -- WHICH VOICE, where the claim is about a voice at all. Two claims on one voice
+        -- in one meeting are two claims about one person, which is how one man
+        -- introducing himself twice, ASR rendering it two ways, is linked without any
+        -- fuzzy string matching.
     local_label text,
-    -- WHAT WAS OBSERVED and WHO WE THINK THAT IS are two facts, so two
-    -- columns. name_text is the string the transcript carried, ASR warts and
-    -- all; person_id is the resolution and is revisable without touching the
-    -- evidence. A NULL name_text on a human method is today's 'detach'.
+        -- WHAT WAS OBSERVED and WHO WE THINK THAT IS are two facts, so two columns.
+        -- name_text is the string the transcript carried, warts and all; person_id is
+        -- the resolution and is revisable without touching the evidence.
     name_text  text,
     person_id  integer REFERENCES people(id),
     org_id     integer REFERENCES organizations(id),
     method     text    NOT NULL REFERENCES speaker_method(method),
     quote      text,
-    -- The name is attested somewhere else too. NOT required, and it PROMOTES
-    -- rather than annotates: a cluster name with somebody in the room saying
-    -- "So David, before you get too far away" outranks a bare one.
+        -- Attested elsewhere too. NOT required, and it PROMOTES rather than annotates.
     corroborated boolean NOT NULL DEFAULT false,
     author     text,
     created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS claim_span ON speaker_claim (video_id, start_idx, end_idx);
 
--- WHAT MAKES TWO CLAIMS THE SAME CLAIM, and why only the derived ones have an
--- answer.
+-- WHAT MAKES TWO CLAIMS THE SAME CLAIM. A producer re-asserts on every pass, so
+-- without an identity this table grows by 250,000 duplicate rows a run. A DERIVED
+-- claim is same span, same method, same name; NULLS NOT DISTINCT so a `detach`
+-- collapses too.
 --
--- A producer re-runs on every pipeline pass and re-asserts what it asserted
--- last time. Without an identity that is a table growing by 250,000 rows a
--- run, all of them duplicates. So a DERIVED claim is identified by what it
--- says and where: same span, same method, same name is the same claim, and a
--- second run refreshes its supporting detail rather than adding a row.
--- NULLS NOT DISTINCT so that a `detach` - name NULL - collapses too.
---
--- A CLAIM MIRRORS HOW ITS PRODUCER BEHAVES, which is what decides who is
--- excluded - and it is `override` alone, not "the human ones".
---
--- `speaker_override` keeps history: rows carry status and created_at, an
--- operator may reassign a span to Alice, then Bob, then back to Alice, and the
--- resolver breaks ties on recency. Under a unique key that third act would
--- update Alice's ORIGINAL row, keep its old id, and hand the span to Bob for
--- ever. So overrides accumulate, as events should.
---
--- `speaker_label` does NOT keep history. voices.py and web/admin.py delete and
--- re-insert; there is one row per voice and it is simply the current answer.
--- Written as an accumulating event it grew 65 rows per press of the button and
--- 65 more every time the same label was applied again - measured. It is
--- idempotent, and its producer clears the voice''s prior label claims when the
--- answer changes, exactly as it clears speaker_label.
+-- `override` alone is excluded, because it keeps history: an operator may reassign
+-- a span to Alice, then Bob, then Alice, and the resolver breaks ties on recency.
+-- Under a unique key that third act would update Alice's original row and hand the
+-- span to Bob for ever. `speaker_label` does NOT keep history: one row per voice,
+-- and written as an accumulating event it grew 65 rows per button press.
 CREATE UNIQUE INDEX IF NOT EXISTS claim_derived_identity
     ON speaker_claim (video_id, start_idx, end_idx, method, name_text)
     NULLS NOT DISTINCT
     WHERE method <> 'override';
 CREATE INDEX IF NOT EXISTS claim_method ON speaker_claim (method);
 
--- The resolved name per utterance, MATERIALISED. utterance_speaker resolves
--- four levels per row at read time and costs 620ms per 600 passages against
--- 2ms without it; a more general resolver over claims would be worse as a
--- view. Resolution only changes when a claim is added, so it is a table.
+-- The resolved name per utterance, MATERIALISED. Resolving four levels at read
+-- time costs 620ms per 600 passages against 2ms; resolution only changes when a
+-- claim is added, so it is a table.
 CREATE TABLE IF NOT EXISTS speaker_resolved (
     video_id  text    NOT NULL,
     idx       integer NOT NULL,
@@ -916,44 +717,23 @@ CREATE TABLE IF NOT EXISTS speaker_resolved (
     PRIMARY KEY (video_id, idx)
 );
 
--- MOVED HERE FROM ABOVE THE REDACTION SECTION, and the order is the whole
--- point. This view and the function under it read `speaker_resolved` and
--- `speaker_method`, both defined further up this file only since the
--- 2026-08-17 cutover - so on an EXISTING database CREATE OR REPLACE found
--- them and nothing looked wrong, while applying this file to a FRESH one
--- failed outright on `relation "speaker_resolved" does not exist`.
---
--- Nothing in production revealed it: db.init() is only ever run against a
--- database that already has the objects. bin/sandbox.py --build is the one
--- caller that starts from empty, and it is what found this.
+-- MOVED BELOW THE TABLES IT READS, and the order is the point: on an existing
+-- database CREATE OR REPLACE found them and nothing looked wrong, while a FRESH
+-- one failed on `relation "speaker_resolved" does not exist`.
 
--- WHO SAID THIS, resolved from speaker_claim by way of speaker_resolved.
---
--- Cut over on 2026-08-17. It was built alongside the old read-time resolver
--- and named _next for as long as that one served, so the two could be diffed
--- against each other over the whole archive: 1,215 names gained, 9 lost, 389
--- changed, and a 50-case hand check of those (SPEAKER_PLAN 4a) that found
--- three extraction bugs and no regressions. The old view is gone; git has it.
---
--- IT KEPT THE CONTRACT, which is why the swap was a rename and not a
--- migration. Same columns, same meanings, so the twelve files that
--- read only the view do not change and neither does bin/index_passages, which
--- builds passages.speaker and the embedded text from exactly these columns.
+-- WHO SAID THIS, resolved from speaker_claim by way of speaker_resolved. The
+-- swap from the old read-time resolver was a rename, not a migration, because
+-- it KEPT THE CONTRACT: same columns, same meanings, so the twelve files that
+-- read only the view do not change, and neither does index_passages.
 --
 --   name          THE KEY, and it must not change form or the `speaker` facet
---                 and every stored citation stop matching. A board member is
---                 keyed by surname; everybody else by the name they gave.
---   basis         now the METHOD, which is strictly more informative than the
---                 four values it carried. ui/components/SpeakerChip.tsx maps
---                 method to how sure the page looks, in one place, as it does
---                 today.
+--                 and every stored citation stop matching. Surname for a board
+--                 member, the name they gave for everybody else.
+--   basis         the METHOD. SpeakerChip maps it to how sure the page looks.
 --   confidence    NULL, always. Three producers wrote three incomparable
---                 scales into one column (0.5 self-ID, 0.88 chair, 0.95 LLM)
---                 and R5.5.6 forbids showing a number anyway. The column
---                 survives so nothing breaks reading it; it no longer claims
---                 anything.
+--                 scales into one column and no number is shown anyway.
 --   contested     two unvetoed methods asserting different names for one span,
---                 OR a correction pending - which is all it used to mean.
+--                 or a correction pending.
 CREATE OR REPLACE VIEW utterance_speaker AS
 SELECT u.video_id,
        u.idx,
@@ -995,33 +775,15 @@ SELECT u.video_id,
          ON sr.video_id = u.video_id AND sr.idx = u.idx
   LEFT JOIN people pe ON pe.id = sr.person_id;
 
--- How well a PASSAGE's speaker name is known, in the two fields every surface
--- already draws it from: `human` and `basis`.
+-- How well a PASSAGE's speaker name is known. A passage is many utterances and
+-- the view above answers for one, so this reduces them to the WORST case: one
+-- shaky line is enough to make an attribution shaky.
 --
--- A passage is many utterances and the view above answers for one, so
--- something has to reduce them - and every reader of this, the page and the
--- agent alike, wants the same reduction: the WORST case. One shaky line is
--- enough to make an attribution shaky, and a passage that is 'human' for four
--- utterances and 'cluster' for the fifth is a passage whose name may be wrong.
---
--- It is a function and not two aggregates in each caller's query because both
--- ways of writing those aggregates were wrong, and wrong quietly:
---
---   BOOL_OR(human) with MIN(basis) reads the two fields off DIFFERENT
---   utterances, so one passage came back saying a person confirmed it AND that
---   it was an archive-wide cluster guess. Whichever the caller checked first
---   decided the answer.
---
---   MIN(basis) is alphabetical, and alphabetical is not strength: it puts
---   'cluster' first, which is right by luck, and then 'human' ahead of
---   'voice', which is backwards. A passage mixing a confirmed name with a
---   voice match reported the confirmed one.
---
--- ORDER BY ... LIMIT 1 over a real strength ranking returns ONE row, so the
--- fields cannot disagree, and returns the weakest, which is what the question
--- means. The ranking is the precedence in the view above, read from the bottom
--- up; it is stated here and nowhere else for the reason the view's own header
--- gives.
+-- A function, not two aggregates in each caller's query, because both ways of
+-- writing those were quietly wrong. BOOL_OR(human) with MIN(basis) reads the two
+-- fields off DIFFERENT utterances. MIN(basis) is alphabetical, which is not
+-- strength: it puts 'human' ahead of 'voice', backwards. ORDER BY over a real
+-- ranking returns ONE row, so the fields cannot disagree.
 CREATE OR REPLACE FUNCTION passage_speaker(vid text, lo integer, hi integer)
 RETURNS TABLE (name_human boolean, name_basis text)
 LANGUAGE sql STABLE AS $$
@@ -1043,7 +805,6 @@ LANGUAGE sql STABLE AS $$
      LIMIT 1;
 $$;
 
-
 -- The read-time resolver `utterance_speaker` replaced on 2026-08-17. The
 -- cutover renamed it aside rather than dropping it so that
 -- `bin/cutover_speaker.py --rollback` had something to rename back, and it sat
@@ -1059,54 +820,30 @@ $$;
 DROP VIEW IF EXISTS utterance_speaker_old;
 
 -- ================================================================ answers
--- One completed run of the agent, kept so that the answer has a URL.
+-- One completed run of the agent, kept so the answer has a URL. /ask?q=... is
+-- not that URL: it is an instruction to spend money and to sit through a fresh
+-- run for a different answer.
 --
--- /ask?q=... is not that URL: it is an INSTRUCTION to spend money, and sending
--- it to somebody makes them sit through a fresh run - minutes, at ASK_DEADLINE
--- - for a different answer than the one being shown to them. This table is
--- what /ask/<id> reads, so a shared link is the answer that was actually
--- given, at no cost and in one round trip.
+-- What is kept is the answer and what it CITED, never the words it quoted. The
+-- evidence is read back out of the archive when the page renders, so a redaction
+-- or a corrected name applied since is already there. A reading that froze the
+-- words would slowly disagree with the thing it claims to quote.
 --
--- What is kept is the answer and what it CITED, never the words it quoted.
--- The evidence is read back out of the archive when the page renders
--- (web/answers.py, web/tools.py: passages_at/items_at), which is the whole
--- design: a redaction applied since is already in `passages.text`, a corrected
--- speaker name is already on the row, and nothing has to go back and find old
--- copies. The archive is the record; a saved answer is a reading of it, and a
--- reading that froze the words would slowly start disagreeing with the thing
--- it claims to be quoting.
+-- Passages are named by (video_id, start_idx, end_idx), not by id, because
+-- index_passages reassigns ids on every rebuild. A range that stops resolving
+-- means a redaction moved the boundaries, and the citation is then honestly gone
+-- rather than quietly serving pre-redaction text. Agenda item ids ARE durable.
 --
--- Passages are named by `(video_id, start_idx, end_idx)` and not by id:
--- bin/index_passages reassigns ids on every rebuild and states that nothing
--- outside the index stores one. The range is unique across all 166,998
--- passages. A range that stops resolving means a redaction moved the
--- boundaries, and the citation is then honestly gone rather than quietly
--- serving pre-redaction text.
---
--- Agenda item ids ARE durable - `/item/<id>` is a public URL - so `cites.items`
--- is a plain list of them.
---
--- One thing cannot be read back: `answer` is generated prose that quotes the
--- transcript, and nothing can reconstruct it. It is the only copied text here
--- and therefore the only redaction surface. Nothing deletes it - bin/redact.py
--- replaces the span with its marker, in place, the way republish() does in the
--- transcript, so a circulated link keeps working and stops carrying the
--- address. `redaction.gone_from_answers` in bin/audit.py proves it happened.
--- The range in `cites` also makes "did this answer cite the line that was
--- redacted?" answerable with no string matching at all, which is what
--- `redaction.answers_quoting_a_redacted_line` lists for a person to read.
--- Rows are never removed here, and there is no retention sweep.
--- A one-time correction, and the only DROP in this file. `answers` had a first
--- shape for about an hour on 2026-08-14 which stored the whole payload,
--- evidence text and all, in a single `result` column. It never shipped, but a
--- dump taken in that window carries it - and because every statement here is
--- IF NOT EXISTS, re-applying the schema over one of those would leave the dead
--- shape in place and web/answers.py would fail against it with an error about
--- a missing column rather than about the real problem.
---
--- Guarded on a column name only the dead shape has, so this cannot touch the
--- current table. Anything it drops is unreadable by the current code anyway.
--- Delete this block once no dump from before 2026-08-15 is still in play.
+-- `answer` is generated prose quoting the transcript and cannot be reconstructed,
+-- so it is the only copied text here and the only redaction surface. Nothing
+-- deletes it: redact.py replaces the span in place, so a circulated link keeps
+-- working and stops carrying the address.
+
+-- The DO block below is a one-time correction and the only DROP in this file.
+-- `answers` had a different shape for about an hour on 2026-08-14, and every
+-- statement here is IF NOT EXISTS, so re-applying the schema over a dump from
+-- that window would leave the dead shape in place. Guarded on a column only
+-- that shape has. Delete it once no dump from before 2026-08-15 is in play.
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns
@@ -1207,7 +944,7 @@ CREATE INDEX IF NOT EXISTS answers_recent ON answers (created_at DESC);
 -- vocabulary: a model proposes the phrases a Florida county actually uses, the
 -- corpus grounds each one with a count and a real sample, and a person keeps or
 -- drops it. Matching stays LEXICAL and stays here, which is what keeps these
--- counts on the record side of the two-truths rule (UI_REQUIREMENTS section 2):
+-- counts on the record side of the two-truths rule:
 -- counting published titles by phrase is exact and reproducible, where a
 -- per-item model label or a cosine threshold would make every number on that
 -- surface an inference and oblige it to be drawn as one.
@@ -1226,7 +963,7 @@ CREATE TABLE IF NOT EXISTS subject (
     status     text NOT NULL DEFAULT 'proposed'
                CHECK (status IN ('proposed', 'kept', 'dropped')),
     -- Name and version of what proposed it, so one pass can be dropped and
-    -- re-run by name (R5.9.9's reasoning, applied a level up from a fact).
+    -- re-run by name the same reasoning, a level up from a fact.
     proposer   text,
     sort       integer,
     created_at timestamptz NOT NULL DEFAULT now()
@@ -1284,7 +1021,7 @@ CREATE INDEX IF NOT EXISTS subject_children ON subject (parent)
 -- same twenty-seven plus twelve sub-subjects in 163 SECONDS. A sub-subject is
 -- counted inside its parent, so each child evaluates its own alternation AND
 -- its parent's against every published title, and `~*` cannot use an index.
--- R8.1 asks for meaningful content in one second.
+-- The page has to show meaningful content within a second.
 --
 -- The vocabulary changes when somebody runs `bin/subjects.py`. The front page
 -- is read constantly. So the join happens at curation time and the page reads
