@@ -244,7 +244,7 @@ def turns(con, rows):
     got = {}
     for u in con.execute("""
         SELECT k.v AS video_id, k.s AS start_idx, k.e AS end_idx,
-               u.idx, u.start, u."end", u.text,
+               u.idx, u.start, u."end", u.text, u.local_label,
                us.name, us.display_name, us.human, us.basis
           FROM unnest(%s::text[], %s::int[], %s::int[]) AS k(v, s, e)
           JOIN utterances u
@@ -260,13 +260,27 @@ def turns(con, rows):
         rows_ = got.get((r["video_id"], r["start_idx"], r["end_idx"]))
         if not rows_:
             continue
-        out = []
+        out, letters = [], {}
         for u in rows_:
+            # LETTERED WITHIN THIS PASSAGE when nobody is named, which is the
+            # convention bin/index_passages already bakes into the text. Two
+            # unnamed people in one exchange are "Unidentified A" and
+            # "Unidentified B"; calling both of them "Unidentified" would lose
+            # the one thing the reader still has, which is that they differ.
+            display = u["display_name"]
+            if not display:
+                key = u["local_label"]
+                if key not in letters:
+                    letters[key] = chr(ord("A") + len(letters) % 26)
+                display = f"Unidentified {letters[key]}"
             # A turn is a contiguous run by ONE speaker, so consecutive
-            # utterances resolving to the same name are one turn. Splitting on
-            # every utterance would hand back the ASR's breath pauses as if
-            # they were somebody else talking.
-            if out and out[-1]["speaker"] == u["name"]:
+            # utterances by the same one are merged - splitting on every
+            # utterance would hand back the ASR's breath pauses as if somebody
+            # else were talking. Keyed on the VOICE as well as the name,
+            # because an unnamed speaker's name is NULL and two different
+            # unnamed people would otherwise merge into a single turn.
+            if (out and out[-1]["speaker"] == u["name"]
+                    and out[-1]["_voice"] == u["local_label"]):
                 t = out[-1]
                 t["end_idx"], t["end"] = u["idx"], u["end"]
                 t["text"] = f"{t['text']} {u['text']}".strip()
@@ -276,13 +290,16 @@ def turns(con, rows):
                 "passage_id": r.get("id"),
                 "video_id": r["video_id"],
                 "speaker": u["name"],
-                "speaker_display": u["display_name"],
+                "speaker_display": display,
                 "who": archive.who(u["name"], u["display_name"],
                                    u["basis"], u["human"]),
                 "start_idx": u["idx"], "end_idx": u["idx"],
                 "start": u["start"], "end": u["end"],
                 "text": u["text"],
+                "_voice": u["local_label"],
             })
+        for t in out:
+            t.pop("_voice", None)
         r["turns"] = out
     return rows
 

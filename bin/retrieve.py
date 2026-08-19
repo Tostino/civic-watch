@@ -383,13 +383,32 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
             # unnest, which the planner turns into 2.4 seconds. Four terms cost
             # 8ms this way, and only on the loosened path.
             ceiling = n_items * 0.2
-            keep = [t for t in terms
-                    if con.execute(
-                        f"SELECT count(*) FROM agenda_items ai "
-                        f"WHERE {ITEM_FTS} @@ plainto_tsquery('english', %s)",
-                        (t,)).fetchone()[0] <= ceiling]
-            if keep:
-                args["terms"] = keep
+            # A STOPWORD IS NOT A TERM. plainto_tsquery('english','not') is
+            # empty and can never match, so counting one toward the floor
+            # raises a bar nothing can clear. Both regressions this caused were
+            # of that shape: "twenty is not that big" fell from 35 results to
+            # 0 with two unmatchable words of four, and "motion second all in
+            # favor" fell from 219 to 0 when every word was either a stopword
+            # or too common and the fallback handed the stopwords back.
+            #
+            # So there are two lists. `matchable` is what CAN be counted;
+            # `keep` is the part of it that also discriminates. Prefer keep,
+            # fall back to matchable, and when nothing is matchable apply no
+            # floor at all rather than one nothing can meet.
+            matchable, keep = [], []
+            for t in terms:
+                r = con.execute(
+                    f"SELECT ptq <> ''::tsquery, "
+                    f"       (SELECT count(*) FROM agenda_items ai "
+                    f"         WHERE {ITEM_FTS} @@ ptq) "
+                    f"  FROM plainto_tsquery('english', %s) AS ptq",
+                    (t,)).fetchone()
+                if not r[0]:
+                    continue
+                matchable.append(t)
+                if r[1] <= ceiling:
+                    keep.append(t)
+            args["terms"] = keep or matchable
         n_terms = len(args["terms"])
         args["floor"] = min(max(n_terms - 1, 1), max((n_terms + 1) // 2, 1))
         # No countable terms means nothing to hold a floor against, and

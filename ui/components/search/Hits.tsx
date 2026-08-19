@@ -181,11 +181,31 @@ export function TranscriptHits({
                 {/* from the other end: an error is often noticed in a
                     LIST, not while reading one meeting. Readers see nothing. */}
                 <DisputePassage hit={h} />{" "}
-                {highlight(h.text, query).map((run, i) => (
-                  <Fragment key={i}>
-                    {run.hit ? <mark className={s.mark}>{run.s}</mark> : run.s}
-                  </Fragment>
-                ))}
+                {/* A passage that crosses speakers is stored as one string
+                    with the names inside it, and the seams are not visible:
+                    "That was a Oakley: budge" gives a reader no way to say
+                    where Weightman stopped. `turns` is the same words split
+                    back by the utterances they came from. Null when the
+                    passage is one person, where the chip above already says
+                    who. */}
+                {h.turns
+                  ? h.turns.map((t) => (
+                      <span key={t.n} className={s.turn}>
+                        <span className={s.turnWho}>
+                          {`${t.speaker_display ?? t.speaker ?? "Unidentified"}: `}
+                        </span>
+                        {highlight(t.text, query).map((run, i) => (
+                          <Fragment key={i}>
+                            {run.hit ? <mark className={s.mark}>{run.s}</mark> : run.s}
+                          </Fragment>
+                        ))}
+                      </span>
+                    ))
+                  : highlight(h.text, query).map((run, i) => (
+                      <Fragment key={i}>
+                        {run.hit ? <mark className={s.mark}>{run.s}</mark> : run.s}
+                      </Fragment>
+                    ))}
               </p>
             </li>
           ))}

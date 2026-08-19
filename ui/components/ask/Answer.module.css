@@ -367,3 +367,21 @@
 .struck {
   color: var(--no);
 }
+
+/* One speaker's run inside a passage that crosses several of them. The stored
+ * text is a single string with the names buried in it; these are the same
+ * words split back by the utterances they came from, so a reader can see where
+ * one person stops. No chip per turn: the passage's own chip has already said
+ * how sure the archive is, and repeating it would claim each line was assessed
+ * on its own. */
+.turn {
+  display: block;
+  margin-top: 0.35em;
+}
+
+.turnWho {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+

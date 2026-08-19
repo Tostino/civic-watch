@@ -2,10 +2,25 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "ui",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "ui", "run", "dev", "--", "-p", "3100"],
-      "port": 3100
+      "name": "api",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "bin/serve.sh",
+        "--port",
+        "8799"
+      ],
+      "port": 8799,
+      "autoPort": false
+    },
+    {
+      "name": "ui-after",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd .uicheck && npx next dev -p 3101"
+      ],
+      "port": 3101,
+      "autoPort": false
     }
   ]
 }

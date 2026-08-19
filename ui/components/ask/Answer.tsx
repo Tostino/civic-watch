@@ -651,7 +651,18 @@ function Quote({
         </button>
         {hit.phase ? <span className={s.phase}>{phaseLabel(hit.phase)}</span> : null}
       </div>
-      <p className={s.said}>{hit.text}</p>
+      <p className={s.said}>
+        {hit.turns
+          ? hit.turns.map((t) => (
+              <span key={t.n} className={s.turn}>
+                <span className={s.turnWho}>
+                  {`${t.speaker_display ?? t.speaker ?? "Unidentified"}: `}
+                </span>
+                {t.text}
+              </span>
+            ))
+          : hit.text}
+      </p>
     </>
   );
 }
