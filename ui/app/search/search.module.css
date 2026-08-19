@@ -13,7 +13,7 @@
   max-width: 62rem;
 }
 
-/* Rail then results. PRIOR_ART §1: facets belong in a rail rather than behind
+/* Rail then results: facets belong in a rail rather than behind
  * a menu, because the counts in them are information in their own right. */
 .body {
   display: grid;

@@ -9,8 +9,7 @@ and always were. What this archive changed is that they became SEARCHABLE:
 fact about a person's home, and the archive is what closed the distance.
 
 So the transcript this archive DERIVED is redacted, and the county's own
-published agendas and minutes are not (R2.2 - we reproduce the published
-record; we do not correct it).
+published agendas and minutes are not.
 
 Three categories, and only the first is redacted:
 
@@ -314,7 +313,7 @@ def protected(con):
     for q in ("SELECT title FROM agenda_items WHERE title IS NOT NULL",
               "SELECT title FROM segments WHERE title IS NOT NULL"):
         # r[0], never `for (title,) in ...`: db.Row is a Mapping, so
-        # unpacking a row yields its COLUMN NAMES (gotcha 13). This function
+        # unpacking a row yields its COLUMN NAMES. This function
         # silently protected nothing at all until that was fixed, which is
         # the worst way for a guard to fail - it fails open.
         for r in con.execute(q).fetchall():
@@ -346,7 +345,7 @@ def candidates(con, limit=None, video=None):
     rows = con.execute(sql, tuple(args)).fetchall()
 
     out = []
-    for r in rows:                                    # positional: gotcha 13
+    for r in rows:                                    # positional: a db.Row unpacks to column names
         video_id, idx, text = r[0], r[1], r[2]
         found = [m.group(0) for m in ADDRESS.finditer(text)]
         if found and all(norm(f) in keep_out for f in found):
@@ -500,7 +499,7 @@ def propose_sections(con, limit=None, video=None, write=False, model=None,
     and the passes disagree about boundaries - "4651 Ellerby Drive" and "4651
     Ellerby Drive, New Port Richey, Florida" are two strings covering one
     address. That is why the count can fall between 2 and 3 passes while
-    coverage does not move. Score coverage, never string counts (gotcha 96).
+    coverage does not move. Score coverage, never string counts.
 
     `store()` already dedupes on (video_id, idx, span), so the union needs no
     extra machinery - only the calls.
@@ -767,7 +766,7 @@ def apply(con, ids, device=DEVICE):
         print("nothing to apply")
         return 0
     kept = []
-    for r in rows:                                      # positional: gotcha 13
+    for r in rows:                                      # positional: a db.Row unpacks to column names
         rid, video_id, idx, span = r[0], r[1], r[2], r[3]
         raw = con.execute(
             "SELECT text_raw FROM utterances WHERE video_id = %s AND idx = %s",
@@ -792,7 +791,7 @@ def apply(con, ids, device=DEVICE):
     # quoting it could not have been produced while it was redacted. A revert
     # does NOT restore a scrubbed answer, which is the one thing here that is
     # not recomputable; the reading survives, the address does not come back.
-    scrubbed = scrub_answers(con, {(r[1], r[3]) for r in kept})   # gotcha 13
+    scrubbed = scrub_answers(con, {(r[1], r[3]) for r in kept})   # a known failure
     if scrubbed:
         print(f"  scrubbed the span from {scrubbed} saved answer(s)")
     return _settle(con, kept, device, "applied")
@@ -818,7 +817,7 @@ def show(con, status="proposed", limit=40):
         FROM redaction r JOIN videos v ON v.id = r.video_id
         WHERE r.status = %s ORDER BY r.id LIMIT %s
     """, (status, limit)).fetchall()
-    for r in rows:                                    # positional: gotcha 13
+    for r in rows:                                    # positional: a db.Row unpacks to column names
         rid, idx, span, title = r[0], r[2], r[3], r[4]
         print(f"{rid:>5}  {span[:46]:<46}  {(title or '')[:40]}  #{idx}")
     n = con.execute("SELECT COUNT(*) FROM redaction WHERE status = %s",

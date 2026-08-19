@@ -11,7 +11,7 @@ import s from "./Turn.module.css";
  * Speech, attributed. One speaker's consecutive lines, each seekable.
  *
  * Lived inside ItemView until /case needed to show everything said about one
- * application across every meeting that took it up (R5.4.4). It is the item's
+ * application across every meeting that took it up. It is the item's
  * and the case's, and it is not everybody's - which is worth stating, because
  * this comment used to claim search as a third caller and search has never
  * rendered a turn in its life:
@@ -28,10 +28,10 @@ import s from "./Turn.module.css";
  *                       render.
  *
  * What must not diverge is how a claim about who spoke is presented, and that
- * is SpeakerChip's job in every one of them (R6.2.1, D3), and how a correction
+ * is SpeakerChip's job in every one of them, and how a correction
  * is raised, which is `useDispute`'s.
  *
- * `offices` maps surname -> the office held AT THAT MEETING (R5.2.5), so the
+ * `offices` maps surname -> the office held AT THAT MEETING, so the
  * caller passes the right meeting's roster. A case spanning three years passes
  * a different one per hearing, which is the reason this is a parameter rather
  * than something looked up in here.
@@ -51,7 +51,7 @@ export function Turns({
   activeIdx?: number;
   onSeek: (line: Line) => void;
 }) {
-  /* The console bridge (R5.8.3, R6.2.2). Only the operator ever sees the
+  /* The console bridge. Only the operator ever sees the
    * affordance: for a reader the probe answers false and nothing renders. */
   const dispute = useDispute();
 
@@ -88,7 +88,7 @@ function Turn({
   onDispute?: () => void;
 }) {
   const first = lines[0];
-  // The office held AT THIS MEETING (R5.2.5). The roster keys on surname.
+  // The office held AT THIS MEETING. The roster keys on surname.
   const office = first.name
     ? (offices[first.name] ?? offices[first.name.split(" ").pop() ?? ""])
     : null;

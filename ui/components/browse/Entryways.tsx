@@ -7,13 +7,13 @@ import type { DecidedDay, Divided, Highlights } from "@/lib/types";
 import s from "./Entryways.module.css";
 
 /**
- * R5.1.4 - curated entry points, so arriving does not require already having a
+ * curated entry points, so arriving does not require already having a
  * question. A search box alone assumes the reader knows what to ask, and most
- * of them do not; PRIOR_ART §1 found Councilmatic's "Divided Votes" to be the
+ * of them do not; the design notes found Councilmatic's "Divided Votes" to be the
  * strongest story surface in any of the archives reviewed.
  *
  * All of these are saved queries with names, and every row links to a real
- * object, so none of it is a dead end (R4.3). When /search lands it should
+ * object, so none of it is a dead end. When /search lands it should
  * absorb them as named filters rather than reimplement them.
  */
 export function Entryways({ h }: { h: Highlights }) {
@@ -55,7 +55,7 @@ export function Entryways({ h }: { h: Highlights }) {
 /* ------------------------------------------------------------ disagreement */
 
 /**
- * The two sources, side by side and never blurred (UI_PLAN §2). The lanes are
+ * The two sources, side by side and never blurred. The lanes are
  * headed the way every other surface heads them - "What the minutes recorded"
  * against "What was said" - because a reader who learns the pair on an item
  * page should not have to learn it again here. Each lane is blind where the
@@ -120,7 +120,7 @@ function DividedSection({ d }: { d: Divided }) {
           <div className={s.lane}>
             <h3 className={s.laneHead}>
               <span className={s.laneWhat}>What was said</span>
-              {/* R3.1: the transcript is machine-made and this lane is a
+              {/* the transcript is machine-made and this lane is a
                   reading of it, so it says so where the claim is made rather
                   than in a footnote nobody reaches. */}
               <span className={`${s.laneWhy} ${s.inferred}`}>
@@ -145,7 +145,7 @@ function DividedSection({ d }: { d: Divided }) {
                       {/* A named member, against a split vote or an objection.
                           Drawn with the certainty behind the name, because
                           this is the claim a person is least willing to have
-                          wrong about them (R2.3, R6.2). */}
+                          wrong about them. */}
                       <span className={s.who}>
                         <SpeakerChip who={r.who} size="sm" />
                       </span>

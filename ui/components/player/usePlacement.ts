@@ -26,7 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
  *
  * The choice, the width and the floating position are the reader's preference
  * about their own screen, so they live in localStorage and never in the URL: a
- * shared link carries a moment in a meeting (R4.2), not the furniture.
+ * shared link carries a moment in a meeting, not the furniture.
  */
 
 export type DockMode = "lane" | "float";
@@ -316,7 +316,7 @@ export function usePlacement(dockRef: React.RefObject<HTMLElement | null>): Plac
     [gesture, fit, update],
   );
 
-  /* Corners, so that moving the player is not pointer-only (R8.2). Four
+  /* Corners, so that moving the player is not pointer-only. Four
    * predictable places beat arrow-key nudging: a reader who cannot see the
    * card is not going to aim it a pixel at a time.
    *

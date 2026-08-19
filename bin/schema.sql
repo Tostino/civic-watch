@@ -651,7 +651,8 @@ INSERT INTO speaker_method (method, rank, quoted, note) VALUES
     ('voice',     7, false, 'voiceprint match at this meeting'),
     ('cluster',   8, false, 'the name this voice goes by archive-wide'),
         -- An isolated self-ID: evidence about a NAME, not about which voice said it. It
-        -- ships at rank 3 because 8% of self-IDs land here and demoting them throws away
+        -- ships at rank 3 because 8% of self-IDs land here and demoting them throws
+        -- away
         -- names that are probably right. Making it strict is one row, which is the
         -- reason precedence is data:
         --     UPDATE speaker_method SET rank = 9 WHERE method = 'self_weak';

@@ -12,7 +12,7 @@ import type { RecordHit, TranscriptHit } from "@/lib/types";
 import s from "./Hits.module.css";
 
 /**
- * The two kinds of hit, and they are drawn as two kinds (R5.6.1, UI_PLAN §2).
+ * The two kinds of hit, and they are drawn as two kinds.
  *
  * Merging them into one ranked list was the tempting design and it is wrong:
  * it would force a comparison between "this was approved" and "somebody said
@@ -50,7 +50,7 @@ export function RecordHits({
       </p>
 
       {loosened ? (
-        /* R3.2: a widened search must say it widened. Silently loosening is
+        /* a widened search must say it widened. Silently loosening is
            how a reader ends up believing an exact phrase was found. */
         <p className={s.notice}>
           No item matched every word, so this matched <b>any</b> of them, most
@@ -73,7 +73,7 @@ export function RecordHits({
                   </span>
                 ) : null}
               </div>
-              {/* The fourth context UI_PLAN §5 promised for this component:
+              {/* The fourth context the design notes promised for this component:
                   spine, case timeline, agent evidence, and here. */}
               <ItemCard
                 item={h}
@@ -160,7 +160,7 @@ export function TranscriptHits({
                 {h.phase ? <span className={s.phase}>{phaseLabel(h.phase)}</span> : null}
               </div>
 
-              {/* R5.6.3: a passage without its item is frequently unreadable —
+              {/* a passage without its item is frequently unreadable —
                   "all in favor say aye" means nothing on its own. */}
               {h.agenda_item_id ? (
                 <Link href={`/item/${h.agenda_item_id}`} className={s.under}>
@@ -178,7 +178,7 @@ export function TranscriptHits({
                 <span className={s.who}>
                   <SpeakerChip who={h.who} size="sm" />
                 </span>
-                {/* R5.8.3 from the other end: an error is often noticed in a
+                {/* from the other end: an error is often noticed in a
                     LIST, not while reading one meeting. Readers see nothing. */}
                 <DisputePassage hit={h} />{" "}
                 {highlight(h.text, query).map((run, i) => (

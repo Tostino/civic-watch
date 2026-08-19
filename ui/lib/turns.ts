@@ -10,7 +10,7 @@ import type { Line } from "./types";
  *
  * `basis` breaks a turn as surely as the name does. A corrected stretch inside
  * an otherwise machine-named voice is a *different kind of claim* about who is
- * speaking (R5.8.7), and absorbing it into the turn around it would show a
+ * speaking, and absorbing it into the turn around it would show a
  * human's statement under a machine's attribution.
  *
  * Stated once here because the meeting transcript and the item page both group

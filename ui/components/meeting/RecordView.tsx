@@ -18,7 +18,7 @@ const SUBSTANTIVE = new Set(["public_hearing", "regular", "proclamation", "staff
  * what the minutes say became of it.
  *
  * This is the half of the page that works for the 91% of decided items with no
- * recording (R3.1), and on a meeting with no video it IS the page. It never
+ * recording, and on a meeting with no video it IS the page. It never
  * renders an empty player and never implies a recording exists.
  *
  * Hierarchy follows the record's own structure rather than flattening it: the
@@ -49,7 +49,7 @@ export function RecordView({
   const derivedRef = useRef<HTMLLIElement | null>(null);
 
   // Selecting an item in the spine that has no recording brings it here, so
-  // the click still goes somewhere (R4.3: no dead ends). It may be a card, a
+  // the click still goes somewhere (no dead ends). It may be a card, a
   // row of the consent table, or a derived stretch.
   useEffect(() => {
     const el = activeRef.current ?? activeRowRef.current ?? derivedRef.current;
@@ -187,8 +187,7 @@ export function RecordView({
                     {/* A consent item is still an item with a URL. These are
                         most of the record — 150 of a 200-item agenda — and
                         leaving them unlinked is how /item ends up reachable
-                        only from the four things anyone already knew about
-                        (R4.1). */}
+                        only from the four things anyone already knew about. */}
                     <Link href={`/item/${i.id}`} title={i.title ?? undefined}>
                       {shortTitle(i.title, 150)}
                     </Link>

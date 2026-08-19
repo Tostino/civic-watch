@@ -147,7 +147,7 @@
   text-transform: uppercase;
 }
 
-/* R3.2: this object's own coverage, stated plainly. The rules that used to
+/* this object's own coverage, stated plainly. The rules that used to
  * bound this row are on `.detail` now, around all of it. */
 .coverage {
   display: flex;
@@ -369,7 +369,7 @@
 }
 
 /* ---------------------------------------------------------- responsive
- * R8.3. A resident following a hearing on a phone is a real case, so the rail
+ * A resident following a hearing on a phone is a real case, so the rail
  * stops being a rail and becomes the top of the page. */
 @media (max-width: 68rem) {
   .split {
@@ -383,7 +383,7 @@
     max-height: 26rem;
   }
 
-  /* R8.3. On a phone the page is the scroller and the columns are stacked, so
+  /* On a phone the page is the scroller and the columns are stacked, so
    * the measured pane height is dropped rather than applied to a single
    * column. Keeping it would trap the record inside a 300px box below an
    * already-tall masthead. */

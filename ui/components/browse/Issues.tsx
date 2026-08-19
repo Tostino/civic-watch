@@ -7,7 +7,7 @@ import type { Issue, IssueYear, Issues as IssuesData } from "@/lib/types";
 import s from "./Issues.module.css";
 
 /**
- * R5.1.4 — what the county keeps coming back to.
+ * what the county keeps coming back to.
  *
  * The rest of browse is structural or recent. The coverage bars say how much
  * of the record we hold, the time axis says how many meetings there were, and
@@ -38,7 +38,7 @@ import s from "./Issues.module.css";
  * the lanes: a subject the record goes quiet on while the room does not.
  * That was the hairline before.
  *
- * Every cell is a link into `/search` for that issue in that year (R4.2, R4.3)
+ * Every cell is a link into `/search` for that issue in that year
  * — the counts here are found by wording, and the search page is where a
  * reader goes to see the items they were found in.
  */
@@ -286,7 +286,7 @@ function Row({
   );
 }
 
-/* Was three lines of body copy under the grid. It is the provenance R2.1 asks
+/* Was three lines of body copy under the grid. It is the provenance the design asks
  * for and it is not what anybody came to read, so it moved onto a marker
  * beside the legend: one hover or one Tab away, in the place a reader looks
  * when they want to know where a number came from. `tabIndex` because a

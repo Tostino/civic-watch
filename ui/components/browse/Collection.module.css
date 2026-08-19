@@ -118,7 +118,7 @@
 }
 
 /* The record's own colour for the published halves, the playhead's warm one
- * for the recording - the same distinction the whole UI runs on (R2.2). */
+ * for the recording - the same distinction the whole UI runs on. */
 .agenda {
   background: var(--record-rule);
 }

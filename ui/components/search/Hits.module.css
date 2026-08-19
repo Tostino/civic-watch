@@ -143,7 +143,7 @@
 /* A wrapper and nothing more. The name inside is a SpeakerChip, which brings
  * its own type and the glyph that says how sure the archive is — so this must
  * not set a face, a weight or a case. It used to, and uppercasing a name is
- * exactly the kind of confident treatment R2.3 is about. */
+ * exactly the kind of confident treatment is about. */
 .who {
   display: block;
 }

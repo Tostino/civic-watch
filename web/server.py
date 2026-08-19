@@ -56,7 +56,6 @@ from wire import jsonable                        # noqa: E402
 def connect(write=False):
     return db.connect(autocommit=not write)
 
-
 # ------------------------------------------------------------------ search
 def search(con, q, kind=None, speaker=None, limit=50, offset=0):
     """Keyword search over utterances.
@@ -73,7 +72,6 @@ def search(con, q, kind=None, speaker=None, limit=50, offset=0):
     if not (q or "").strip():
         return {"total": 0, "results": []}
     return _search(con, q, kind, speaker, limit, offset)
-
 
 def _search(con, match, kind, speaker, limit, offset):
     where, args = ["u.tsv @@ q.tsq"], [match]
@@ -107,7 +105,7 @@ def _search(con, match, kind, speaker, limit, offset):
                -- Name from the resolver, so this page agrees with the rebuilt
                -- one. The 'Group N' fallback stays HERE and only here: this is
                -- a curation surface where the cluster id is the thing you act
-               -- on. No reader-facing page may render it (R6.2.1).
+               -- on. No reader-facing page may render it.
                COALESCE(us.name, 'Group ' || u.cluster, u.speaker) AS speaker,
                (us.name IS NOT NULL) AS named,
                ts_headline('english', u.text, q.tsq,
@@ -122,7 +120,6 @@ def _search(con, match, kind, speaker, limit, offset):
         LIMIT %s OFFSET %s""",
         args + [limit, offset]).fetchall()
     return {"total": total, "results": [dict(r) for r in rows]}
-
 
 def transcript(con, video_id):
     v = con.execute("SELECT * FROM videos WHERE id=%s", (video_id,)).fetchone()
@@ -148,7 +145,6 @@ def transcript(con, video_id):
     return {"video": dict(v), "utterances": [dict(r) for r in rows],
             "segments": [dict(r) for r in segs]}
 
-
 def stats(con):
     r = con.execute("""
         SELECT COUNT(*) total, COUNT(*) FILTER (WHERE transcribed) done,
@@ -171,28 +167,15 @@ def stats(con):
                 "COUNT(*) FILTER (WHERE transcribed) done FROM videos "
                 "GROUP BY kind ORDER BY n DESC")]}
 
-
-# Archive-wide aggregates, held for a while.
+# Archive-wide aggregates, held for a while. Two endpoints scan most of the
+# archive to answer a question about all of it, both on the critical path of a
+# page opening: `facets` walks all 298,737 utterances through the resolution
+# chain at 3.0s, which was the whole of /search's three-second load, and
+# `issues` runs eighteen regexes and eighteen tsqueries at ~330ms on browse.
 #
-# Two endpoints scan most of the archive to answer a question about all of it,
-# and both are on the critical path of a page opening:
-#
-#   facets   five aggregates, four of them 30ms between them. The fifth counts
-#            lines per speaker, and utterance_speaker is the resolution view -
-#            override, then label, then identity, then cluster vote, checked
-#            against voice affinity - so it walks all 298,737 utterances
-#            through that chain. Measured at 3.0s, and /search paid it on
-#            every open, which was the whole of that page's three-second load.
-#   issues   eighteen regexes over 23,123 published titles and eighteen
-#            tsqueries over the utterance index, ~330ms, on browse.
-#
-# Cached rather than precomputed into a table by bin/refresh.sh, because both
-# of those functions are right to derive their answers: a phase the parser
-# learns tomorrow appears in the rail by itself, and a meeting landed tonight
-# reaches the issue strip the same way. A table someone has to remember to
-# rebuild is exactly the drift they avoid. A TTL keeps the self-updating
-# property and bounds the staleness, and nothing either one returns is a
-# number a reader acts on to the minute.
+# Cached rather than precomputed by refresh.sh, because both are right to derive
+# their answers: a phase the parser learns tomorrow appears in the rail by
+# itself. A table someone has to remember to rebuild is the drift they avoid.
 class Held:
     """One derived value, rebuilt at most once every `ttl` seconds.
 
@@ -214,7 +197,6 @@ class Held:
                 self.at = time.monotonic()
             return self.value
 
-
 # Named for the endpoint, and NOT bound as bare `facets`/`issues`: do_GET
 # assigns a local called `facets` in the /api/find branch, which would make a
 # module-level function of that name unreachable from the whole method -
@@ -223,7 +205,6 @@ class Held:
 FACETS_CACHE = Held(600, archive.facets)
 ISSUES_CACHE = Held(600, archive.issues)
 
-
 # Transcripts are the one big payload here: a six-hour afternoon session is
 # 2,252 utterances and 665 KB of JSON, which gzips to 150 KB. The archive is
 # meant to be read by residents, including on a phone on mobile data, so the
@@ -231,24 +212,16 @@ ISSUES_CACHE = Held(600, archive.issues)
 # bytes it saves.
 GZIP_OVER = 4096
 
-# Seconds of silence /api/ask may go before it says something anyway.
+# Seconds of silence /api/ask may go before it says something anyway. The gap
+# between two events is one model turn, and a hard question's turn is minutes of
+# nothing on the wire. Every hop arms an idle timer on that quiet: Next's proxy
+# at 30s, nginx at 60s, plus whatever a tunnel or CDN adds. Raising each is
+# necessary and not sufficient, since the next hop somebody adds has its own
+# default and the failure is silent.
 #
-# The gap between two events on that stream is one model turn, and a hard
-# question's turn is minutes of nothing on the wire. Every hop between here
-# and the browser arms an idle timer on that quiet: Next's rewrite proxy at 30s
-# (experimental.proxyTimeout, ui/next.config.ts), nginx at 60s unless told
-# otherwise (deploy/nginx-proxy-manager.md), and whatever a tunnel or CDN adds
-# if one is ever put in front. Raising each of them is necessary and is not
-# sufficient - the next hop somebody adds has its own default, and the failure
-# it produces is silent and looks like the archive breaking under exactly the
-# questions worth asking.
-#
-# So the stream stops being quiet. A line beginning with ':' is a comment in
-# the SSE grammar, invisible to EventSource, and it resets every idle timer in
-# the chain at once. Ten seconds is well inside the tightest default and costs
-# three bytes a beat. It is also what let ASK_DEADLINE go to seven minutes:
-# with the stream never idle, how LONG a run takes stopped being a proxy's
-# business at all.
+# So the stream stops being quiet. A line beginning with ':' is an SSE comment,
+# invisible to EventSource, and it resets every idle timer in the chain at once.
+# It is also what let ASK_DEADLINE go to seven minutes.
 HEARTBEAT = 10
 
 # ------------------------------------------------------------------ replies
@@ -274,14 +247,11 @@ def _json(request, body, code=200, headers=None):
     return Response(body, status_code=code, media_type="application/json",
                     headers=out)
 
-
 def _not_found(request, exc=None):
     return _json(request, {"error": "not found"}, 404)
 
-
 def _not_allowed(request, exc=None):
     return _json(request, {"error": "not found"}, 405)
-
 
 def reads(fn):
     """An endpoint that needs the database, with the connection closed after.
@@ -328,7 +298,6 @@ def reads(fn):
                 con.close()
     return endpoint
 
-
 def _one(request):
     """`?k=v` reader with a default. Query values are strings; tools.call and
     the endpoints do the coercion, exactly as they did off parse_qs.
@@ -345,7 +314,6 @@ def _one(request):
         return got[0] if got else d
     return one
 
-
 # ------------------------------------------------------- reading (public)
 # Old bookmarks to ?id= URLs are still redirected: they cost two lines and
 # they were real links.
@@ -353,12 +321,10 @@ def redirect_item(request):
     i = request.query_params.get("id")
     return RedirectResponse(f"/item/{int(i)}" if i else "/", status_code=302)
 
-
 def redirect_case(request):
     c = request.query_params.get("id")
     return RedirectResponse(f"/case/{quote(c, safe='')}" if c else "/",
                             status_code=302)
-
 
 # NOT a redirect to "/" - this server has no "/" to send them to, and
 # pointing it at itself is an infinite loop. It answers plainly that it is
@@ -366,7 +332,6 @@ def redirect_case(request):
 def what_this_is(request):
     return _json(request, {"error": "this is the archive's JSON API; the "
                                     "site is served by the UI"}, 404)
-
 
 @reads
 def api_search(request, con):
@@ -376,15 +341,13 @@ def api_search(request, con):
                                  min(int(one("limit", 50)), 200),
                                  int(one("offset", 0))))
 
-
 # Keyed on a VIDEO id. It was called /api/meeting/<id> while /api/agenda/<id>
 # took a MEETING id - two keys, near-identical names, and a trap that should
-# not survive the rebuild (D7).
+# not survive the rebuild.
 @reads
 def api_video(request, con):
     d = transcript(con, request.path_params["video_id"])
     return _json(request, d) if d else _json(request, {}, 404)
-
 
 # ------------------------------------------------------------ rebuilt UI
 @reads
@@ -396,16 +359,13 @@ def api_meetings(request, con):
         one("when", "past"), min(int(one("limit", 200)), 500),
         int(one("offset", 0)), one("month")))
 
-
 @reads
 def api_bodies(request, con):
     return _json(request, archive.bodies(con))
 
-
 @reads
 def api_overview(request, con):
     return _json(request, archive.overview(con, _one(request)("body")))
-
 
 @reads
 def api_highlights(request, con):
@@ -414,26 +374,21 @@ def api_highlights(request, con):
         con, min(int(one("limit", 6)), 120),
         divided_limit=min(int(one("divided", 6)), 120)))
 
-
 @reads
 def api_issues(request, con):
     return _json(request, ISSUES_CACHE.get(con))
 
-
-# --------------------------------------------------------- retrieval (D9)
+# --------------------------------------------------------- retrieval
+# --------------------------------------------------------- retrieval
 # The tool surface, and the ways in. /api/tools is the manifest a model gets
-# handed; /api/tool/<name> invokes one; /mcp serves the same five to a model
-# somebody else is driving (web/mcp_server.py). /api/find is the page's call,
-# and it is nothing but two of these tools - the page and the agent share one
-# surface on purpose, so what a reader can find by hand the agent can too.
-# The same measured numbers the tool descriptions and the system prompts quote
-# (tools.facts). Page copy reads them from here rather than typing them:
-# "23,122 published agenda items" was 23,130 and "283 recorded meetings" was
-# 290 while both sat in JSX, which is the defect this endpoint exists to end.
+# handed, /api/tool/<name> invokes one, /mcp serves the same five to a model
+# somebody else is driving, and /api/find is the page's call, which is nothing
+# but two of these tools. The page and the agent share one surface on purpose.
+# Page copy reads the measured numbers from here rather than typing them:
+# "23,122 published agenda items" was 23,130 while it sat in JSX.
 @reads
 def api_facts(request, con):
     return _json(request, tools.facts(con))
-
 
 @reads
 def api_tools(request, con):
@@ -445,7 +400,6 @@ def api_tools(request, con):
                            "dense": tools._dense_error,
                            "mcp": {"path": "/mcp", **limits.mcp_public()}})
 
-
 @reads
 def api_tool(request, con):
     one = _one(request)
@@ -455,7 +409,6 @@ def api_tool(request, con):
                                          args))
     except tools.ToolError as e:
         return _json(request, {"error": str(e)}, 400)
-
 
 @reads
 def api_find(request, con):
@@ -471,23 +424,19 @@ def api_find(request, con):
     except tools.ToolError as e:
         return _json(request, {"error": str(e)}, 400)
 
-
 @reads
 def api_facets(request, con):
     return _json(request, FACETS_CACHE.get(con))
-
 
 @reads
 def api_meeting(request, con):
     d = archive.meeting(con, request.path_params["meeting_id"])
     return _json(request, d) if d else _json(request, {}, 404)
 
-
 @reads
 def api_transcript(request, con):
     d = archive.transcript(con, request.path_params["video_id"])
     return _json(request, d) if d else _json(request, {}, 404)
-
 
 # A kept run of the agent (web/answers.py), which is what a shared /ask/<id>
 # link reads. Free, unlike the endpoint that produced it.
@@ -496,43 +445,30 @@ def api_answer(request, con):
     d = answers.load(con, request.path_params["answer_id"])
     if not d:
         return _json(request, {"error": "no such answer"}, 404)
-    # A minute, and deliberately not `immutable`. The ROW barely changes, but
-    # this response is not the row: every quote in it is read out of
-    # `passages` on the way past, which is the whole mechanism by which a
-    # redaction reaches a saved answer. Any cache lifetime is therefore a
-    # window in which an address somebody has removed is still being served,
-    # so this is as short as is worth having - the endpoint is two indexed
-    # queries and no model.
+        # A minute, and deliberately not `immutable`. The row barely changes, but this
+        # response is not the row: every quote in it is read out of `passages` on the
+        # way past, which is how a redaction reaches a saved answer. Any cache lifetime
+        # is a window in which a removed address is still being served.
     return _json(request, d, headers={"Cache-Control": "public, max-age=60"})
-
 
 @reads
 def api_stats(request, con):
     return _json(request, stats(con))
-
 
 @reads
 def api_item(request, con):
     d = archive.item(con, request.path_params["item_id"])
     return _json(request, d) if d else _json(request, {}, 404)
 
-
 @reads
 def api_case(request, con):
     d = archive.case(con, request.path_params["case_id"])
     return _json(request, d) if d else _json(request, {}, 404)
 
-
-# R5.3.5 asks for the county's own document, inline. It cannot simply be
-# framed from source: CivicClerk serves every file with
-#
-#     content-disposition: attachment; filename=851.pdf
-#
-# which makes a browser download it rather than render it, so a cross-origin
-# <iframe> shows nothing at all. This re-serves the identical bytes with
-# `inline`, changing the disposition and nothing else - the document is still
-# the county's, unaltered, and the direct link is offered alongside so a
-# reader can go to the source themselves.
+# The county's own document, inline. It cannot be framed from source, because
+# CivicClerk serves every file with `content-disposition: attachment`, which
+# makes a browser download it rather than render it. This re-serves the
+# identical bytes with `inline` and changes nothing else.
 @reads
 def api_file(request, con):
     file_id = request.path_params["file_id"]
@@ -559,25 +495,14 @@ def api_file(request, con):
         "Content-Disposition": f'inline; filename="{name}"',
         "Cache-Control": "public, max-age=86400"})
 
-
 # ------------------------------------------------------------------- ask
-# Headers every event-stream response here carries.
-#
-# `no-transform` is the load-bearing half. Next's dev proxy sits in front of
-# this and gzips anything whose client sent Accept-Encoding, which every
-# browser does - and a gzip stream buffers until it has enough input to emit a
-# block. Measured: `curl -N` saw every event instantly, `curl -N -H
-# "Accept-Encoding: gzip"` through the same proxy saw nothing, and the page sat
-# blank for ninety seconds and then reported the connection dropped.
-# no-transform is the standard way to tell an intermediary to leave a body
-# alone; X-Accel-Buffering is nginx's version of the same instruction, for
-# production.
-#
-# `Connection: close` is gone with the old handler and is not missed. It was
-# there because BaseHTTPRequestHandler defaults to HTTP/1.0, where a response
-# with no Content-Length is terminated by closing the socket. uvicorn speaks
-# HTTP/1.1 and frames a streaming body as chunked, which terminates it
-# properly without giving up the connection.
+# ------------------------------------------------------------------- ask
+# Headers every event-stream response carries. `no-transform` is the
+# load-bearing half: Next's dev proxy gzips anything whose client sent
+# Accept-Encoding, which every browser does, and a gzip stream buffers until it
+# can emit a block. Measured, the page sat blank for ninety seconds and then
+# reported the connection dropped. X-Accel-Buffering is nginx's version of the
+# same instruction.
 SSE_HEADERS = {"Cache-Control": "no-cache, no-transform",
                "X-Accel-Buffering": "no"}
 
@@ -590,11 +515,9 @@ SSE_HEADERS = {"Cache-Control": "no-cache, no-transform",
 # the SSE grammar, so this is invisible to the client.
 PAD = b":" + b" " * 2048 + b"\n\n"
 
-
 def _event(name, payload):
     return (f"event: {name}\n"
             f"data: {json.dumps(payload, default=jsonable)}\n\n").encode()
-
 
 def api_ask(request):
     """Bound what a public, unauthenticated, PAID endpoint can be made to
@@ -632,11 +555,9 @@ def api_ask(request):
                              media_type="text/event-stream",
                              headers=SSE_HEADERS)
 
-
 def _ask_stream(question, release):
     """Server-sent events: the agent takes minutes on a hard question, so what
-    it is DOING is streamed rather than leaving the page on a bare spinner
-    (R5.5.1).
+    it is DOING is streamed rather than leaving the page on a bare spinner.
 
     What streams is the agent's actual tool calls, not four fixed captions.
     The stages are whatever it decides to do - that is the point of D9 - and a
@@ -722,8 +643,7 @@ def _ask_stream(question, release):
         gone.set()
         release()
 
-
-# ------------------------------------------------------------ admin (D1, §9)
+# ------------------------------------------------------------ admin
 # THE PORT IS THE BOUNDARY. Curation binds its own listener that the edge
 # proxy never routes, and these routes are registered on THAT app and no
 # other - so a request for /api/admin/* arriving on the public port is not
@@ -750,7 +670,6 @@ def guard(fn):
         return fn(request)
     return endpoint
 
-
 def _admin_open(fn):
     """Loopback only. For the two reads that answer before sign-in."""
     @functools.wraps(fn)
@@ -761,7 +680,6 @@ def _admin_open(fn):
         return fn(request)
     return endpoint
 
-
 @_admin_open
 def admin_session(request):
     # No DB work. The reading views ask this on load to decide whether to
@@ -769,7 +687,6 @@ def admin_session(request):
     # says nothing but yes or no.
     return _json(request, {"authenticated": admin.session_of(request)
                            is not None})
-
 
 @_admin_open
 @reads
@@ -779,24 +696,20 @@ def admin_state(request, con):
     return _json(request, admin.state(con,
                                       admin.session_of(request) is not None))
 
-
 @guard
 @reads
 def admin_queues(request, con):
     return _json(request, admin.queues(con))
-
 
 @guard
 @reads
 def admin_rederive_get(request, con):
     return _json(request, admin.rederive_status(con))
 
-
 @guard
 @reads
 def admin_ops(request, con):
     return _json(request, admin.ops_status(con))
-
 
 @guard
 @reads
@@ -806,12 +719,10 @@ def admin_redactions(request, con):
                                            one("limit", 50), one("offset", 0),
                                            one("video")))
 
-
 @guard
 @reads
 def admin_redaction_job(request, con):
     return _json(request, admin.redaction_job_status(con))
-
 
 @guard
 @reads
@@ -820,13 +731,11 @@ def admin_review(request, con):
     d = admin.review(con, one("video"), one("name"), one("label"))
     return _json(request, d) if d else _json(request, {}, 404)
 
-
 async def _body(request):
     """The POST body, parsed. Async because reading it is the one genuinely
     IO-bound thing an endpoint here does."""
     raw = await request.body()
     return json.loads(raw or b"{}")
-
 
 def admin_post(fn):
     """A curation write: loopback, a session, a WRITE connection, closed.
@@ -861,7 +770,6 @@ def admin_post(fn):
         return await anyio.to_thread.run_sync(run)
     return endpoint
 
-
 async def admin_login(request):
     if not admin.loopback(request):
         return _json(request, {"error": "admin answers only on loopback"}, 403)
@@ -876,7 +784,6 @@ async def admin_login(request):
     return _json(request, {"authenticated": True},
                  headers={"Set-Cookie": admin.cookie_header(sid)})
 
-
 async def admin_logout(request):
     if not admin.loopback(request):
         return _json(request, {"error": "admin answers only on loopback"}, 403)
@@ -888,42 +795,34 @@ async def admin_logout(request):
     return _json(request, {"authenticated": False},
                  headers={"Set-Cookie": admin.clear_cookie_header()})
 
-
 @admin_post
 def admin_correct(request, body, con):
     return _json(request, admin.correct(con, body))
 
-
 @admin_post
 def admin_undo(request, body, con):
     return _json(request, admin.undo(con, int(body["id"])))
-
 
 @admin_post
 def admin_proposal(request, body, con):
     return _json(request, admin.decide(con, int(body["id"]),
                                        body.get("decision")))
 
-
 @admin_post
 def admin_redaction(request, body, con):
     return _json(request, admin.redaction_decide(con, body))
-
 
 @admin_post
 def admin_redaction_apply_all(request, body, con):
     return _json(request, admin.redaction_apply_all(con, body))
 
-
 @admin_post
 def admin_label(request, body, con):
     return _json(request, admin.label(con, body))
 
-
 @admin_post
 def admin_ignore(request, body, con):
     return _json(request, admin.ignore(con, body))
-
 
 @admin_post
 def admin_rederive_post(request, body, con):
@@ -934,17 +833,14 @@ def admin_rederive_post(request, body, con):
         return _json(request, admin.rederive_revert())
     return _json(request, {"error": "action must be start or revert"}, 400)
 
-
 @admin_post
 def admin_job(request, body, con):
     return _json(request, admin.job_start(con, body.get("name"),
                                           bool(body.get("paid_ok"))))
 
-
 @admin_post
 def admin_job_stop(request, body, con):
     return _json(request, admin.job_stop())
-
 
 # The /api/speakers/* writes are gone with web/api.py. They wrote names,
 # ignores and renames straight onto the speaker tables for the workbench page,
@@ -958,7 +854,6 @@ def admin_job_stop(request, body, con):
 # checked before deleting.
 
 EXCEPTION_HANDLERS = {404: _not_found, 405: _not_allowed}
-
 
 def public_app():
     """The reading API, and the tool surface mounted inside it.
@@ -1019,7 +914,6 @@ def public_app():
         lifespan=lifespan,
     )
 
-
 def admin_app():
     """Curation, on its own loopback listener. Nothing else is here."""
     return Starlette(
@@ -1051,7 +945,6 @@ def admin_app():
         exception_handlers=EXCEPTION_HANDLERS,
     )
 
-
 def _server(app, host, port):
     """One uvicorn, quiet, with the socket already bound.
 
@@ -1062,7 +955,6 @@ def _server(app, host, port):
     config = uvicorn.Config(app, host=host, port=port, log_level="warning",
                             access_log=False, lifespan="on")
     return uvicorn.Server(config), config.bind_socket()
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -1124,7 +1016,7 @@ def main():
         public_sock.close()
         print(f"cannot bind 127.0.0.1:{args.admin_port}: {e}", file=sys.stderr)
         return 1
-    # D1: fresh admin token per process start. NEVER printed and never logged -
+    # fresh admin token per process start. NEVER printed and never logged -
     # only the path is announced; the operator reads the file themselves.
     token_path = admin.init(ROOT)
     print(f"research  → http://{args.host}:{args.port}/")
@@ -1147,7 +1039,6 @@ def main():
     except KeyboardInterrupt:
         pass
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

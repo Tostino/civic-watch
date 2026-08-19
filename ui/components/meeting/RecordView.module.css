@@ -150,7 +150,7 @@ a.tCase:hover {
 }
 
 /* ---------------------------------------------------------------- empty
- * R8.5. "No agenda" is an expected state and must look deliberate. */
+ * "No agenda" is an expected state and must look deliberate. */
 .empty {
   display: flex;
   flex-direction: column;

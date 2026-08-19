@@ -19,7 +19,7 @@ async function load(idParam: string) {
   }
 }
 
-/** R8.6: a shared link should say what it is before it loads. For an item the
+/** a shared link should say what it is before it loads. For an item the
  *  useful summary is the decision, so it leads with the outcome. */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;

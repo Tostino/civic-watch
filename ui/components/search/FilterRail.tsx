@@ -17,8 +17,8 @@ export type Query = {
 };
 
 /**
- * R5.6.2 — body, date range, speaker, phase, outcome and case, all in the URL.
- * PRIOR_ART §1 settles the shape: Councilmatic puts facets in a left rail
+ * body, date range, speaker, phase, outcome and case, all in the URL.
+ * the design notes settles the shape: Councilmatic puts facets in a left rail
  * rather than behind a menu, and a rail is right here too because the counts
  * are part of the information — "Planning Commission 9,918" tells a reader
  * what this archive is before they narrow anything.
@@ -100,7 +100,7 @@ export function FilterRail({
         ))}
         {/* Not an outcome — the absence of one. 8,440 items have a published
             agenda entry and no outcome, which means the minutes are
-            missing or unparsed, NOT that the board did nothing (R2.4). */}
+            missing or unparsed, NOT that the board did nothing. */}
         <Row
           on={query.decided === "0"}
           href={href({ decided: query.decided === "0" ? undefined : "0", outcome: undefined })}

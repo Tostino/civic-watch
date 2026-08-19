@@ -10,8 +10,8 @@ import type { Item, Span, Video } from "@/lib/types";
 import s from "./AgendaSpine.module.css";
 
 /**
- * The agenda spine (R5.2.1) - a table of contents, a chapter track and a seek
- * control, which on this material are one job (R7.2). Playing moves it;
+ * The agenda spine - a table of contents, a chapter track and a seek
+ * control, which on this material are one job. Playing moves it;
  * clicking it moves the recording.
  *
  * Three things the data forces:
@@ -20,7 +20,7 @@ import s from "./AgendaSpine.module.css";
  * 150 are consent, approved en bloc in a single motion with no discussion.
  * Listing them flat buries the four items anyone came to read. Councilmatic
  * has this problem in milder form - it tags routine legislation and then does
- * not let the tag shape the page - and PRIOR_ART flags it as the thing to do
+ * not let the tag shape the page - and the design notes flags it as the thing to do
  * better. So a consent run collapses to what it actually was: one motion,
  * N items, one outcome.
  *
@@ -28,7 +28,7 @@ import s from "./AgendaSpine.module.css";
  * in the archive are bound to a span. An unbound item still belongs on the
  * spine, drawn as present-but-not-playable rather than hidden.
  *
- * **Published order is not the order things happened** (R5.2.6). This spine
+ * **Published order is not the order things happened**. This spine
  * sorted by `seq` and it was wrong three ways at once, all of them visible on
  * one screen of 2026-07-14:
  *
@@ -115,7 +115,7 @@ export function AgendaSpine({
     );
   }, [items, query]);
 
-  // Follow the recording (R7.2). Scrolls the rail, never the page.
+  // Follow the recording. Scrolls the rail, never the page.
   useEffect(() => {
     const el = activeRef.current;
     const box = listRef.current;
@@ -211,8 +211,7 @@ export function AgendaSpine({
           return (
             <section key={lane.key} className={s.lane}>
               {/* Only when there is something to distinguish. A meeting with no
-                  recording is one lane and gets the plain agenda it always had
-                  (R5.2.4), not a heading explaining an absent alternative. */}
+                  recording is one lane and gets the plain agenda it always had, not a heading explaining an absent alternative. */}
               {lanes.length > 1 ? (
                 <div className={s.laneHead}>
                   <h3 className={s.laneTitle}>{lane.label}</h3>
@@ -358,7 +357,7 @@ interface Lane {
 const ONE_APPEARANCE = 60;
 
 /**
- * The spine, in the two orders this material actually supports (R5.2.6).
+ * The spine, in the two orders this material actually supports.
  *
  * An item is in the first lane if we can say WHEN it happened, and in the
  * second if we cannot. That is the only line available: 5,500 items in the
@@ -368,7 +367,7 @@ const ONE_APPEARANCE = 60;
  *
  * Deriving a time for the unbound ones from their published neighbours would
  * fill the rail out nicely and would be a guess rendered as a timestamp - the
- * same trade §10 refuses everywhere else.
+ * same trade refuses everywhere else.
  *
  * Neither lane re-sorts anything it has no basis to re-sort: lane one is
  * ordered by the clock, lane two arrives in published `seq` and stays in it.

@@ -21,7 +21,7 @@ async function load(idParam: string) {
   }
 }
 
-/** R8.6. For a case the headline fact is the sequence and how it ended. */
+/** For a case the headline fact is the sequence and how it ended. */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   try {

@@ -21,7 +21,7 @@
 /* The warm tint ties the mark to the record's rule, but --record-rule is a
  * BORDER colour (3:1) being used for 11px uppercase text (4.5:1). At 70% it
  * measured 3.87:1 on --record-bg — passing on slice 1's surfaces and failing
- * the moment it was put on warm paper, which is gotcha 37 exactly. 40% keeps
+ * the moment it was put on warm paper, which is exactly that failure. 40% keeps
  * the tint and clears 4.5:1 on every background it is used on, both themes. */
 .official {
   color: color-mix(in srgb, var(--record-rule) 40%, var(--ink-3));

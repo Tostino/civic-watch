@@ -178,7 +178,7 @@
   text-underline-offset: 0.22em;
 }
 
-/* Appears only once a handler is passed - slice 6 (D8). Reveals on hover or
+/* Appears only once a handler is passed - slice 6. Reveals on hover or
  * focus so a dense transcript is not littered with buttons. */
 .dispute {
   font-size: 0.8em;

@@ -11,12 +11,12 @@ import type { AskResult, AskStage } from "@/lib/types";
 import s from "./AskView.module.css";
 
 /**
- * `/ask` — §5.5. The agent is not a separate product; it is an automated
+ * `/ask`. The agent is not a separate product; it is an automated
  * traversal of the same graph the rest of the site walks, which is why its two
  * citation types are the two sources and its evidence renders with the same
- * components (UI_PLAN §4).
+ * components.
  *
- * What streams is the agent's ACTUAL tool calls (R5.5.1). Four fixed captions
+ * What streams is the agent's ACTUAL tool calls. Four fixed captions
  * would have been easier and would have been a lie: under D9 there is no fixed
  * pipeline to caption. "search_record: school zone speed cameras → 0 items"
  * tells a reader something a progress bar cannot — that the archive was asked,
@@ -113,7 +113,7 @@ export function AskView({ q, origin }: { q: string; origin: string }) {
           if (!t || running) return;
           // The URL holds the question for as long as the run lasts, so a
           // reload part way through asks the same thing again rather than
-          // losing it (R4.2). It is not the URL anyone shares — when the
+          // losing it. It is not the URL anyone shares — when the
           // answer lands we go to /ask/<id>, which is.
           //
           // replaceState rather than a route change: navigating would remount

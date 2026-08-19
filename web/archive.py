@@ -1,7 +1,7 @@
 """The data layer for the rebuilt UI.
 
 Separate from api.py on purpose. api.py grew around the five hand-written pages
-and its shapes are a stopgap (UI_REQUIREMENTS D7); these endpoints are designed
+and its shapes are a stopgap; these endpoints are designed
 from what a surface actually renders, and the two coexist until the old pages
 are retired.
 
@@ -14,20 +14,20 @@ Two things it fixes outright:
 * **No display strings.** The old search returned `'Group ' || cluster` as a
   speaker NAME, so a diarization id reached the page as though it were a
   person. Speaker identity leaves here as structured fields and one component
-  decides how to render them (R6.2.1), which is also the single place a future
-  redaction rule can act (D3).
+  decides how to render them, which is also the single place a future
+  redaction rule can act.
 """
 import re
 
 # The county's public portal. Every meeting and item should be able to point at
-# the authoritative upstream (R4.4); three of the three civic archives reviewed
-# in PRIOR_ART.md do this and we held the id and linked nowhere.
+# the authoritative upstream; three of the three civic archives reviewed
+# in the design notes do this and we held the id and linked nowhere.
 PORTAL = "https://pascocofl.portal.civicclerk.com/event/{event_id}/overview"
 
 # The county's own PDF, served by the same API bin/civicclerk.py mirrors text
 # from - `plainText=false` returns the document itself. For a project whose
 # thesis is that the published record is authoritative, the actual document is
-# the strongest provenance available (R5.3.5) and it costs a URL.
+# the strongest provenance available and it costs a URL.
 FILE = ("https://pascocofl.api.civicclerk.com/v1/Meetings/"
         "GetMeetingFileStream(fileId={file_id},plainText=false)")
 
@@ -36,17 +36,15 @@ FILE = ("https://pascocofl.api.civicclerk.com/v1/Meetings/"
 # text of it, which is a different state from having no agenda at all.
 SUBSTANTIVE_CHARS = 2000
 
-
 def _portal_url(event_id):
     return PORTAL.format(event_id=event_id) if event_id else None
-
 
 # ------------------------------------------------------------------- index
 def meetings(con, body=None, year=None, has_recording=None, when="past",
              limit=200, offset=0, month=None):
     """The archive as a list, newest first.
 
-    Carries each meeting's own coverage state (R3.2, R5.1.3) so a reader can
+    Carries each meeting's own coverage state so a reader can
     tell what they will get before clicking. A site-wide disclaimer would train
     them to ignore it.
 
@@ -97,9 +95,8 @@ def meetings(con, body=None, year=None, has_recording=None, when="past",
         LIMIT %s OFFSET %s""", args + [limit, offset]).fetchall()
     return {"total": total, "meetings": [dict(r) for r in rows]}
 
-
 def overview(con, body=None):
-    """The collection as an object (R5.1.1), and the shape of it over time.
+    """The collection as an object, and the shape of it over time.
 
     Browse opened on a search box, which answers nothing about what is here.
     This is what a reader needs before they can ask anything: how far back it
@@ -183,25 +180,14 @@ def overview(con, body=None):
         GROUP BY 1 ORDER BY 1""", args[-1:] if body else [])]
     return out
 
-
 # ------------------------------------------------------------- disagreement
-# "Where the board disagreed" (R5.1.4). PRIOR_ART §1 found Councilmatic's
-# Divided Votes to be the strongest story surface in any archive reviewed, and
-# it is the one entryway that cannot be assembled from counts.
-#
-# It has to read BOTH sources, because each is blind where the other sees:
-#
-#   the record       names dissent formally and authoritatively, and is
-#                    published weeks late, so the most recent contested
-#                    meetings are always missing from it
-#   the transcript   catches division the minutes never record at all - a
-#                    debate that produced no motion leaves no outcome,
-#                    which is exactly how the August 2026 argument over Flock
-#                    licence-plate cameras came to be invisible here
-#
-# They are kept apart in the result and marked, never merged into one claim
-# (UI_PLAN §2). The record lane is quotable; the transcript lane is ASR and
-# says so.
+# ------------------------------------------------------------- disagreement
+# "Where the board disagreed", the one entryway that cannot be assembled from
+# counts. It reads BOTH sources, because each is blind where the other sees:
+# the record names dissent authoritatively but is published weeks late, and the
+# transcript catches division the minutes never record, since a debate that
+# produced no motion leaves no outcome. Kept apart in the result and marked,
+# never merged: the record lane is quotable, the transcript lane is ASR.
 
 # Dissent in the minutes is `voting nay` / `voted nay`, and NOTHING else.
 # "with Commissioner Weightman absent from the vote" is on 556 items against
@@ -219,32 +205,25 @@ NAY_NAMES = re.compile(
 
 # ------------------------------------------------------- who said this, once
 #
+# ------------------------------------------------------- who said this, once
+#
 # THE ONE SHAPE. Every surface that names a speaker sends this object and
 # nothing else, because three of them grew their own spelling of the same four
-# facts and the UI had to know which was which:
+# facts (name/speaker, display_name/speaker_display, human/name_human,
+# basis/name_basis) and guessing wrong did not raise, it read as "no name".
 #
-#     a transcript line   name     display_name     human       basis
-#     a search hit        speaker  speaker_display  name_human  name_basis
-#     a divided-room row  speaker  speaker_display  human       basis
-#
-# Guessing wrong did not raise; it read as "no name". So the shape is built
-# here, once, and `ui/lib/types.ts` names it `Speaker`.
-#
-# `(exchange)` NEVER CROSSES THIS BOUNDARY. It is a value `passages.speaker`
-# carries for a passage spanning several people, it is an internal token, and
-# R6.2.1 says no reader may ever see it. It used to be filtered in the browser
-# - in two different files, which is one more than a rule like that may live
-# in. An API that cannot emit it is a stronger guarantee than a UI that
-# remembers to strip it.
+# `(exchange)` NEVER CROSSES THIS BOUNDARY. It is an internal token for a
+# passage spanning several people and no reader may see it. It used to be
+# filtered in the browser, in two different files. An API that cannot emit it
+# is a stronger guarantee than a UI that remembers to strip it.
 EXCHANGE = "(exchange)"
-
 
 def line(r):
     """One row of LINES, with the speaker claim assembled into `who`.
 
     LINES selects the claim IN PIECES - name, display_name, basis, human,
     contested - and every surface that draws a speaker reads it as the single
-    `who` object below instead (R6.2). Assembling it here rather than at each
+    `who` object below instead. Assembling it here rather than at each
     call site is the whole point of this function existing: `item()` and
     `case()` each ran LINES and shipped the pieces raw, so `Turn` destructured
     an undefined `who` and took BOTH routes down with a 500. That is two of the
@@ -260,9 +239,8 @@ def line(r):
                    d["contested"])
     return d
 
-
 def who(name=None, display=None, basis=None, human=False, contested=False):
-    """Who said this, in the only shape the UI accepts. R6.2."""
+    """Who said this, in the only shape the UI accepts. ."""
     several = name == EXCHANGE
     return {
         "name": None if several else name,
@@ -274,7 +252,6 @@ def who(name=None, display=None, basis=None, human=False, contested=False):
         "contested": bool(contested),
         "several": several,
     }
-
 
 # Division in the room, in descending order of how little it asks you to
 # believe. Rank 1 is a VOTE - the chair announcing a split tally, or a motion
@@ -340,7 +317,6 @@ SELECT DISTINCT ON (sp.agenda_item_id)
 ROOM_ARGS = {"gate": ROOM_GATE, "fail": ROOM_FAIL, "tally": ROOM_TALLY,
              "object": ROOM_OBJECT, "negated": ROOM_NOT}
 
-
 def _divided_record(con, limit):
     """Dissent as the minutes recorded it. Authoritative, and always behind."""
     # Items heard together share one motion and one outcome sentence verbatim -
@@ -360,7 +336,6 @@ def _divided_record(con, limit):
         r["dissent"] = NAY_NAMES.findall(r["outcome_text"] or "")
     rows.sort(key=lambda r: (r["date"], r["id"]), reverse=True)
     return rows[:limit]
-
 
 def _divided_room(con, limit, seen=()):
     """Division the recording caught. Inferred, and marked so on the page.
@@ -398,14 +373,13 @@ def _divided_room(con, limit, seen=()):
         r["quote"] = _tighten(r["quote"], r["kind"])
     return rows
 
-
 # A transcript utterance is a ~40-second block of speech and reads as a wall.
 # The sentence that matched is the evidence; the rest is context the item page
 # already carries, so the quote is cut to the sentence and its neighbour.
 def _tighten(text, kind, want=240):
     pat = ROOM_FAIL + "|" + ROOM_TALLY if kind == "vote" else ROOM_OBJECT
     # The patterns are written for Postgres, where the word boundary is \y and
-    # \b is a BACKSPACE (gotcha 58). Python is the other way round, so reusing
+    # \b is a BACKSPACE. Python is the other way round, so reusing
     # one of these here without translating is a `bad escape \y`, and reusing
     # a \b one silently matches nothing at all - which is the dangerous half.
     m = re.search(pat.replace(r"\y", r"\b"), text, re.I)
@@ -422,12 +396,10 @@ def _tighten(text, kind, want=240):
     # start of what the member said.
     return ("…" + out) if start == 0 and out[:1].islower() else out
 
-
 def highlights(con, limit=6, divided_limit=None):
-    """R5.1.4 - curated entry points, so arriving does not require a question.
+    """- curated entry points, so arriving does not require a question.
 
-    Three named queries over data already held, which is the test PRIOR_ART
-    sets: none of this needs a new pipeline stage.
+    Three named queries over data already held, which is the test the design notes sets: none of this needs a new pipeline stage.
 
     `divided_limit` is separate because the two lanes are read differently
     from the lists beside them. "Cases the board continued again and again" is
@@ -458,13 +430,10 @@ def highlights(con, limit=6, divided_limit=None):
         ORDER BY continuances DESC, appearances DESC, last DESC
         LIMIT %s""", (limit,))]
 
-    # The MEETING is the unit here, not the item. 113 things were decided on
-    # 14 July 2026; a list of items showed eight of them, chosen by sequence
-    # number, which is an arbitrary sample presented as a summary - and eight
-    # rows repeating one date and one body taught the reader nothing they
-    # could not read once. A meeting-day says how much business was done and
-    # names the part of it that was not routine, which is the only part a
-    # reader can act on. The routine remainder is one click away on the spine.
+        # The MEETING is the unit here, not the item. 113 things were decided on one
+        # day in July 2026, and a list of items showed eight of them by sequence
+        # number, which is an arbitrary sample presented as a summary. A meeting-day
+        # says how much business was done and names the part that was not routine.
     decided = [dict(r) for r in con.execute("""
         SELECT m.id AS meeting_id, m.date, m.body,
                COUNT(*) FILTER (WHERE ai.outcome IS NOT NULL)          AS decided,
@@ -500,44 +469,27 @@ def highlights(con, limit=6, divided_limit=None):
 
     return {"divided": divided, "continued": continued, "decided": decided}
 
-
 # --------------------------------------------------------------- the issues
-# What the county keeps coming back to (R5.1.4) - the subject matter of twelve
-# years, on the one page that had none of it.
+# --------------------------------------------------------------- the issues
+# What the county keeps coming back to. Everything else browse shows is either
+# structural or recent, so the page could say the county met 1,214 times and not
+# one thing it met ABOUT.
 #
-# Everything else browse shows is either STRUCTURAL - how many meetings, how
-# much of each we hold, which months - or RECENT: the last six divided votes,
-# the last six meeting-days, the sixty newest meetings. So the page could tell
-# a reader that the county met 1,214 times and not one thing it met ABOUT, and
-# the twelve-year span in its own header was twelve years of counting meetings.
+# This list is WRITTEN DOWN, which nothing else in this file is, because no
+# column contains it: the archive holds titles that happen to say "impact fee",
+# not a field where somebody recorded what the argument was. Deriving it was
+# tried and returns the zoning code's vocabulary ("Planned Unit Development"),
+# not the county's. Three rules keep the curation honest:
 #
-# This list is WRITTEN DOWN, which nothing else in this file is. facets()
-# derives its vocabulary so that a phase the parser learns tomorrow appears by
-# itself, and that is right for a rail whose job is to enumerate what a column
-# contains. It is the wrong tool here, because no column contains this: the
-# archive holds 147 titles that happen to say "impact fee", not a field where
-# somebody wrote down what the argument was. Deriving the list was tried - the
-# phrases that recur in these titles are "General Commercial", "High Density
-# Residential" and "Planned Unit Development", which is the zoning code's
-# vocabulary rather than the county's.
-#
-# Three rules keep the curation honest:
-#
-#   1. Every NUMBER is derived. The list says what to look for; the archive
-#      says what it found, and an issue nothing was found for is dropped
-#      rather than drawn as a row of zeroes - which is the failure facets()
-#      warns about, a reader concluding the county never discussed it.
-#   2. TWO patterns each, because there are two sources and they are not
-#      alike. A published title is drafted prose with stable wording, matched
-#      by regex. Speech is neither, and the only index over 299k utterances is
-#      the tsvector, so the room is matched by tsquery - which also keeps this
-#      off the 2.3s sequential scan the note above ROOM_GATE describes.
+#   1. Every NUMBER is derived. The list says what to look for; the archive says
+#      what it found, and an issue with no hits is dropped rather than drawn as
+#      a row of zeroes a reader would read as "never discussed".
+#   2. TWO patterns each. A published title is drafted prose matched by regex;
+#      speech is not, and is matched by tsquery, which also keeps this off a
+#      2.3s sequential scan.
 #   3. bin/threads.py holds a TOPICS list that looks like this one and is
-#      deliberately not shared with it. Those keys are written into
-#      passage_keys at INDEX time, so a topic added there does nothing until
-#      bin/index_passages.py runs again. These are matched at read time and
-#      take effect at once. One list serving both would be half stale, with
-#      nothing on either surface to show which half.
+#      deliberately not shared. Those keys are written at INDEX time; these are
+#      matched at read time. One list serving both would be half stale.
 ISSUES = [
     {"slug": "rezoning",
      "label": "Rezoning and planned developments",
@@ -639,7 +591,6 @@ ISSUES = [
      "room": "(school <-> zone) & (camera | speed)"},
 ]
 
-
 def _issue_specs(con):
     """The subjects to draw, and the SQL each one matches with.
 
@@ -669,13 +620,13 @@ def _issue_specs(con):
             out.append({
                 "slug": slug, "label": d["label"], "q": d["q"],
                 "parent": d["parent"],
-                # A CHILD IS COUNTED INSIDE ITS PARENT. Its own vocabulary is
-                # not a smaller list, it is a different one, so without this a
-                # sub-subject can and does reach items the subject it narrows
-                # never matched - and a row presented as "what this is made
-                # of" that contains things the whole does not is simply false.
-                # Also what keeps a parent the sum-or-more of its parts, which
-                # is the only reading of an indented row that is safe.
+                                # A CHILD IS COUNTED INSIDE ITS PARENT. Its vocabulary
+                                # is a different
+                                # list, not a smaller one, so without this a sub-subject
+                                # reaches items
+                                # the subject it narrows never matched. It is also what
+                                # keeps a parent
+                                # the sum-or-more of its parts.
                 "record_in": d["record_in"],
                 "room_in": d["room_in"],
                 "record": d["record"], "record_not": d["record_not"],
@@ -685,7 +636,6 @@ def _issue_specs(con):
              "parent": None, "record_in": None, "room_in": None,
              "record": i["record"], "record_not": None,
              "room": i["room"], "room_not": None} for i in ISSUES]
-
 
 def _issues_rolled(con, specs):
     """The strip, read back out of `subject_year`.
@@ -747,7 +697,6 @@ def _issues_rolled(con, specs):
     out.sort(key=lambda i: (-i["meetings"], -i["heard"], i["label"]))
     return {"span": span, "heard_from": heard_from, "issues": out}
 
-
 def issues(con, live=False):
     """Each issue's twelve years, in both sources and never merged.
 
@@ -774,7 +723,7 @@ def issues(con, live=False):
     the record side of section 2 - counting the county's own published titles
     by phrase is exact and reproducible, where a per-item model label would
     make every number on this surface an inference and oblige it to be drawn
-    as one (R2.1, R2.3).
+    as one.
     """
     specs = _issue_specs(con)
     if not specs:
@@ -800,7 +749,7 @@ def issues(con, live=False):
                COUNT(DISTINCT m.id)                              AS meetings,
                -- The denominator the `pushed` lane needs. Without it a year
                -- with no approved minutes and a year the board passed
-               -- everything both read as zero pushed back, and R6.3 refuses
+               -- everything both read as zero pushed back, and refuses
                -- exactly that: no outcome RECORDED is not `no_action`.
                COUNT(*) FILTER (WHERE ai.outcome IS NOT NULL)    AS decided,
                COUNT(*) FILTER (WHERE ai.outcome = 'continued')  AS continued,
@@ -850,7 +799,7 @@ def issues(con, live=False):
          WHERE m.date <= to_char(now(), 'YYYY-MM-DD')
          GROUP BY 1 ORDER BY 1""")]
     # Before this year the room lane is not quiet, it does not exist. The page
-    # has to draw that difference or every issue reads as new (R3.2).
+    # has to draw that difference or every issue reads as new.
     heard_from = con.execute("""
         SELECT MIN(left(m.date, 4)) FROM meetings m
          WHERE EXISTS (SELECT 1 FROM videos v
@@ -882,15 +831,17 @@ def issues(con, live=False):
             "lines": sum(r["lines"] for r in rm.values()),
             "heard": sum(r["meetings"] for r in rm.values()),
             "first": min(dates), "last": max(dates),
-            # `pushed` is continued + denied/no_action + an outcome naming a
-            # nay vote: the item did not simply pass. Already counted per year
-            # by the query above and previously summed away, so the strip could
-            # say when a subject was BUSY and never when it was HARD.
-            #
-            # It comes from the approved minutes, which is why it is worth a
-            # lane of its own: the minutes cover all twelve years whether or
-            # not a camera ran, so unlike anything measured against the room
-            # this is not shaped by what we can hear.
+                        # `pushed` is continued + denied/no_action + an outcome naming a
+                        # nay vote:
+                        # the item did not simply pass. Previously summed away, so the
+                        # strip could
+                        # say when a subject was BUSY and never when it was HARD. It
+                        # comes from the
+                        # approved minutes, which cover all twelve years whether or not
+                        # a camera
+                        # ran, so unlike anything measured against the room it is not
+                        # shaped by
+                        # what we can hear.
             "years": [{"year": y,
                        "items": rec[y]["items"] if y in rec else 0,
                        "meetings": rec[y]["meetings"] if y in rec else 0,
@@ -911,24 +862,17 @@ def issues(con, live=False):
     out.sort(key=lambda i: (-i["meetings"], -i["heard"], i["label"]))
     return {"span": span, "heard_from": heard_from, "issues": out}
 
-
-# Names the naming stage produced that are not people, and that the rail must
-# therefore not publish as people. This IS written down, against the rule the
-# docstring below states, and the exception is deliberate: there is no
-# structural test that separates `Connected City` from `Chris Williams`.
-# Neither is on the board, neither is in `people`, both arrived by the same
-# `voice`/`cluster` route, and one is a development off SR-52.
+# Names the naming stage produced that are not people, which the rail must not
+# publish as people. Written down against the rule below, deliberately: there is
+# no structural test separating `Connected City` from `Chris Williams`. Neither
+# is on the board, neither is in `people`, both arrived the same way, and one is
+# a development off SR-52.
 #
-# Scoped to the rail on purpose. A transcript line attributed to one of these
-# is a claim the resolver made and SpeakerChip already draws as inferred
-# (R6.2); a rail is the site saying "these are the people you may filter by",
-# which is an editorial list and ours to be right about. The ~7,000 lines
-# still carrying these names are SPEAKER_PLAN section 2.6 - organisations -
-# and are not a presentation fix.
-#
-# `audit.py` check `speaker.rail_is_people` fails when a NEW value reaches the
-# rail that is neither on the board nor in `people`, so this list cannot
-# silently go stale as the archive grows.
+# Scoped to the rail on purpose. A transcript line attributed to one of these is
+# a claim the resolver made and the chip already draws as inferred; a rail is the
+# site saying "these are the people you may filter by", which is editorial and
+# ours to be right about. audit.py's `speaker.rail_is_people` fails when a NEW
+# value reaches the rail, so this list cannot silently go stale.
 NOT_A_PERSON = frozenset({
     "Connected City",   # a development off SR-52
     "Dade City",        # a city
@@ -937,9 +881,8 @@ NOT_A_PERSON = frozenset({
     "What",             # an ASR fragment; 601 lines of it
 })
 
-
 def facets(con):
-    """The values a search rail may offer (R5.6.2).
+    """The values a search rail may offer.
 
     Derived, not written down. A hardcoded list of phases drifts the moment
     the parser learns a new one, and a filter that returns nothing because the
@@ -982,7 +925,6 @@ def facets(con):
              GROUP BY 1 ORDER BY 1 DESC""")],
     }
 
-
 def bodies(con):
     """Which bodies exist, and how much of each we hold."""
     return [dict(r) for r in con.execute("""
@@ -1002,13 +944,12 @@ def bodies(con):
         HAVING COUNT(*) FILTER (WHERE m.date <= to_char(now(), 'YYYY-MM-DD')) > 0
         ORDER BY recorded DESC, meetings DESC""")]
 
-
 # ----------------------------------------------------------------- meeting
 def meeting(con, meeting_id):
     """Everything /meeting/:id renders except the transcript itself.
 
     The transcript is a separate call because it is per-recording and an order
-    of magnitude larger; the spine has to paint first (R8.1).
+    of magnitude larger; the spine has to paint first.
     """
     m = con.execute("SELECT id, date, body, title FROM meetings WHERE id = %s",
                     (meeting_id,)).fetchone()
@@ -1021,7 +962,7 @@ def meeting(con, meeting_id):
         FROM videos WHERE meeting_id = %s AND transcribed
         ORDER BY session_seq NULLS FIRST, upload_date""", (meeting_id,))]
 
-    # The published roster, not an inference (R5.2.2). Offices rotate annually,
+    # The published roster, not an inference. Offices rotate annually,
     # so chair/vice-chair are per-meeting facts and come from this table rather
     # than from anything about the person.
     out["roster"] = [dict(r) for r in con.execute("""
@@ -1030,7 +971,7 @@ def meeting(con, meeting_id):
         WHERE r.meeting_id = %s
         ORDER BY r.district NULLS LAST, p.surname""", (meeting_id,))]
 
-    # The spine (R5.2.1). Items in PUBLISHED order, each with where it occurs
+    # The spine. Items in PUBLISHED order, each with where it occurs
     # in the recordings. An item interrupted by the lunch break is one row with
     # two spans, which is why spans are aggregated rather than joined flat.
     out["items"] = [dict(r) for r in con.execute("""
@@ -1082,7 +1023,7 @@ def meeting(con, meeting_id):
     }
 
     # Neighbours on the time axis, same body - so a meeting is never a dead end
-    # (R4.3) and stepping through a series does not require going back to an
+    # and stepping through a series does not require going back to an
     # index.
     nb = con.execute("""
         SELECT
@@ -1096,33 +1037,32 @@ def meeting(con, meeting_id):
     out["prev"], out["next"] = nb["prev"], nb["next"]
     return out
 
-
+# -------------------------------------------------------------- transcript
+#
 # -------------------------------------------------------------- transcript
 #
 # Speaker identity leaves here as FIELDS, never as a rendered string.
 #
-#   name        the resolved name, or null. Never a diarization label. This is
-#               the KEY - a board member's surname - and it is what a filter,
-#               an override or a dispute has to be written against.
-#   display_name what to SHOW. A board member's surname expanded to the full
-#               name on the county's own roster; everyone else unchanged. Sent
-#               beside `name` and never instead of it, so the page can render
-#               "Kathryn Starkey" while still addressing her as "Starkey".
-#   confidence  how the voice matched. Null when human-labelled.
-#   human       a person stated this. Outranks everything derived (R5.8.7).
-#   voice       the cluster id - stable enough to group by within a page, and
-#               explicitly NOT a name (only ~2% survive a re-clustering run).
+#   name         the resolved name or null, never a diarization label. THE KEY,
+#                which a filter, an override or a dispute is written against.
+#   display_name what to SHOW: a board member's surname expanded to the full
+#                name on the county's roster. Sent beside `name`, never instead
+#                of it, so the page can render "Kathryn Starkey" while still
+#                addressing her as "Starkey".
+#   confidence   how the voice matched. Null when human-labelled.
+#   human        a person stated this. Outranks everything derived.
+#   voice        the cluster id, stable within a page and explicitly NOT a name
+#                (only ~2% survive a re-clustering run).
 #
-# The old endpoint collapsed all of that into `COALESCE(name, 'Group '||cluster)`
-# so the page could not tell an inference from a fact, and printed a diarization
-# id where a name goes.
+# The old endpoint collapsed all of that into COALESCE(name, 'Group '||cluster),
+# so the page could not tell an inference from a fact.
 LINES = """
     SELECT u.video_id, u.idx, u.start, u."end", u.text,
            u.cluster AS voice, u.local_label,
            us.name, us.display_name, us.confidence, us.human,
            -- How the name was arrived at, so the page can say so rather than
            -- presenting four very different kinds of claim identically
-           -- (R2.3). 'cluster' is the weakest: it is the archive-wide
+           --. 'cluster' is the weakest: it is the archive-wide
            -- majority for this voice, not evidence about this meeting.
            us.basis, us.contested,
            sp.agenda_item_id
@@ -1135,9 +1075,8 @@ LINES = """
     WHERE u.video_id = %s AND u.idx BETWEEN %s AND %s
     ORDER BY u.idx"""
 
-
 def _offices(con, meeting_id):
-    """surname -> the office they held AT THIS MEETING (R5.2.5).
+    """surname -> the office they held AT THIS MEETING.
 
     "Girardi, Vice Chairman", not a bare surname - offices rotate annually, so
     this is a per-meeting fact. Sent once as a lookup rather than repeated on
@@ -1149,7 +1088,6 @@ def _offices(con, meeting_id):
         FROM meeting_roster r JOIN people p ON p.id = r.person_id
         WHERE r.meeting_id = %s""", (meeting_id,))}
 
-
 def transcript(con, video_id):
     v = con.execute(
         "SELECT id, title, duration, session_seq, meeting_id, upload_date "
@@ -1160,14 +1098,13 @@ def transcript(con, video_id):
     return {"video": dict(v), "lines": lines,
             "offices": _offices(con, v["meeting_id"])}
 
-
 # --------------------------------------------------------------- agenda item
 #
-# The longest item in the archive runs to 1,225 utterances; the median is 18
-# and the 90th percentile 131. So an item's speech is sent whole rather than
-# paged - R7.5 says do not paginate what can simply be rendered - with a cap
-# that exists only so a pathological span cannot take the page down, and which
-# says so when it bites rather than silently truncating.
+# --------------------------------------------------------------- agenda item
+#
+# The longest item runs to 1,225 utterances, median 18, p90 131. So an item's
+# speech is sent whole rather than paged, with a cap that exists only so a
+# pathological span cannot take the page down, and which says so when it bites.
 MAX_ITEM_LINES = 2000
 
 # Everything ever said about one case, across every meeting that took it up.
@@ -1177,26 +1114,23 @@ MAX_CASE_LINES = 4000
 
 # --------------------------------------------------------------- appearances
 #
+# --------------------------------------------------------------- appearances
+#
 # THE definition of "a time the board took this item up", used by /meeting,
 # /item and /case so all three break the record in the same places.
 #
-# A single discussion often arrives as several rows of item_spans, because the
-# binder cuts on speaker turns. Merging the near-adjacent ones is not a
-# smoothing choice - across the archive the gaps between consecutive spans of
-# one item fall into two clumps with nothing in between:
+# One discussion often arrives as several item_spans, because the binder cuts on
+# speaker turns. Merging the near-adjacent ones is not a smoothing choice: the
+# gaps fall into two clumps with nothing between them.
 #
 #     0s x6, 2s x2, 4s, 5s   |   64s, 65s, 67s, 74s, 86s, ... 207m
 #
-# Below the trough is one discussion cut in two. Above it the board genuinely
-# set the item down and came back - 93 items in 68 meetings do this, and the
-# widest gap is three and a half hours. Any threshold inside the trough gives
-# the same answer; this one has 55 seconds of slack either side.
-#
-# Getting it wrong in one direction hides that an item was returned to at all.
-# In the other it shows a break the reader can see and dismiss. So if the
-# trough ever fills in, move this DOWN.
+# Below the trough is one discussion cut in two; above it the board set the item
+# down and came back. Any threshold inside the trough gives the same answer, and
+# this one has 55 seconds of slack either side. If the trough ever fills in,
+# move this DOWN: getting it wrong that way shows a break the reader can see and
+# dismiss, rather than hiding that an item was returned to at all.
 ONE_APPEARANCE = 60
-
 
 def _runs(spans):
     """Spans -> the distinct times the item was taken up, in order.
@@ -1226,41 +1160,26 @@ def _runs(spans):
         r["nth"], r["of"] = i + 1, len(out)
     return out
 
-# A NOTE ON WIDE SPANS, so nobody re-derives the wrong conclusion I did.
+# A NOTE ON WIDE SPANS, so nobody re-derives the wrong conclusion. 110 of 5,587
+# spans cover more than half their recording against a median of 3 minutes, and
+# that looks like the binder running to the tape. It is not:
 #
-# 110 of 5,587 spans cover more than half of their recording, against a median
-# span of 3 minutes, and this looked like the binder failing to find an item's
-# end and running to the tape. It is not. Every one of the following says so:
+#   - No wide segment is last in its video or the only one, and each ends within
+#     a second or two of where the next begins.
+#   - The affected meetings have a median of 8 published items, mostly Planning
+#     hearings or emergency sessions where one item genuinely IS the meeting.
+#   - Read at five points, the 4h55m span on 2025-02-06 is the same rezoning
+#     throughout.
+#   - An item ends with its vote, so a span that swallowed the next would have a
+#     vote in its middle. The last vote sits at 97% through a wide span and 96%
+#     through a normal one. Wide spans are, if anything, better bounded.
 #
-#   - No wide segment is the last in its video, and none is the only one. Each
-#     ends within a second or two of where the next begins, so the boundaries
-#     are contiguous and deliberate rather than defaulted.
-#   - The affected meetings have a MEDIAN OF 8 published items. Most are
-#     Planning Commission hearings or single-purpose emergency sessions, where
-#     one item genuinely IS the meeting. The widest of all - 96% of its
-#     recording - is a one-hour emergency meeting declaring a local state of
-#     emergency for Tropical Storm Helene.
-#   - Read at five points spread across it, the 4h55m APC3 span on 2025-02-06
-#     is the same rezoning throughout, right down to "either way you'll be on
-#     your way to the Board of County Commissioners" near the end. The meeting
-#     published three items.
-#   - An item ends with its vote, so a span that swallowed the next item would
-#     have a vote in its middle. Matching ROOM_TALLY and ROOM_FAIL inside every
-#     span: the last vote sits at 97% of the way through a WIDE span and 96%
-#     through a normal one, with a median of two minutes of talk after it in
-#     both. Wide spans are, if anything, slightly better bounded.
-#
-# The four spans archive-wide with a vote more than 15 minutes before their end
-# are all multi-part discussions where that is correct - a budget hearing votes
-# on tentative millage, final millage and adoption separately.
-#
-# So a long span is a long hearing. `share` and `loose` fields used to be
-# computed here and rendered as a warning on /case and /item; they told readers
-# that a genuine five-hour rezoning was probably mis-bounded. Removed.
-
+# So a long span is a long hearing. `share` and `loose` were computed here and
+# rendered as a warning telling readers a genuine five-hour rezoning was
+# probably mis-bounded. Removed.
 
 def item(con, item_id):
-    """One agenda item (§5.3): the published record, then what was said.
+    """One agenda item: the published record, then what was said.
 
     Ordered the way the requirements are: the county's record leads, because
     it is authoritative and because it is the only thing 91% of decided items
@@ -1293,15 +1212,12 @@ def item(con, item_id):
     row["spans"] = [{k: v for k, v in sp.items()
                      if k not in ("session_seq", "duration")} for sp in spans]
 
-    # What was said, in the same field-not-string form the transcript uses, so
-    # SpeakerChip stays the only thing that decides how a speaker is displayed
-    # (R6.2.1, D3).
-    #
-    # Grouped by APPEARANCE, not poured into one list (R5.2.7). This item's
-    # speech used to be concatenated across spans, so an item argued at 18:05,
-    # set down, and taken up again at 3:38:04 read as one continuous exchange
-    # with three and a half hours of unrelated business silently removed from
-    # the middle of it. The page has to be able to draw that gap.
+        # What was said, in the same field-not-string form the transcript uses, so the
+        # chip stays the only thing deciding how a speaker is displayed. Grouped by
+        # APPEARANCE, not poured into one list: this item's speech used to be
+        # concatenated across spans, so an item argued at 18:05 and taken up again at
+        # 3:38:04 read as one exchange with hours of unrelated business removed from
+        # the middle of it.
     row["runs"] = _runs(spans)
     budget = MAX_ITEM_LINES
     for r in row["runs"]:
@@ -1322,7 +1238,7 @@ def item(con, item_id):
         FROM videos WHERE meeting_id = %s AND transcribed
         ORDER BY session_seq NULLS FIRST, upload_date""", (meeting["id"],))]
 
-    # R5.3.3: the case thread, inline. An item is rarely the whole story, and
+    # the case thread, inline. An item is rarely the whole story, and
     # Councilmatic puts the history ON the item for exactly this reason. The
     # dedicated view is one click away; this is the shape of the sequence.
     row["thread"] = [dict(x) for x in con.execute("""
@@ -1335,7 +1251,7 @@ def item(con, item_id):
         ORDER BY m.date, ai.seq""",
         (row["case_id"],))] if row["case_id"] else []
 
-    # R5.3.5 / R4.4: the county's own document and the county's own page. The
+    # the county's own document and the county's own page. The
     # PDF is proxied rather than linked directly - CivicClerk serves it with
     # `Content-Disposition: attachment`, which makes a cross-origin frame
     # download the file instead of rendering it (see server._file).
@@ -1354,7 +1270,7 @@ def item(con, item_id):
         (meeting["id"],)).fetchone()
     row["portal"] = _portal_url(ev["id"]) if ev else None
 
-    # Neighbours in published order, so an item is never a dead end (R4.3) and
+    # Neighbours in published order, so an item is never a dead end and
     # reading an agenda through does not mean going back to the meeting.
     nb = con.execute("""
         SELECT
@@ -1372,10 +1288,9 @@ def item(con, item_id):
             "offices": _offices(con, meeting["id"]),
             "prev": nb["prev"], "next": nb["next"]}
 
-
 # --------------------------------------------------------------------- case
 def case(con, case_id):
-    """One application, every meeting that took it up, in order (§5.4).
+    """One application, every meeting that took it up, in order.
 
     The sleeper feature. A rezoning is heard by the Planning Commission,
     transmitted by the Board and adopted months later; 1,377 cases span more
@@ -1399,20 +1314,11 @@ def case(con, case_id):
     if not steps:
         return None
 
-    # EVERYTHING SAID ABOUT THIS CASE, over every meeting that took it up
-    # (R5.4.4). The thread above says the case was heard six times; this is the
-    # six hearings themselves, end to end, which is the only place in the site
-    # a reader can follow one argument across a year.
-    #
-    # Not a flat transcript. A hearing is bounded by the meeting it happened
-    # in, by which session of that meeting, and by the fact that a board can
-    # take an item up twice in one day (R5.2.7). Those boundaries are where the
-    # reader's sense of "and then, months later" lives, so the shape carries
-    # them and the page draws them.
-    #
-    # `steps` above is already ordered by date; `_runs` orders within a
-    # meeting; so the appearances come out in the order they happened, which is
-    # what the case view exists to show.
+        # EVERYTHING SAID ABOUT THIS CASE, over every meeting that took it up: the
+        # only place in the site a reader can follow one argument across a year. Not a
+        # flat transcript. A hearing is bounded by its meeting, by which session, and
+        # by the fact that a board can take an item up twice in one day, and those
+        # boundaries are where the reader's sense of "and then, months later" lives.
     heard, budget = [], MAX_CASE_LINES
     for st in steps:
         spans = [dict(x) for x in con.execute("""
@@ -1441,14 +1347,14 @@ def case(con, case_id):
         "SELECT id, prefix, first_seen, last_seen, meetings, bodies "
         "FROM cases WHERE id = %s", (case_id,)).fetchone()
 
-    # R5.4.3: the terminal outcome must be findable among the procedural steps
+    # the terminal outcome must be findable among the procedural steps
     # that precede it. A continuance is not a conclusion - it is the board
     # saying "not today" - so it never counts as one, and a case whose last
     # appearance was a continuance is OPEN rather than resolved.
     terminal = next((s for s in reversed(steps)
                      if s["outcome"] and s["outcome"] != "continued"), None)
 
-    # The full official title, once (R5.4.2). The most-repeated wording wins;
+    # The full official title, once. The most-repeated wording wins;
     # ties go to the longest, because the fuller version is the one that
     # actually describes the application.
     counts = {}
@@ -1475,7 +1381,7 @@ def case(con, case_id):
         "recorded": sum(1 for s in steps if s["span"]),
         "heard": heard,
         "offices": offices,
-        # Says so when the cap bites, rather than trailing off (R2.4). At the
+        # Says so when the cap bites, rather than trailing off. At the
         # archive's largest case this is 2,349 of 4,000, so it never has.
         "heard_lines": sum(len(h["lines"]) for h in heard),
         "heard_truncated": sum(h["end_idx"] - h["start_idx"] + 1

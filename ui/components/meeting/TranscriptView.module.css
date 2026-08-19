@@ -17,7 +17,7 @@
   container-type: inline-size;
 }
 
-/* R2.3. The transcript says up front what it is and how it can be wrong -
+/* The transcript says up front what it is and how it can be wrong -
  * and then gets out of the way, because it is the FIRST ROW of the scroller
  * rather than a header standing over it. A caption that is read once on
  * arrival should not hold a row of the pane for the rest of the session;
@@ -227,7 +227,7 @@
 }
 
 /* Spoken words. Sans, because this is a machine's rendering of speech, not a
- * document (R2.2). */
+ * document. */
 .text {
   font-size: var(--text-base);
   line-height: var(--leading-normal);

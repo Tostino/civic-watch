@@ -7,13 +7,13 @@ import type { SourceFile } from "@/lib/types";
 import s from "./SourceDocument.module.css";
 
 /**
- * R5.3.5 — the county's own document, inline.
+ * the county's own document, inline.
  *
  * This is the strongest provenance the archive can offer and the cheapest.
  * Everything else on an item page is something we extracted, parsed,
  * classified or transcribed; this is the PDF the county published, unaltered,
  * rendered on the page next to our reading of it. Councilmatic does exactly
- * this with ordinances and it is the one pattern from PRIOR_ART that costs
+ * this with ordinances and it is the one pattern from the design notes that costs
  * nothing but layout.
  *
  * Two things it must be honest about:
@@ -27,7 +27,7 @@ import s from "./SourceDocument.module.css";
  * text extraction returns nothing, which is why the meeting has no parsed
  * items. The PDF is still perfectly readable by a person, so it is still
  * offered - with the gap stated, because "we have no text of this" and "there
- * is no agenda" are different facts (R3.2).
+ * is no agenda" are different facts.
  *
  * Mounted lazily. These run to a megabyte and fetching one per item page load
  * would spend the reader's bandwidth on a document they did not ask for.

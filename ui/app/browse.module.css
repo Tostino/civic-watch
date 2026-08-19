@@ -7,7 +7,7 @@
   gap: var(--sp-4);
 }
 
-/* PRIOR_ART §1: a resident arrives cold. Councilmatic's masthead says what the
+/* the design notes: a resident arrives cold. Councilmatic's masthead says what the
  * body is before asking anyone to search; ours said nothing at all. */
 /* No --measure cap. That is a rule for PROSE and the lede is one line now;
  * holding it to 42rem wrapped a sentence that fits, and cost a row. */

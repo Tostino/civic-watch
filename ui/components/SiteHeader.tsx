@@ -8,7 +8,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import s from "./SiteHeader.module.css";
 
 /**
- * The public shell (§4.2): Browse · Search · Ask · About. Curation lives behind
+ * The public shell: Browse · Search · Ask · About. Curation lives behind
  * authentication in its own shell and is never linked from here - putting the
  * workbench in the reader's navigation is the single largest reason the old UI
  * felt incoherent.
@@ -23,8 +23,7 @@ import s from "./SiteHeader.module.css";
  * this, and can I trust it" at the foot of the page. It also cost every page
  * 231px of flow below the panes, which on the meeting page is what produced a
  * page scrollbar that the reading panes ate the wheel for. And its blanket
- * claim - "this is not the published record" on every page - is the pattern R3.2
- * refuses in as many words: a single site-wide disclaimer "trains readers to
+ * claim - "this is not the published record" on every page - is the pattern * refuses in as many words: a single site-wide disclaimer "trains readers to
  * ignore it". What carries that weight instead is per-object: the transcript
  * states its own limits, an item states whether it has an outcome, a meeting
  * states whether it was recorded. /about still says all of it in full.
@@ -38,7 +37,7 @@ const NAV = [
 
 export function SiteHeader() {
   const path = usePathname();
-  /* The admin shell brings its own chrome (§4.2, R9.1). Hiding the public
+  /* The admin shell brings its own chrome. Hiding the public
    * header here — rather than restructuring every route into groups — keeps
    * the two shells from ever rendering together, and the public nav still
    * carries no link in. */
@@ -54,7 +53,7 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        {/* Search on every page rather than only on two of them. R4.5 asks
+        {/* Search on every page rather than only on two of them. the design asks
             for a command palette so the deeper entities stay reachable from
             anywhere without growing the nav bar; a field in the bar is the
             same answer with no keyboard shortcut to discover, no focus trap

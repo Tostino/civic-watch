@@ -2,7 +2,7 @@
 """The console's operations: every pipeline job the UI can run, one place.
 
 Each job is a named sequence of the DOCUMENTED commands - the same ones
-STATE.md's "Running it" section and bin/refresh.sh define - never a new
+the README and bin/refresh.sh define - never a new
 composition invented here. Order inside a job is the load-bearing order those
 files document (roster before speakers, land before minutes, affinity before
 index), and jobs that would spend money say so and are refused without an
@@ -12,8 +12,7 @@ Two rules the whole design hangs on:
 
 1. ONE job at a time, and never while the ingest fleet is working. The
    stages contend for the GPUs and for the same derived tables; two chains
-   interleaved produce a state neither would have produced alone (gotcha 30
-   is the bash version of the same lesson).
+   interleaved produce a state neither would have produced alone.
 2. A job's PREREQUISITE is measured from the database, not remembered from
    history. "Run the fleet" is refused when nothing is pending ingest; "fold
    into the archive" is refused when every transcribed video is already in;
@@ -120,7 +119,7 @@ JOBS = {
         "title": "Name speakers with the model",
         "why": "The LLM pass with verbatim-quote verification, for voices the "
                "text signal could not reach - then affinity and the index, "
-               "which must follow it (gotcha 64).",
+               "which must follow it.",
         "paid": True,
         "steps": [
             {"say": "Ask the model to name up to 150 voices the text missed",

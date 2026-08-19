@@ -10,7 +10,7 @@ import type { NextRequest } from "next/server";
  * outright no matter what any header said.
  *
  * Unified, Next proxies `/api` from INSIDE the same container, so the peer IS
- * 127.0.0.1 and that guarantee softens into gotcha 94's forwarding-header
+ * 127.0.0.1 and that guarantee softens into the forwarding-header forwarding-header
  * check — which holds, but only because every public request arrives through
  * NPM carrying `x-forwarded-for`. That is a guarantee about somebody else's
  * config, and `next.config.ts` has warned in a comment for a while that

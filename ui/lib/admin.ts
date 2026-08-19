@@ -1,6 +1,6 @@
-/** The curation console's API (§9, §5.8). Same-origin through the Next
+/** The curation console's API. Same-origin through the Next
  *  rewrite, so the httpOnly session cookie rides along on every call and no
- *  token ever touches client code, a URL or storage (D1). */
+ *  token ever touches client code, a URL or storage. */
 
 export interface AdminState {
   authenticated: boolean;
@@ -314,7 +314,7 @@ export const ignoreVoice = (body: { members: [string, string][]; reason?: string
 
 /* ----------------------------------------------------------- redaction
  *
- * The queue of members-of-the-public addresses proposed for removal (D3).
+ * The queue of members-of-the-public addresses proposed for removal.
  * A row carries the whole line and the offset of the span inside it, not just
  * the span: the page marks it in place, and a line that states an address
  * twice must not have the wrong one highlighted. */

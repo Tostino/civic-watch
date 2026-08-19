@@ -17,7 +17,7 @@ const MONTH_NAMES = [
 ];
 
 /**
- * R5.1.2 - meetings on a time axis, scanned year → month → meeting. R7.1 asks
+ * meetings on a time axis, scanned year → month → meeting. the design asks
  * for time to be a first-class visual affordance rather than a list with dates
  * on it, and this collection is twelve years of a recurring event, so the axis
  * is the natural spine of the whole page.
@@ -35,10 +35,10 @@ const MONTH_NAMES = [
  * recording is not missing, it never existed. (The first recorded year is
  * FOUND, at `firstRecorded`, and it moved from 2018 to 2017 the day a
  * mis-dated workshop was attached to its meeting.) A count alone would
- * hide that, and a site-wide disclaimer would be ignored (R3.2).
+ * hide that, and a site-wide disclaimer would be ignored.
  *
  * Cells are links, not buttons: a month is a filtered view of the archive with
- * its own URL (R4.2), so it is navigable, shareable and works without script.
+ * its own URL, so it is navigable, shareable and works without script.
  */
 /**
  * How many years of month rows stand open before the rest fold away: the most

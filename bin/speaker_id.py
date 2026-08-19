@@ -62,7 +62,7 @@ def load_rosters(con):
     # been seated": it whitelists name voting, restricts the voice anchor, and
     # decides whether a heard name is a commissioner at all.
     #
-    # `people` is everybody named in the archive now (SPEAKER_PLAN.md §2.7),
+    # `people` is everybody named in the archive now,
     # so "in the people table" stopped meaning "on the board" - 1,288 members
     # of the public would have walked into this whitelist and been eligible to
     # be assigned to any voice in any meeting. Presence in a table was never
@@ -741,7 +741,7 @@ def main():
             # touch a voice that already carries one, but a label written AFTER
             # it ran lands on a row marked source='chair' - and "never
             # overwrite a sourced row" would then hold the machine's answer
-            # over a person's, which is R5.8.7 upside down and would take
+            # over a person's, which is the precedence rule upside down and would take
             # `speaker.labels_honoured` red. Those rows come back to this
             # stage, name and source both.
             mine = ("(speaker_identity.source IS NULL OR EXISTS ("
@@ -813,7 +813,7 @@ def main():
             # Measured on production: 287 voices held out, 108 of them still
             # carrying a name and 463 utterances still displayed under one -
             # including the single human veto, still stored as Oakley at
-            # confidence 0.954 and shown on 17 lines. That is R5.8.7 inverted:
+            # confidence 0.954 and shown on 17 lines. That is the precedence rule inverted:
             # a person wrote "not a person" and the archive answered with a
             # sitting County Commissioner.
             #
@@ -872,7 +872,7 @@ def main():
                 # `local_label` is deliberately kept. It is diarization's own
                 # account of which lines are one voice: a fact about the audio,
                 # not a claim about who, and it is what a reader needs in order
-                # to select the range and correct it (R5.8.1).
+                # to select the range and correct it.
                 cur.executemany("UPDATE utterances SET cluster=NULL "
                                 "WHERE video_id=%s AND idx=%s", clr)
             n_utt += len(upd)
@@ -881,7 +881,7 @@ def main():
         # bin/schema.sql) is a view, so a label applied through the UI takes
         # effect immediately without re-running this script. It is keyed on
         # (video_id, cluster) so that the roster guard below cannot be undone
-        # at display time - see gotcha 28 in STATE.md.
+        # at display time
         con.commit()
         named = sum(1 for r in rows if r[3])
         # Report the labels themselves and how far they propagated - `human`

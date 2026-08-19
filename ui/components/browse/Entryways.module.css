@@ -130,7 +130,7 @@
 /* ------------------------------------------------- where the board disagreed
  * Full width and above the pair, because it is the one entryway that cannot be
  * assembled from counts, and because it needs two lanes side by side to make
- * its point: the two sources see different things (UI_PLAN §2). */
+ * its point: the two sources see different things. */
 .divided {
   display: flex;
   flex-direction: column;
@@ -218,9 +218,8 @@
   color: var(--ink-3);
 }
 
-/* R3.1. --ink-3 rather than a border token: this is 11px text and the border
- * tokens are contrast-checked at 3:1, which is not enough to read (gotcha 37,
- * and the ProvenanceMark on warm paper was the second time). */
+/* --ink-3 rather than a border token: this is 11px text and the border
+ * tokens are contrast-checked at 3:1, which is not enough to read. */
 .inferred::before {
   content: "◈ ";
   color: var(--live);
@@ -338,7 +337,7 @@
 /* Width is the size of the day's business against the busiest day shown, so
  * 189 decisions and 36 are comparable without reading either number. The
  * segments are the OutcomeBadge vocabulary, so the colours mean here what they
- * mean everywhere else (UI_PLAN §5). */
+ * mean everywhere else. */
 .bar {
   display: flex;
   height: 5px;

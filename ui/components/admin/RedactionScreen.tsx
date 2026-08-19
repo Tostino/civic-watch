@@ -16,7 +16,7 @@ import { clock, meetingDate } from "@/lib/format";
 import s from "./RedactionScreen.module.css";
 
 /**
- * The address queue (D3, §5.8).
+ * The address queue.
  *
  * `bin/redact.py` finds a member of the public's home address and proposes
  * removing it; this is where a person decides. The reason a person decides at
@@ -43,7 +43,7 @@ import s from "./RedactionScreen.module.css";
 /** The three lists, and what each row's buttons mean in each. A decision is
  *  never a dead end: a removal can be put back and a keep can be reconsidered,
  *  because the queue is one-way only if you build it that way — the same
- *  mistake the split-voice queue made before it grew a ledger (R9.5). */
+ *  mistake the split-voice queue made before it grew a ledger. */
 const TABS = [
   { status: "proposed", label: "To review", verb: "Remove", other: "Keep" },
   { status: "applied", label: "Removed", verb: null, other: "Put back" },

@@ -1,4 +1,4 @@
-/* Design tokens. One source of truth (R6.6), two themes (R8.4).
+/* Design tokens. One source of truth, two themes.
  *
  * Custom properties rather than a theme object: they survive server rendering,
  * they are readable in devtools, and they do not tie the look to whatever
@@ -124,7 +124,7 @@
   --live: light-dark(#a8480f, #f0913f);
   --live-soft: light-dark(#fbeee6, #2e1f13);
 
-  /* The two registers (R2.2). */
+  /* The two registers. */
   --record-bg: light-dark(#fffdf8, #1e2027);
   --record-rule: light-dark(#a09059, #8a7a55);
   --derived-bg: light-dark(#f5f6f7, #191c21);

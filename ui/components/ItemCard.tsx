@@ -10,7 +10,7 @@ import s from "./ItemCard.module.css";
 /**
  * An agenda item, wherever one appears: the meeting spine, a case timeline,
  * search results, the agent's evidence. One component, four contexts - which
- * is most of what cohesion actually is (UI_PLAN §5).
+ * is most of what cohesion actually is.
  *
  * Two densities. `row` is the spine: an item every 1.6rem, scannable at 200
  * items, doubling as a chapter track. `card` is the item standing on its own,
@@ -47,7 +47,7 @@ export function ItemCard({
   onSeek?: (videoId: string, seconds: number) => void;
   /**
    * Row variant, from a chronological rail. WHICH stretch this row stands for,
-   * when the board took the item up more than once (R5.2.7). Without it the
+   * when the board took the item up more than once. Without it the
    * row falls back to the first, which is right for every other caller.
    */
   span?: Span | null;
@@ -76,7 +76,7 @@ export function ItemCard({
   const title = item.title ?? "(no title published)";
   /* A transcript-derived stretch was never on an agenda, so the minutes had
    * nothing to decide. Showing "no outcome recorded" would report a
-   * gap in the record where there is no record entry at all (R2.4). */
+   * gap in the record where there is no record entry at all. */
   const published = item.source === "agenda";
 
   if (density === "row") {
@@ -84,7 +84,7 @@ export function ItemCard({
     // agenda, so an item's offset is meaningless without knowing which.
     const elsewhere = Boolean(span && activeVideo && span.video_id !== activeVideo);
     /* An item taken up, set aside and returned to is one row per appearance
-     * (R5.2.7). Marking BOTH matters, not only the later ones: a reader who
+     *. Marking BOTH matters, not only the later ones: a reader who
      * finds the first stretch and hears it end with no decision has to be able
      * to tell that the answer comes later in the day. */
     const again = of > 1;
@@ -173,7 +173,7 @@ export function ItemCard({
         </p>
       )}
 
-      {/* The minutes, verbatim (R5.3.1). This is the authoritative answer to
+      {/* The minutes, verbatim. This is the authoritative answer to
           "what was decided" and it is set as the document it is. */}
       {item.outcome_text ? (
         <blockquote className={s.outcomeText}>

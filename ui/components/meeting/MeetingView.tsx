@@ -15,10 +15,9 @@ import s from "./MeetingView.module.css";
 
 /**
  * `/meeting/:id` - the page the old UI most conspicuously lacked, and the one
- * a reader most wants (§5.2).
+ * a reader most wants.
  *
- * The layout is driven by what this particular meeting actually has (R3.2,
- * R5.2.4), because coverage here is uneven per object and a layout that
+ * The layout is driven by what this particular meeting actually has, because coverage here is uneven per object and a layout that
  * assumes a recording is wrong for 91% of decided items:
  *
  *   agenda + recording   spine navigates, transcript reads, player docks
@@ -26,10 +25,10 @@ import s from "./MeetingView.module.css";
  *   recording, no agenda spine is transcript-derived and marked as inferred
  *
  * The main column shows one of the two sources at a time and says which. That
- * toggle is not a convenience - it is §2's distinction made operable.
+ * toggle is not a convenience - it is the two-sources distinction made operable.
  */
 
-/** Where the reader is, restored from the URL (R4.2). */
+/** Where the reader is, restored from the URL. */
 export interface MeetingLocation {
   videoId?: string;
   t?: number;
@@ -136,7 +135,7 @@ export function MeetingView({
     [player, sourceFor],
   );
 
-  // A shared link loads its recording at the moment it was taken (R4.2), but
+  // A shared link loads its recording at the moment it was taken, but
   // CUES rather than plays: arriving at a page that starts talking at you is
   // hostile, and browsers block it anyway.
   const restored = useRef(false);
@@ -169,7 +168,7 @@ export function MeetingView({
     ? (playingItem ?? pinnedItem)
     : (readingItem ?? pinnedItem ?? playingItem);
 
-  // The URL is the state (R4.2): a link must reproduce the view. replaceState
+  // The URL is the state: a link must reproduce the view. replaceState
   // rather than the router, because this fires as the recording plays and a
   // history entry per second would make Back useless.
   const lastUrl = useRef("");
@@ -189,7 +188,7 @@ export function MeetingView({
 
   const selectItem = useCallback(
     /* `at` is the appearance the reader clicked. The spine lists an item once
-     * per stretch it was discussed in (R5.2.7), so "the item's first span" is
+     * per stretch it was discussed in, so "the item's first span" is
      * the wrong destination for the row that says 3:38 - it would answer a
      * click by seeking two hours backwards. */
     (item: Item, at?: Span | null) => {
@@ -214,7 +213,7 @@ export function MeetingView({
    * would never leave. The signal is ENGAGEMENT instead: the first wheel,
    * touch or key inside the panes, or the moment audio starts. Nothing is
    * lost - the coverage, the roster and the county's documents are all on
-   * screen when the page opens (R3.2), and one click brings them back.
+   * screen when the page opens, and one click brings them back.
    *
    * Nothing else has to know: --pane-h is measured from the split's top, and
    * the observer below already watches the masthead's own height.
@@ -340,7 +339,7 @@ export function MeetingView({
           </div>
 
           <div id="meeting-detail" className={s.detail} hidden={brief}>
-          {/* R3.2: this meeting's own coverage, not a site-wide disclaimer. */}
+          {/* this meeting's own coverage, not a site-wide disclaimer. */}
           <ul className={s.coverage}>
             <Fact
               on={hasAgenda}

@@ -69,9 +69,9 @@
   min-width: 0;
 }
 
-/* R6.8: the same control, scoped to whatever object you are on. Here, this
+/* the same control, scoped to whatever object you are on. Here, this
  * meeting's agenda. The placeholder teaches the duality by example - a topic
- * AND an identifier - which is the one-line fix PRIOR_ART took from
+ * AND an identifier - which is the one-line fix the design notes took from
  * Councilmatic. */
 .search input {
   width: 100%;
@@ -115,7 +115,7 @@
 }
 
 /* ---------------------------------------------------------------- lanes */
-/* What we can place in the recording, then the rest of the agenda (R5.2.6).
+/* What we can place in the recording, then the rest of the agenda.
  * The heading is the load-bearing part: without it the rail simply stops being
  * chronological half way down and reads as a sorting bug. */
 .lane + .lane {

@@ -37,7 +37,7 @@ async function load(id: string) {
   }
 }
 
-/** R8.6: a shared link should say what it is before it loads — and here what
+/** a shared link should say what it is before it loads — and here what
  *  it is IS the question, so the card leads with it and previews the answer. */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;

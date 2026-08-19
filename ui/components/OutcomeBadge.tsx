@@ -3,7 +3,7 @@ import type { Outcome } from "@/lib/types";
 import s from "./OutcomeBadge.module.css";
 
 /**
- * R6.3. One vocabulary and one colour semantics for an outcome, everywhere
+ * One vocabulary and one colour semantics for an outcome, everywhere
  * it appears.
  *
  * The state that matters most is the one that is not an outcome: 8,440 items

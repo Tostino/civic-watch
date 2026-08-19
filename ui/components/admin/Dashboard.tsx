@@ -21,7 +21,7 @@ import s from "./Dashboard.module.css";
 /**
  * The queues, ordered by impact — utterances a decision fixes — because a
  * review list is only workable if its head is the row worth fixing first
- * (R9.2). The old check emitted an unordered list into a void; this is that
+ *. The old check emitted an unordered list into a void; this is that
  * list with an ordering, evidence one click away, and somewhere to act.
  */
 export function Dashboard() {
@@ -58,7 +58,7 @@ export function Dashboard() {
 
   return (
     <div className={s.wrap}>
-      {/* R9.4: pipeline health without a terminal. */}
+      {/* pipeline health without a terminal. */}
       <section className={s.health} aria-label="Attribution health">
         <h2>Speaker attribution, right now</h2>
         <div className={s.meter} role="img" aria-label={basisLabel(b, total)}>
@@ -322,7 +322,7 @@ export function Dashboard() {
 }
 
 /**
- * The "propagate my labels" job (§9.2). Human labels are the verified
+ * The "propagate my labels" job. Human labels are the verified
  * reference set the matcher and the affinity gate score against, so a batch
  * of new labels is when re-derivation pays. Three properties the panel
  * states because they are what make the button safe to press: labels are

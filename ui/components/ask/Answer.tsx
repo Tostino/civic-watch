@@ -21,7 +21,7 @@ import type { AskResult, RecordHit, TranscriptHit } from "@/lib/types";
 import s from "./Answer.module.css";
 
 /**
- * An answer and the evidence under it — §5.5, and the only description of what
+ * An answer and the evidence under it.5, and the only description of what
  * one looks like.
  *
  * It renders in two places and must be the same thing in both: live on `/ask`
@@ -47,7 +47,7 @@ export function Answer({ r }: { r: AskResult }) {
         <Prose marks={marks} />
       </article>
 
-      {/* R5.5.5: no answer without evidence, and the empty result is designed
+      {/* no answer without evidence, and the empty result is designed
           rather than treated as a failure. */}
       {empty ? (
         <p className={s.nothing}>
@@ -58,7 +58,7 @@ export function Answer({ r }: { r: AskResult }) {
         </p>
       ) : null}
 
-      {/* R5.5.4: the published record is its own block, above the transcript. */}
+      {/* the published record is its own block, above the transcript. */}
       {r.record.length ? (
         <section className={s.block} aria-labelledby="ev-record">
           <header className={s.blockHead}>
@@ -142,7 +142,7 @@ export type Lookup = {
 };
 
 /**
- * What the agent actually did (R5.5.1). Shared for the same reason as the
+ * What the agent actually did. Shared for the same reason as the
  * answer: a run that searched the record and found nothing tells a reader
  * something a summary cannot, and that is as worth sending as the prose is.
  */
@@ -216,10 +216,10 @@ const isRun = (p: Part | undefined): p is Run =>
   typeof p === "object" && p !== null && "refs" in p;
 
 /**
- * R5.5.2: the two citation types are distinct. `[item:N]` reveals the
+ * the two citation types are distinct. `[item:N]` reveals the
  * published record; `[N]` seeks the player to that moment.
  *
- * R5.5.2a: A CITATION IS A NUMBER, AND THE NUMBER RESOLVES BELOW.
+ * A CITATION IS A NUMBER, AND THE NUMBER RESOLVES BELOW.
  *
  * Everything else was tried against a real answer and each version put more
  * of the archive's furniture in the way of the sentence. `[323064] [323065]`
@@ -373,7 +373,7 @@ function number(
     }
     /* The record before the recording, always, whichever order they were
        typed in: the county's own minutes are the authority and the transcript
-       is what was said around them (R5.5.4). Numbers are handed out in that
+       is what was said around them. Numbers are handed out in that
        same order, so they only ever ascend in the prose. */
     for (const it of recs) {
       const n = item.get(it.id) ?? next;
@@ -454,7 +454,7 @@ function Refs({ plan }: { plan: Plan }) {
       /* EVERYONE in the stretch, not whoever starts it. A fold is 15 seconds
          of silence or less, which can span a change of speaker, and one name
          over two people is the kind of quiet misattribution this archive is
-         careful about everywhere else (R2.3). */
+         careful about everywhere else. */
       const who = [
         ...new Set(
           mk.moment.of.map((h) => h.speaker_display ?? h.speaker ?? "Unidentified speaker"),
@@ -576,7 +576,7 @@ function RecordCite({ item, n }: { item: RecordHit; n: number | undefined }) {
   );
 }
 
-/** R5.5.3: grouped meeting → agenda item, never a flat chronological list. */
+/** grouped meeting → agenda item, never a flat chronological list. */
 function Evidence({
   hits,
   said,
@@ -668,7 +668,7 @@ function Quote({
     <>
       <div className={s.quoteTop}>
         <RefNo n={n} said anchor={anchor} />
-        {/* Drawn with the certainty behind it, not as a flat label (R2.3),
+        {/* Drawn with the certainty behind it, not as a flat label,
             and the answer above was written under the same rule: web/agent.py
             marks the weak ones in the brief and COMPOSE refuses to attribute
             those by name. So the prose and the evidence agree about how much
@@ -677,7 +677,7 @@ function Quote({
           <SpeakerChip who={hit.who} size="sm" />
         </span>
         {/* A cited name is the one a reader is most likely to check, and the
-            most costly to have wrong. Readers see nothing (R9.1). */}
+            most costly to have wrong. Readers see nothing. */}
         <DisputePassage hit={hit} />
         <button
           type="button"
@@ -691,7 +691,7 @@ function Quote({
           }
         >
           {/* WHICH RECORDING, on the row a marker resolves to. Rows are
-              grouped by MEETING (R5.5.3) and half of all meeting-days are two
+              grouped by MEETING and half of all meeting-days are two
               recordings, so without this a 5:41 from the afternoon session
               sits under the same heading as a 1:57:52 from the morning and
               reads like a mistake. Said only where `sessions` proves the

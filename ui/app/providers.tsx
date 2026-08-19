@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
-/** D6. Server state - transcripts, searches, items - is cached, deduped and
+/** Server state - transcripts, searches, items - is cached, deduped and
  *  revalidated here rather than in each surface's own useEffect. */
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(

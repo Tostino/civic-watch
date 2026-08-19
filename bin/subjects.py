@@ -25,9 +25,9 @@ ever read. So it is used for VOCABULARY and never for classification:
 Matching then stays lexical, deterministic and in SQL. That is not
 conservatism: counting published titles by phrase is an exact operation over
 the county's own words, which is what keeps this surface on the record side of
-UI_REQUIREMENTS section 2. A per-item model label or a cosine threshold would
+the design notes A per-item model label or a cosine threshold would
 make every number in that section an inference and oblige it to be drawn as
-one (R2.1, R2.3).
+one.
 
 WHY GROUNDING IS THE LOAD-BEARING STEP. Proposed phrases are wrong in ways that
 are invisible in the phrase and obvious in the count. `SHIP` as a substring

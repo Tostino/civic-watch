@@ -17,7 +17,7 @@ import s from "./PlayerDock.module.css";
  * window. The default is the lane, because this page exists to be watched and
  * read at once and the old overlay covered nearly half the transcript.
  *
- * D2: when the embed fails there is no broken frame. The dock says the
+ * when the embed fails there is no broken frame. The dock says the
  * recording is unavailable and points at the transcript, which is held here
  * and does not depend on YouTube.
  */
@@ -37,7 +37,7 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
     [p],
   );
 
-  // R8.2: the player must be fully keyboard-operable.
+  // the player must be fully keyboard-operable.
   const onBarKey = useCallback(
     (e: React.KeyboardEvent) => {
       const step = e.shiftKey ? 60 : 10;

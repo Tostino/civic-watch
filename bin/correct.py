@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Correct who said something, over a range of utterances.
 
-The admin surface that will do this by clicking is slice 6 of the UI rebuild
-(UI_REQUIREMENTS D8). This exists so the archive is fixable NOW, and because
+The admin surface that does this by clicking is /admin. This exists so the
+archive is fixable from a shell too, and because
 the operation is worth having outside a browser anyway: it is the one write
 that outranks the entire pipeline, and it should be scriptable.
 
-The unit is a contiguous range of utterances in one recording (R5.8.1), keyed
+The unit is a contiguous range of utterances in one recording, keyed
 on (video_id, idx) and never on a cluster id - only ~2% of cluster ids survive
 a re-clustering run. A correction therefore survives every rebuild of the
-derived layers, which is the whole point (R5.8.7).
+derived layers, which is the whole point.
 
     # look before you write - show what is there now
     bin/correct.py show 840x-PTQXfc --at 1:06:30-1:08:00
@@ -155,7 +155,7 @@ def main():
         # nothing a reader sees until it is resolved into that table. Rebuild
         # the passages without this and they are rebuilt from the OLD names -
         # the correction is stored, re-indexed, and invisible. web/admin.py
-        # has always done both (gotcha 46); this path did only the second.
+        # has always done both; this path did only the second.
         import speaker_claims
         speaker_claims.refresh_video(con, r[0])
         import index_passages
@@ -214,7 +214,7 @@ def main():
         # nothing a reader sees until it is resolved into that table. Rebuild
         # the passages without this and they are rebuilt from the OLD names -
         # the correction is stored, re-indexed, and invisible. web/admin.py
-        # has always done both (gotcha 46); this path did only the second.
+        # has always done both; this path did only the second.
         import speaker_claims
         speaker_claims.refresh_video(con, args.video_id)
         import index_passages

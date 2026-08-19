@@ -196,8 +196,7 @@ def _(con):
            JOIN agenda_items ai ON ai.id = p.agenda_item_id"""
 
 
-# Was `outcome.matches_disposition` until the column was renamed; STATE.md
-# entries before 2026-08-18 use the old name.
+# Was `outcome.matches_disposition` until the column was renamed.
 @check("outcome.matches_text",
        "outcome is not contradicted by the sentence it came from")
 def _(con):
@@ -351,7 +350,7 @@ def _(con):
     roll is not a commissioner" would be right for the clerk and wrong for the
     134 meetings where the merged label is mostly the member, and it would
     strip a correct name on evidence that is itself contaminated. The fix is
-    upstream, in how these utterances are cut; §5.8's utterance-range
+    upstream, in how these utterances are cut;.8's utterance-range
     correction is what expresses it meanwhile.
     """
     q = r"""FROM utterances u
@@ -419,7 +418,7 @@ def _(con):
 
     The lines themselves are untouched - suppressing a name here does not
     detach it from the ~7,000 utterances still carrying it. That is
-    SPEAKER_PLAN section 2.6, organisations, and it is unstarted.
+    Organisations are a known gap, and the work is unstarted.
     """
     # Inlined rather than passed as a parameter: the runner calls
     # `con.execute(sample)` with no arguments, so the example query and the
@@ -685,7 +684,7 @@ def _(con):
     an earlier run had decided about them, because `speaker_id` only ever
     inserted and updated: the single human veto in this archive - video
     T-fN-fVcYJM / SPEAKER_10 - was still stored as **Oakley, confidence 0.954**
-    and still displayed on 17 utterances. R5.8.7 exactly inverted, and on the
+    and still displayed on 17 utterances. the precedence rule exactly inverted, and on the
     surface the admin console is being built against.
 
     Both layers are checked, because clearing either one alone still leaves a
@@ -899,7 +898,7 @@ def _(con):
         "SELECT COUNT(*) FROM passages"
 
 
-# ------------------------------------------------------ corrections (§5.8)
+# ------------------------------------------------------ corrections
 @check("override.in_range",
        "every correction addresses utterances that exist in its recording")
 def _(con):
@@ -943,7 +942,7 @@ def _(con):
 @check("override.human_outranks_machine",
        "a human correction is what the reader sees, at every granularity")
 def _(con):
-    # R5.8.7 / R9.5. If a range is corrected and the view still shows the
+    # If a range is corrected and the view still shows the
     # derived name, the correction is decorative. Nothing is more corrosive
     # than a fix that appears to have been accepted and was not.
     q = """FROM speaker_override o
@@ -961,7 +960,7 @@ def _(con):
 @check("override.pending_changes_nothing",
        "an unreviewed proposal never alters what a reader is shown")
 def _(con):
-    # R5.8.8. A public submission is untrusted input; it may mark a name as
+    # A public submission is untrusted input; it may mark a name as
     # contested and must not replace it.
     q = """FROM speaker_override o
            JOIN utterance_speaker us ON us.video_id = o.video_id
@@ -995,7 +994,7 @@ def _(con):
     """Exercise the correction path instead of reporting EMPTY about it.
 
     The three checks above range over a table that is empty until someone makes
-    a correction, so they proved nothing - which is the failure gotcha 27 is
+    a correction, so they proved nothing - which is the failure that check is
     about. This one proves the mechanism itself, the same way segment.preflight
     proves the INSERT before an hour of LLM calls is spent against it: do the
     write, assert the reader sees it, roll it back. Nothing is left behind.
@@ -1136,9 +1135,9 @@ def _(con):
 def _(con):
     """Nothing has ever compared the two, and they have drifted before.
 
-    Gotcha 63: `schema.sql` had fallen behind the live database, and replaying
+    `schema.sql` had fallen behind the live database, and replaying
     it silently dropped a guard from `utterance_speaker`, handing disproved
-    names back to 8,795 utterances. Gotcha 68: the same file could not create
+    names back to 8,795 utterances. The same file could not create
     the schema from scratch at all, because two views referenced tables defined
     below them - which nobody noticed because the production database was built
     statement by statement and never from the file.
@@ -1603,7 +1602,7 @@ def _(con):
 @check("claims.quotes_are_verbatim",
        "a claim's quote is still the words in the range it covers")
 def _(con):
-    """SPEAKER_PLAN section 5, and the reason it is not enough that
+    """the design notes, and the reason it is not enough that
     name_speakers.py checks this at write time.
 
     A quote is the evidence a claim rests on. `self` claims quote the speaker
@@ -1641,7 +1640,7 @@ def _(con):
 @check("claims.spans_are_real",
        "a claim covers utterances that exist, in one recording")
 def _(con):
-    """SPEAKER_PLAN section 5. The span is what makes a claim resolvable -
+    """the design notes The span is what makes a claim resolvable -
     specificity breaks ties, so a claim covering a range that is not there
     outranks better evidence over nothing at all.
 
@@ -1669,7 +1668,7 @@ def _(con):
        "resolved utterances whose winning claim rests on no quotable evidence",
        review=True)
 def _(con):
-    """REPORTED, NOT ASSERTED - SPEAKER_PLAN section 5 says so about the
+    """REPORTED, NOT ASSERTED - the design notes says so about the
     contested count, and the same argument covers this. Neither is a defect:
     they are the size of a job.
 
@@ -1696,7 +1695,7 @@ def _(con):
 @check("claims.contested", "spans where two unvetoed methods name different people",
        review=True)
 def _(con):
-    """A WORKLOAD MEASURE, not a failure - SPEAKER_PLAN section 5 is explicit.
+    """A WORKLOAD MEASURE, not a failure - the design notes is explicit.
 
     Two methods asserting different names for one span is a fact the old
     pipeline computed and printed away. It is now recorded per utterance and

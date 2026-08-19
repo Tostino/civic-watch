@@ -6,7 +6,7 @@ import type { Line } from "@/lib/types";
 import { useOperator } from "./useOperator";
 
 /**
- * The console bridge (R5.8.3, R6.2.2), in ONE place: what turns "that name is
+ * The console bridge, in ONE place: what turns "that name is
  * wrong" on a reading surface into the review screen, opened on the very lines
  * the reader was looking at.
  *

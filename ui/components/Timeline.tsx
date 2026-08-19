@@ -13,10 +13,10 @@ export interface TimelineEvent {
 }
 
 /**
- * R6.5. One time axis, shared by the meeting (seconds through a session), the
+ * One time axis, shared by the meeting (seconds through a session), the
  * case (months across appearances) and the person (years across terms).
  *
- * R7.1 asks for time to be a first-class visual affordance rather than a list
+ * the design asks for time to be a first-class visual affordance rather than a list
  * with dates on it. This is that affordance: a meeting-day is 8 hours with 200
  * items in it, and its shape - where the consent block ended, where the long
  * hearing sat, where the board reports ran to the adjournment - is legible in

@@ -156,7 +156,7 @@ def upsert_meetings(con):
     # meeting is not THIS sibling", so with several siblings matching, the
     # winner is whichever row Postgres happens to yield. 32 of 432 transcribed
     # recordings sit on such a date, and they migrated on every run. That is
-    # the engine behind the stranded transcript items in gotcha 77: the video
+    # the engine behind the stranded transcript items : the video
     # moves, bind_spans no longer finds the item under the new meeting_id, and
     # creates another.
     #
@@ -370,7 +370,7 @@ def main():
     # happened has no recording, so no segments, so nothing for it to do.
     #
     # It also USED to be unsafe to re-run - two runs added 447 then 262 rows -
-    # which is how this flag came to exist. That cause is fixed (gotcha 78);
+    # which is how this flag came to exist. That cause is fixed;
     # the flag is kept because skipping work a caller does not need is right on
     # its own terms, not as a guard against a bug.
     ap.add_argument("--no-spans", action="store_true",

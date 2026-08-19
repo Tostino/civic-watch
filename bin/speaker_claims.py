@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resolve a speaker's name once, from evidence rather than from a verdict.
 
-SPEAKER_PLAN.md is the argument; this is the shadow build of it. Nothing here
+the design notes is the argument; this is the shadow build of it. Nothing here
 is read by any page. `--compare` is the whole point: it puts the new
 resolution beside the old one and says what changed, so the change can be
 judged before it is switched on.
@@ -452,7 +452,7 @@ def extract(con, video_id=None, commit=True):
         # the line, one letter-author's name spread over the whole run and
         # landed on a commissioner: measured, SPEAKER_27 in BTQQU-4nOq8 became
         # "Daniel Honeywell Jun" across letters by three different people,
-        # over a voice the archive calls Starkey. That is gotcha 72 arriving
+        # over a voice the archive calls Starkey. That is a known failure arriving
         # through a new door.
         #
         # 18 of 1,682 self claims sit in a run like this. Small, and the
@@ -769,7 +769,7 @@ def resolve(con, video_id=None, commit=True):
     because utterance_speaker is a view; the moment it becomes a table, a
     correction does nothing until something recomputes it. web/admin.py's
     `_refresh` re-renders and re-embeds the passages of one video after every
-    correction (gotcha 46), and this is the step that has to run first - it
+    correction, and this is the step that has to run first - it
     is the same shape and the same scope.
     """
     cur = con.cursor()
@@ -797,7 +797,7 @@ def refresh_video(con, video_id, commit=True):
     in, and the page keeps showing the old name until something recomputes.
 
     web/admin.py calls this before it re-renders and re-embeds the passages of
-    that video (gotcha 46, `_refresh`), so the whole chain - correction,
+    that video, so the whole chain - correction,
     resolution, index - stays synchronous and a reader sees the fix on the
     next page load, exactly as they do now.
 

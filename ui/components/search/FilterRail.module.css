@@ -122,7 +122,7 @@
   font-weight: 600;
 }
 
-/* R8.3. The page stacks to one column at 60rem and the rail is first in the
+/* The page stacks to one column at 60rem and the rail is first in the
  * DOM, so on a phone a search returned 1,086px of facets before its first
  * result - nearly two screens of narrowing before anything to narrow.
  *

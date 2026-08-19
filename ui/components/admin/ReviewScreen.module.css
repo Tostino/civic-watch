@@ -283,7 +283,7 @@
   min-height: 0;
   /* The reading pane sits on --bg, not the shell's sunk ground: it is where
    * --ink-4 metadata lives, and on --bg-sunk that pair measured 4.46:1 —
-   * marginally under AA (gotcha 37: contrast is a property of a pair). */
+   * marginally under AA (contrast is a property of a pair). */
   background: var(--bg);
 }
 
@@ -373,7 +373,7 @@
 
 /* The line the recording is inside right now. A ring, not a background, so
  * it reads over the voice wash and the selection alike — and box-shadow, not
- * outline, so the global focus ring survives (gotcha 59). */
+ * outline, so the global focus ring survives. */
 .rowSounding {
   box-shadow: inset 0 0 0 2px var(--accent);
 }

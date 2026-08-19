@@ -15,7 +15,7 @@ export interface CitationSpec {
 }
 
 /**
- * R6.7. A canonical, copyable reference.
+ * A canonical, copyable reference.
  *
  * All three serious civic archives reviewed publish one - Hansard's
  * "(Citation: HC Deb, 15 January 2024, c559)", CourtListener's docket

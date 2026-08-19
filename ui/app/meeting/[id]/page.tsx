@@ -22,7 +22,7 @@ async function load(idParam: string) {
   }
 }
 
-/** R8.6: a shared link should say what it is before it loads. */
+/** a shared link should say what it is before it loads. */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   try {
@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function MeetingPage({ params, searchParams }: Props) {
   const [{ id }, q] = await Promise.all([params, searchParams]);
-  // R4.2: the URL carries enough to reproduce the view, including the moment
+  // the URL carries enough to reproduce the view, including the moment
   // in the recording. Parsed here rather than in the client so a shared link
   // is right on the server-rendered first paint.
   const t = q.t != null ? Number(q.t) : NaN;

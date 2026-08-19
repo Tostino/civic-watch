@@ -162,7 +162,7 @@ def search(query, limit=40, spread=None, speaker=None, kind=None,
         # Cosine similarity is computed here, for the candidates only. It is
         # reported as `score` but is NOT the ranking - RRF above is.
         # meeting_id/date/body are joined here rather than resolved by the
-        # caller: a hit is unreadable without the item it sits under (R5.6.3),
+        # caller: a hit is unreadable without the item it sits under,
         # and the item is addressed through its meeting.
         meta = {r["id"]: dict(r) for r in con.execute("""
             SELECT p.id, p.video_id, p.start, p."end", p.speaker,
@@ -295,7 +295,7 @@ ITEM_FTS = """to_tsvector('english',
 
 
 # An identifier, not a topic. `PDE-25-7738`, `R-58`, `C10`, `CPAL-2206`. The
-# record is searchable both ways (R5.6.4) and a code put through
+# record is searchable both ways and a code put through
 # websearch_to_tsquery is torn into fragments that match nothing, so it takes a
 # different query entirely.
 CODE_RE = re.compile(r"^\s*([A-Z]{1,5})[\s\-]?(\d{1,3})(?:[\s\-](\d{1,5}))?\s*$", re.I)
@@ -337,8 +337,7 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
     deferrals and one approval, and the approval is the answer.
 
     Facets are applied in SQL rather than to the result page, so narrowing by
-    body or outcome deepens the search instead of thinning what came back
-    (R5.6.2). `total` is the honest count behind them.
+    body or outcome deepens the search instead of thinning what came back. `total` is the honest count behind them.
     """
     where = ["ai.source = 'agenda'"]
     args = {"q": query, "limit": limit, "offset": offset}
@@ -408,7 +407,7 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
     # as "the archive holds none of this", which is the specific failure D9
     # exists to prevent, so the search loosens to ANY term rather than
     # stopping. ts_rank_cd still puts the items matching more terms first, and
-    # the page says the query was widened (R3.2).
+    # the page says the query was widened.
     loosened = False
     if not total and not looks_like_code(query):
         # The text is already lexed by then, so swapping the operator is safe;

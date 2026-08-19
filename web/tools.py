@@ -1,4 +1,4 @@
-"""The retrieval surface, as callable tools (UI_REQUIREMENTS D9).
+"""The retrieval surface, as callable tools.
 
 `bin/ask.py` runs a fixed pipeline - `plan() → retrieve() → read() → answer()`.
 The planner emits its queries once and the pipeline executes them blindly, so
@@ -23,7 +23,7 @@ tool definitions unchanged.
 
 Nothing here decides how a result LOOKS. Tools return the archive's own
 structure - ids, codes, outcomes, offsets - and one component decides how to
-render each kind (D3, and the same rule as web/archive.py).
+render each kind (and the same rule as web/archive.py).
 """
 import re
 import sys
@@ -40,7 +40,7 @@ _retrieve = None
 
 # Whether the dense arm is usable. A search that silently drops to keywords is
 # a search that quietly got worse, so this is reported in the result rather
-# than swallowed (R3.2).
+# than swallowed.
 _dense_error = None
 
 
@@ -785,7 +785,7 @@ def call(con, name, args):
 
 # --------------------------------------------------------------- the page
 def search(con, query, limit=25, offset=0, **facets):
-    """Both sources at once, for /search (R5.6.1).
+    """Both sources at once, for /search.
 
     Two tool calls, not a third code path. The page runs the same surface the
     agent does - which is the point of D9 and the only way the two stay honest
@@ -794,7 +794,7 @@ def search(con, query, limit=25, offset=0, **facets):
     The record is not paginated together with the transcript: they are
     different objects with different totals, and interleaving them into one
     ranked list would force a comparison between "this was approved" and
-    "somebody said this", which are not comparable (UI_PLAN §2).
+    "somebody said this", which are not comparable.
     """
     query = (query or "").strip()
     if not query:

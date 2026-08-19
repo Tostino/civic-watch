@@ -57,7 +57,7 @@
 }
 
 /* "2/3" — this row is the second of three times the board took the item up
- * (R5.2.7). Quiet, because it is true of 93 items in the whole archive and
+ *. Quiet, because it is true of 93 items in the whole archive and
  * must not read as a badge every row is missing. */
 .again {
   flex: none;
@@ -139,7 +139,7 @@
   color: var(--ink-4);
 }
 
-/* The county's own words, set as a document (R2.2). */
+/* The county's own words, set as a document. */
 .title {
   font-family: var(--font-record);
   font-size: var(--text-md);

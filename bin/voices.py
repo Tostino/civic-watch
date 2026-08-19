@@ -20,12 +20,12 @@ that somebody once labelled her voice and nobody ever labelled a commissioner's.
 The machine can separate them. It cannot name them: `anchors.py` needs an
 anchor, and for commissioners the only anchor was the handoff announcement
 ("Commissioner Starkey?"), which names whoever speaks NEXT and is wrong
-whenever the floor does not go where the chair said (gotcha 34).
+whenever the floor does not go where the chair said.
 
 So this does the half a machine can do - clustering the voices and pulling a
 playable sample from each - and asks a person for the half it cannot. One
 listen per group labels every voice in it, and a human label outranks the
-entire pipeline and survives every rebuild (R5.8.7, R9.5).
+entire pipeline and survives every rebuild.
 
     bin/voices.py groups Mariano            # what is actually under the name
     bin/voices.py groups Mariano --play     # with a YouTube link per group

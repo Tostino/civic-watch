@@ -90,7 +90,7 @@
   max-width: var(--measure);
 }
 
-/* Inferred, never published: a different register, always (R2.2). */
+/* Inferred, never published: a different register, always. */
 .derivedTitle {
   font-family: var(--font-ui);
   font-style: italic;
@@ -518,7 +518,7 @@
   }
 }
 
-/* The seam between two appearances of one item (R5.2.7). A rule across the
+/* The seam between two appearances of one item. A rule across the
  * column, because the thing being marked is an absence of hours. */
 .resumed {
   display: flex;

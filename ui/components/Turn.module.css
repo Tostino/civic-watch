@@ -1,5 +1,5 @@
 /* A run of consecutive lines by one speaker. Moved here from ItemView when a
- * third view needed it (R5.4.4); the rules are unchanged. */
+ * third view needed it; the rules are unchanged. */
 .turns {
   display: flex;
   flex-direction: column;

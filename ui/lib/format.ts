@@ -69,7 +69,7 @@ export const outcomeLabel = (o: Outcome | null): string =>
   o ? (OUTCOME_LABEL[o] ?? o) : "No outcome in the minutes";
 
 /** How an outcome reads semantically. `none` is deliberately its own state:
- *  "the minutes recorded nothing for this" is not an outcome (R6.3). */
+ *  "the minutes recorded nothing for this" is not an outcome. */
 export function outcomeTone(o: Outcome | null): "ok" | "no" | "wait" | "neutral" | "none" {
   switch (o) {
     case "approved":
@@ -106,7 +106,7 @@ export const phaseLabel = (p: string): string =>
 /**
  * Where this item's outcome came from, in words rather than in the
  * pipeline's token. `bulk_consent` is an internal value and printing it is the
- * same mistake as rendering `Group 465` where a name goes (R6.2.1) — it reads
+ * same mistake as rendering `Group 465` where a name goes — it reads
  * as a fact about the record and it is a fact about our parser.
  *
  * It is worth saying at all because these are materially different claims: the
@@ -149,7 +149,7 @@ export function shortTitle(title: string | null, max = 110): string {
   return t.slice(0, sp > 0 ? sp : max).trim() + "…";
 }
 
-/* ------------------------------------------------------- R5.4.2, redlined
+/* ------------------------------------------------------- redlined
  *
  * A case's official title is legal prose that runs to 400 characters and is
  * repeated verbatim at every appearance. The archive's longest case says this

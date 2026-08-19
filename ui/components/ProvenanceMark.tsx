@@ -22,11 +22,11 @@ const COPY: Record<Provenance, { label: string; why: string }> = {
 };
 
 /**
- * R6.4, and the load-bearing primitive of the whole UI.
+ * and the load-bearing primitive of the whole UI.
  *
- * §2 of the requirements - that there are two kinds of truth here and they
+ * of the requirements - that there are two kinds of truth here and they
  * must never be blurred - is only real if it is visible. This marks which one
- * a block came from, without interaction (R2.1): a filled square for the
+ * a block came from, without interaction: a filled square for the
  * published record, a hollow one for anything inferred.
  *
  * The mark is a reinforcement, not the mechanism. The primary signal is

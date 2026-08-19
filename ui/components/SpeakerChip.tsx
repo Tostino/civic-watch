@@ -46,35 +46,35 @@ export interface SpeakerChipProps {
   who: Speaker;
   /** The office held AT THIS MEETING, if the published roster records one. */
   office?: Office | null;
-  /** Page-local letter for an unnamed voice. Never a cluster id (R6.2.1). */
+  /** Page-local letter for an unnamed voice. Never a cluster id. */
   voiceTag?: string | null;
   size?: "sm" | "md";
-  /** Slice 6 (D8) passes a handler; the affordance appears then, here (R6.2.2). */
+  /** Slice 6 passes a handler; the affordance appears then, here. */
   onDispute?: () => void;
 }
 
 /**
- * R6.2. The single renderer for "who said this", and the reason it is a
+ * The single renderer for "who said this", and the reason it is a
  * component at all rather than a string.
  *
  * Three rules it exists to enforce:
  *
- * 1. **Never render a raw internal label** (R6.2.1). `Speaker 3`, `Group 465`,
+ * 1. **Never render a raw internal label**. `Speaker 3`, `Group 465`,
  *    `SPEAKER_00` are diarization ids that get reshuffled on every clustering
  *    run - only ~2% survive one - and they read as names. An unnamed voice is
  *    *unidentified*, and if the page needs to distinguish two of them it uses
  *    a page-local letter that claims nothing.
  *
- * 2. **Never look more certain than it is** (R2.3). A voice-matched name is
+ * 2. **Never look more certain than it is**. A voice-matched name is
  *    drawn as an inference. It is right most of the time and it has been wrong
  *    for whole meetings at a stretch: "Barbara Wilhite" once collected 664
  *    voices across 316 clusters, of which 7% actually resembled her.
  *
- * 3. **One place to change the name** (D3). Display resolves here and nowhere
+ * 3. **One place to change the name**. Display resolves here and nowhere
  *    else, so a future redaction rule for members of the public has exactly one
  *    site to act on. Never denormalise a rendered name into a cached string.
  *
- * No numeric confidence is shown (R5.5.6): speaker precision has not been
+ * No numeric confidence is shown: speaker precision has not been
  * re-measured since the roster work, and a number would assert accuracy the
  * project cannot currently support.
  */
@@ -86,7 +86,7 @@ export function SpeakerChip({
   onDispute,
 }: SpeakerChipProps) {
   /* A claim that did not arrive is *unidentified*, which is a state this
-   * component already draws and which R3.3 calls the normal case rather than
+   * component already draws and which the design calls the normal case rather than
    * an error. It is emphatically not a reason to throw.
    *
    * This destructured `who` directly and every route that rendered a line

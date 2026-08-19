@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Re-derive speaker identity from the human labels, and measure what changed.
 
-The console's "propagate my labels" job (§9). Human labels are the verified
+The console's "propagate my labels" job. Human labels are the verified
 reference set the anchor-based matcher and the affinity gate score against, so
 a batch of new labels is exactly when re-derivation pays: one label on a voice
 can rename that voice's whole cluster archive-wide, and pull misassigned
@@ -14,7 +14,7 @@ Runs the FREE, local part of bin/respeak.sh:
 
 `name_speakers` is deliberately absent: it calls the paid model, and the
 console must not spend money on a button press. Run bin/respeak.sh for the
-full chain when there is credit. Order still matters (gotcha 64): identity
+full chain when there is credit. Order still matters: identity
 moves names between clusters, so affinity must re-measure after it, and the
 index bakes resolved names, so it runs last.
 
@@ -22,7 +22,7 @@ index bakes resolved names, so it runs last.
 free - the county's published roster plus the script the presiding officer
 reads, no model and no network - and it is the only stage that can contradict
 the archive-wide cluster majority about a commissioner. speaker_id no longer
-writes source = NULL over it (gotcha 83), but nothing was putting it BACK
+writes source = NULL over it, but nothing was putting it BACK
 after it had been erased, so production sat with three clusters - 69,596
 utterances - stored under a name the county's own roster contradicts, and a
 chain advertised as "re-derive identity" could not repair it. It runs before
@@ -31,7 +31,7 @@ the names that exist, so a reference set full of the wrong name teaches it the
 wrong thing.
 
 Everything it touches is a derived layer; the labels themselves outrank the
-result and survive it (R5.8.7).
+result and survive it.
 
 Status goes to logs/rederive.json and output to logs/rederive.log, which is
 what /api/admin/rederive serves. The before/after snapshot goes through a
@@ -117,7 +117,7 @@ def backup(con):
     with gzip.open(BACKUP, "wt") as f:
         for table, cols in TABLES.items():
             # Positional, never list(row): db.Row is a Mapping, so iterating
-            # it yields column NAMES (gotcha 13) - which this backup did, and
+            # it yields column NAMES - which this backup did, and
             # only the preflight restore caught it.
             n = len(cols.split(","))
             for r in con.execute(f"SELECT {cols} FROM {table}"):
@@ -131,7 +131,7 @@ def restore_tables(con):
 
     Runs inside the caller's transaction, so the preflight can prove the
     write path against a rollback before the real thing runs (the lesson of
-    gotcha 26: a syntax error in an INSERT nobody exercised is an empty table
+    a syntax error in an INSERT nobody exercised is an empty table
     behind a log full of successes).
     """
     rows = {t: [] for t in TABLES}

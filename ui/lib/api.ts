@@ -72,7 +72,7 @@ export const getOverview = (body?: string) =>
 export const getHighlights = (limit = 6, divided = 60) =>
   get<Highlights>(`/api/highlights?limit=${limit}&divided=${divided}`);
 
-/** What the county keeps coming back to, per year, in both sources (R5.1.4). */
+/** What the county keeps coming back to, per year, in both sources. */
 export const getIssues = () => get<Issues>(`/api/issues`);
 
 export function getMeetings(params: {
@@ -97,11 +97,11 @@ export function getMeetings(params: {
   return get<{ total: number; meetings: MeetingRow[] }>(`/api/meetings?${q}`);
 }
 
-/** The search facets a rail may offer, derived from the data (R5.6.2). */
+/** The search facets a rail may offer, derived from the data. */
 export const getFacets = () => get<Facets>("/api/facets");
 
 /**
- * Both sources at once (R5.6.1). This is `web/tools.py:search()`, which is two
+ * Both sources at once. This is `web/tools.py:search()`, which is two
  * calls to the same tools the agent uses — not a parallel implementation. When
  * a search behaves oddly on the page, the same tool call reproduces it.
  */

@@ -26,7 +26,7 @@ body {
 }
 
 /* The player's lane. The dock is a fixed element - it is the iframe's permanent
- * home and cannot be moved into a page's own grid without remounting it (R6.1)
+ * home and cannot be moved into a page's own grid without remounting it
  * - so the page gives up the column instead, and the two arrive at a layout
  * neither could reach alone. --dock-lane is published by the dock and is 0px in
  * every other arrangement, which is why this costs nothing on a page with no
@@ -96,7 +96,7 @@ select {
   color: inherit;
 }
 
-/* R8.2: focus must be visible, and visible against every surface. Two rings,
+/* focus must be visible, and visible against every surface. Two rings,
  * so it survives on the accent-coloured and dark backgrounds too. */
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -109,7 +109,6 @@ select {
   color: var(--ink);
 }
 
-/* R7.4 */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

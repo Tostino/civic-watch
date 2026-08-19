@@ -24,7 +24,7 @@ export interface Span {
 }
 
 /**
- * One TIME the board took an item up (R5.2.7) — spans merged when they are
+ * One TIME the board took an item up — spans merged when they are
  * close enough to be a single discussion. `archive._runs` is the definition;
  * the threshold and the measurement behind it live there.
  */
@@ -127,7 +127,7 @@ export interface MeetingDetail {
 
 /**
  * How a name was arrived at. These were four values and are now the resolver's
- * METHOD (SPEAKER_PLAN.md §2.2), which says strictly more: `self` is the
+ * METHOD, which says strictly more: `self` is the
  * speaker naming themselves, `chair` is somebody else naming them in the room,
  * `read_aloud` means the words belong to a person who was never there.
  * SpeakerChip maps these to how sure the page looks, in one place.
@@ -144,7 +144,7 @@ export interface MeetingDetail {
  *
  * `(exchange)` never appears here. The API cannot emit it: a passage spanning
  * several people arrives as `several: true` with no name, which is what
- * R6.2.1 has always required and what two separate files used to enforce by
+ * has always required and what two separate files used to enforce by
  * hand.
  */
 export interface Speaker {
@@ -167,8 +167,8 @@ export type SpeakerBasis =
 
 /**
  * One line of transcript. Speaker identity arrives as FIELDS, never as a
- * rendered string, so exactly one component decides how to show it (R6.2.1)
- * and a future redaction rule has one place to act (D3).
+ * rendered string, so exactly one component decides how to show it
+ * and a future redaction rule has one place to act.
  */
 export interface Line {
   /** The recording this line is from. What the console bridge keys on. */
@@ -195,11 +195,11 @@ export interface Line {
   /** The same facts as the loose fields above, in the shape SpeakerChip takes. */
   who: Speaker;
   confidence: number | null;
-  /** A person stated this. Outranks everything derived (R5.8.7). */
+  /** A person stated this. Outranks everything derived. */
   human: boolean;
   /**
    * How the name was arrived at. These are four very different claims and the
-   * UI must not render them identically (R2.3):
+   * UI must not render them identically:
    *   override  a person, about this stretch of speech
    *   human     a person, about this whole voice
    *   voice     the pipeline, about this voice in THIS meeting
@@ -207,7 +207,7 @@ export interface Line {
    *             and the one that put two different women under one name
    */
   basis: SpeakerBasis;
-  /** A correction is pending. Show it as disputed, take no side (R5.8.10). */
+  /** A correction is pending. Show it as disputed, take no side. */
   contested: boolean;
   agenda_item_id: number | null;
 }
@@ -221,7 +221,7 @@ export interface Office {
 export interface Transcript {
   video: Video & { meeting_id: number };
   lines: Line[];
-  /** surname -> the office they held AT THIS MEETING (R5.2.5). */
+  /** surname -> the office they held AT THIS MEETING. */
   offices: Record<string, Office>;
 }
 
@@ -246,7 +246,7 @@ export interface SourceFile extends PortalFile {
    * Same document, served through our own origin with `Content-Disposition:
    * inline`. CivicClerk marks every file `attachment`, which makes a browser
    * download it instead of rendering it, so a cross-origin frame shows nothing
-   * (R5.3.5). `url` is still the county's direct link and stays offered.
+   *. `url` is still the county's direct link and stays offered.
    */
   inline: string;
 }
@@ -263,7 +263,7 @@ export interface ItemRecord extends Omit<Item, "spans"> {
   /** True when the item ran past the server's line cap. */
   truncated: boolean;
   videos: Video[];
-  /** Every appearance of this case, including this one (R5.3.3). */
+  /** Every appearance of this case, including this one. */
   thread: ThreadStep[];
   files: SourceFile[];
   portal: string | null;
@@ -303,7 +303,7 @@ export interface CaseStep {
  * One hearing of a case: a stretch of one meeting's recording, with what was
  * said in it. A case that ran twelve appearances over ten months has one of
  * these per appearance that was recorded — and, because a board can take an
- * item up twice in a day (R5.2.7), possibly two for one meeting.
+ * item up twice in a day, possibly two for one meeting.
  */
 export interface CaseHearing extends ItemRun {
   item_id: number;
@@ -326,7 +326,7 @@ export interface CaseDetail {
     bodies: number | null;
   };
   case_id: string;
-  /** The full official title, said once (R5.4.2). */
+  /** The full official title, said once. */
   title: string | null;
   steps: CaseStep[];
   bodies: string[];
@@ -335,7 +335,7 @@ export interface CaseDetail {
   /**
    * The last appearance that actually decided something. A continuance is the
    * board saying "not today", never a conclusion, so a case whose final step
-   * was continued has no terminal outcome and is still open (R5.4.3).
+   * was continued has no terminal outcome and is still open.
    */
   terminal: {
     id: number;
@@ -348,11 +348,11 @@ export interface CaseDetail {
   recorded: number;
   /**
    * Everything said about this application, across every meeting that took it
-   * up, in the order it happened (R5.4.4). Empty for the 92% of cases with no
+   * up, in the order it happened. Empty for the 92% of cases with no
    * recording behind any appearance.
    */
   heard: CaseHearing[];
-  /** Per MEETING, because offices rotate and a case can span years (R5.2.5). */
+  /** Per MEETING, because offices rotate and a case can span years. */
   offices: Record<string, Record<string, Office>>;
   heard_lines: number;
   heard_truncated: boolean;
@@ -366,7 +366,7 @@ export interface MeetingRow extends Meeting {
   roster: boolean;
 }
 
-/* ------------------------------------------------------- browse (§5.1) */
+/* ------------------------------------------------------- browse */
 
 /** One calendar month of the archive. The unit the time axis is drawn from. */
 export interface MonthCell {
@@ -486,7 +486,7 @@ export interface IssueYear {
   meetings: number;
   /** Of `items`, how many the approved minutes record any outcome for. The
    *  denominator `pushed` is read against: 0 pushed out of 0 decided is the
-   *  minutes being silent, not the board being unanimous (R6.3). */
+   *  minutes being silent, not the board being unanimous. */
   decided: number;
   /**
    * Of `decided`, how many the board did not simply pass — continued, denied,
@@ -537,15 +537,15 @@ export interface Issues {
   /** Every year the archive holds, oldest first. Drawn, not assumed. */
   span: string[];
   /** The first year with a recording. Before it the room did not exist, which
-   *  is a different fact from an issue nobody discussed (R3.2). */
+   *  is a different fact from an issue nobody discussed. */
   heard_from: string;
   issues: Issue[];
 }
 
 /* ------------------------------------------------------------------ search
  * Served by ../../web/tools.py, which is the same surface the agent calls
- * (D9). Two sources, two shapes, never merged into one ranked list: "this was
- * approved" and "somebody said this" are not comparable (UI_PLAN §2). */
+ *. Two sources, two shapes, never merged into one ranked list: "this was
+ * approved" and "somebody said this" are not comparable. */
 
 /** An item as a search result: the whole record, minus the recording spans a
  *  hit list does not fetch. `Item` satisfies this, which is what lets one
@@ -594,7 +594,7 @@ export interface TranscriptHit {
    * for the same reason: a passage carries a name that may have been stated
    * by a person, matched to a voice at that meeting, or merely inherited from
    * what that voice is called across the whole archive, and those are three
-   * different claims (R2.3). Reduced from the passage's utterances by
+   * different claims. Reduced from the passage's utterances by
    * bin/schema.sql's `passage_speaker`, WORST case, so that one shaky line
    * makes the whole attribution shaky.
    *
@@ -608,7 +608,7 @@ export interface TranscriptHit {
   text: string;
   phase: string | null;
   agenda_item_id: number | null;
-  /** The item this sits under — without it a hit is often unreadable (R5.6.3). */
+  /** The item this sits under — without it a hit is often unreadable. */
   item: string | null;
   code: string | null;
   case_id: string | null;
@@ -651,7 +651,7 @@ export interface FindResult {
 
 /* --------------------------------------------------------------------- ask
  * Served by ../../web/agent.py over SSE. The agent calls the same tools
- * /search calls (D9), so its evidence arrives in the same two shapes and this
+ * /search calls, so its evidence arrives in the same two shapes and this
  * page renders them with the same components. */
 
 /** One progress event. `stage` is what the agent is doing, not a fixed step. */

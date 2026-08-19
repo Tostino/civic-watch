@@ -6,22 +6,22 @@ import { SearchBox } from "@/components/search/SearchBox";
 import { ApiError, find, getFacets, getFacts } from "@/lib/api";
 import s from "./search.module.css";
 
-/* `/search` — §5.6. Enter, by asking rather than by browsing.
+/* `/search`. Enter, by asking rather than by browsing.
  *
  * Two properties are the whole design:
  *
- *   BOTH SOURCES (R5.6.1). The old search read utterances only, which cannot
+ *   BOTH SOURCES. The old search read utterances only, which cannot
  *   reach the 91% of decided items that were never recorded — so a matter the
  *   county decided in 2017 returned nothing at all, and read as "the archive
  *   does not have this".
  *
- *   ONE SURFACE (D9). Everything here is `web/tools.py`, which is the same set
+ *   ONE SURFACE. Everything here is `web/tools.py`, which is the same set
  *   of tools the agent calls, with the same arguments. Not a parallel
  *   implementation that drifts: what a reader can find by hand, the agent can
  *   find too, and a bad result on this page reproduces as a tool call.
  *
  * No client component anywhere. The query and every facet are in the URL
- * (R4.2), the search box is a plain GET form, and the rail is links — so the
+ *, the search box is a plain GET form, and the rail is links — so the
  * page is shareable, back works, and none of it needs script.
  */
 
@@ -190,7 +190,7 @@ export default async function SearchPage({ searchParams }: Props) {
 }
 
 /**
- * Arriving with no query. Not a blank page: R5.6.4 says the box must teach the
+ * Arriving with no query. Not a blank page: the design says the box must teach the
  * duality, and an example somebody can click teaches it better than a
  * placeholder they have to read.
  */

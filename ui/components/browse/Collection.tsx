@@ -3,7 +3,7 @@ import type { Overview } from "@/lib/types";
 import s from "./Collection.module.css";
 
 /**
- * R5.1.1 - the shape of the collection, on arrival.
+ * the shape of the collection, on arrival.
  *
  * ONE LINE OF FIGURES AND ONE LINE OF COVERAGE. This was a five-cell grid
  * beside three labelled bars and a paragraph, 230px of panel to say eight
@@ -20,7 +20,7 @@ import s from "./Collection.module.css";
  * unflattering: of 1,214 meetings, 457 have a published agenda we can read,
  * 769 have minutes and 283 have a recording. A reader who assumes otherwise
  * reads every gap as something lost rather than something never published, and
- * R3.2 says each object carries its own coverage state precisely so nobody has
+ * the design says each object carries its own coverage state precisely so nobody has
  * to guess.
  */
 export function Collection({

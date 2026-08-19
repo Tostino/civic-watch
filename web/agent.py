@@ -1,72 +1,36 @@
-"""Ask: a loop over the tool surface, not a pipeline (UI_REQUIREMENTS D9).
+"""Ask: a loop over the tool surface, not a pipeline.
 
-`bin/ask.py` runs `plan() → gather() → read() → answer()`. The planner emits
-its queries once and the rest executes them blindly, so nothing downstream can
-notice a bad result and try again. This corpus punishes that specifically: the
-moment a board decides something carries no topic words ("all in favor say
-aye"), so the wording that finds an item's discussion puts its decision at rank
-33-58 — below any depth worth reading. `retrieve.decisions_in_play()` is a
-hard-coded patch over that one case, and there are others behind it.
+`bin/ask.py` runs plan -> gather -> read -> answer, so the planner emits its
+queries once and nothing downstream can notice a bad result and try again.
+This corpus punishes that specifically: the moment a board decides something
+carries no topic words ("all in favor say aye"), so the wording that finds an
+item's discussion puts its decision below any depth worth reading. Here the
+model sequences the tools itself, which is why the UI streams the actual calls
+rather than four fixed captions.
 
-Here the model sequences the tools itself. It searches, sees what came back,
-and searches again with different words or a different tool. The stages are
-whatever it decides to do, which is why the UI streams the actual calls rather
-than four fixed captions: the reader watches the archive being worked, and can
-see when the agent went looking somewhere and found nothing.
+TWO HALVES, AND THEY ARE NOT THE SAME JOB. A researcher calls the tools and a
+writer turns what it found into the answer. As one prompt they shared a
+conversation, which put the rules for writing at position zero and the writing
+itself up to 200,000 characters of tool output later, and had the writer
+reading the research transcript: rejected calls, failed calls, truncation
+notices, every passage looked at and set aside. So the handover is `brief()`,
+built from `Seen`, where every id in front of the writer is one the tools
+really returned.
 
-TWO HALVES, AND THEY ARE NOT THE SAME JOB.
+It costs a mean of 104s per question against 31s for the single prompt it
+replaced, worst of four at 151s against a 420s deadline. Two implicit
+instructions had to be made explicit on the way across: the researcher stopped
+early, because "stop when you can answer" is a lower bar than "write the
+answer", so RESEARCH carries a completeness test; and the writer did not stop,
+because a brief reads like a checklist, so COMPOSE says the brief is what it
+MAY use rather than what it must get through.
 
-A researcher calls the tools, and a writer turns what it found into the answer
-a reader gets. They were one prompt and one conversation, which put the rules
-for writing at position zero and the writing itself up to 200,000 characters of
-tool output later - furthest away exactly when they were needed. Worse, the
-half that wrote the answer was reading the research transcript: rejected calls,
-failed calls, truncation notices, and every passage that was looked at and set
-aside.
-
-So the handover is `brief()`, built from `Seen` and not from the conversation.
-The writer gets the question, the evidence, and the researcher's own notes -
-and every id in front of it is one the tools really returned, which makes a
-fabricated citation something it would have to invent from nothing rather than
-misremember from context. `check()` still strikes them either way.
-
-WHAT IT COSTS, measured head to head on four questions against the single
-prompt it replaced: a mean of 104s per question against 31s. A run that hits
-the evidence or step budget saves a call - it stops and hands over rather than
-spending a final call asking for prose it no longer has room to receive - but
-a run that finishes of its own accord pays for one, because the researcher's
-closing turn is now a handover and the answer is written after it. The worst
-of the four came in at 151s against a 420s deadline.
-
-Two things were traded away on the way across and had to be put back, and both
-were instructions the single prompt had been carrying implicitly:
-
-  - The researcher stopped early, because "stop when you can answer" is a
-    lower bar than "write the answer" - the old prompt made it produce the
-    prose, and needing to write what was ARGUED forced it to go and get that.
-    It gathered 12 passages where the old one gathered 180, skipped the one
-    hearing that held the discussion, and told the reader there had been no
-    substantive debate. Hence the completeness test in RESEARCH, which is
-    about coverage and not about confidence.
-  - The writer did not stop, because a brief reads like a checklist in a way
-    a conversation does not. Given 101 pieces of evidence it wrote 2,268 words
-    in a 348-second call. Hence LENGTH in COMPOSE, which says in as many words
-    that the brief is what it MAY use rather than what it must get through.
-
-Three further properties are load-bearing:
-
-**One surface with `/search`.** These are the same five tools `web/tools.py`
-serves to the page, with the same arguments. The agent cannot reach anything a
-reader cannot, and vice versa — so a bad answer reproduces as a search.
-
-**Every citation is checked.** A model asked to cite will cite; whether the id
-exists is a separate question. Every `[N]` and `[item:N]` in the answer is
-verified against what the tools actually returned in this run, and anything
-else is struck out and counted. An unverifiable citation is worse than none,
-because it looks exactly like a real one (R5.5.5).
-
-**Nothing is invented for the sake of an answer.** No evidence means no answer;
-the empty result is a designed outcome, not a failure.
+Three properties are load-bearing. These are the same five tools `web/tools.py`
+serves to the page, so the agent cannot reach anything a reader cannot and a
+bad answer reproduces as a search. Every `[N]` and `[item:N]` is verified
+against what the tools returned in this run, because an unverifiable citation
+looks exactly like a real one. And no evidence means no answer: the empty
+result is a designed outcome, not a failure.
 """
 import json
 import os
@@ -80,42 +44,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "bin"))
 import ask as llm                                    # noqa: E402  the chat client
 import tools as toolkit                              # noqa: E402
 
-# How many times round the loop. Measured on the questions in eval_agent, a
-# good run uses 2-4 tool turns; the cap exists for the pathological case where
-# the model keeps re-searching rather than committing to an answer.
-#
-# Raised from 8 because 8 was measured against one KIND of question. "What was
-# decided about the school zone cameras" is four lookups and done. "How does
-# each commissioner argue, by year" is a lookup per commissioner per year
-# before the answer can begin, and it spent all eight steps still gathering.
-# Both are questions this archive should answer, and only one of them fits in
-# a budget shaped like the other.
+# How many times round the loop. A good run uses 2-4 tool turns; the cap is for
+# the model that keeps re-searching rather than committing. Raised from 8, which
+# was measured against one KIND of question: "how does each commissioner argue,
+# by year" is a lookup per commissioner per year and spent all eight gathering.
 MAX_STEPS = 16
-# Total characters of tool output the model may accumulate. Past this it is
-# told to answer with what it has, because more evidence stops helping long
-# before the context runs out and every extra passage is paid for twice - once
-# to send, once as the answer gets slower.
-#
-# 200k chars is ~50k tokens, and ask.py's segmentation prompt establishes that
-# this model is fine with 35k in; the diminishing return is the real ceiling
-# here, not the context window. A question spanning five commissioners and
-# eight years does not diminish at 90k - it has not finished reading.
+# Total characters of tool output the model may accumulate; past this it answers
+# with what it has. ~50k tokens. The diminishing return is the ceiling here, not
+# the context window.
 MAX_EVIDENCE = 200_000
-# The hard stop, and the reason there are two numbers.
-#
-# A budget checked between TURNS cannot stop a turn, and a turn is not one
-# call: the tool-calling API lets one assistant message carry as many as it
-# likes, and this model fans out exactly where it hurts most. Measured across
-# four questions: 1.8 to 2.5 calls per turn on the narrow ones, and 8.0 on
-# "how have commissioners argued about growth and impact fees, by year" -
-# eight lookups chosen blind of each other, any of which can be a get_item
-# rendering 250 transcript lines. The second of those eight can spend the
-# whole allowance and the remaining six still run.
-#
-# So the soft cap is where the researcher is TOLD, and given a round to fetch
-# anything it must have; the hard cap is where calls stop being executed at
-# all and the rest of the batch is refused. 30% is what one more round of a
-# fan-out that size costs.
+# The hard stop, and why there are two numbers. A budget checked between TURNS
+# cannot stop a turn: one assistant message can carry many calls, measured at 8
+# on "how have commissioners argued about growth and impact fees", any of which
+# can render 250 transcript lines. So the soft cap is where the researcher is
+# TOLD and given a round to finish, and the hard cap is where calls stop running.
 EVIDENCE_HARD = int(MAX_EVIDENCE * 1.3)
 # Transcript lines one `get_item` may show. A long public hearing runs to
 # hundreds and the cap on the tool itself is 2,000, which is the whole budget
@@ -124,115 +66,48 @@ LINES_SHOWN = 250
 
 MODEL = os.environ.get("LLM_MODEL_AGENT") or llm.MODEL_HEAVY
 
-# How hard each stage may think, which is the ONLY dial here that moves the
-# wall clock. Measured on "what was decided about the school zone speed
-# cameras", 533 seconds end to end:
+# How hard each stage may think, the only dial that moves the wall clock. On one
+# 533-second question, 93% of everything generated was reasoning and the research
+# loop's prompt tokens were a 92% cache hit, so shrinking prompts buys nothing.
+# Generation is the bill.
 #
-#     think    196s  37%   14 rounds   16,280 reasoning tok
-#     compose  143s  27%    1 call     17,320 reasoning tok
-#     verify   187s  35%    1 call     22,037 reasoning tok
-#     tools      6s   1%   31 calls
-#
-# 93% of everything generated was reasoning, and the research loop's 411,746
-# prompt tokens were a 92% cache hit - so shrinking prompts, which is where
-# this investigation started, would have bought almost nothing. Generation is
-# serial and uncached; it is the whole bill.
-#
-# None means "send nothing", the behaviour before the dial existed. Anything
-# else has to be earned against bin/eval_agent.py, because the cheapest run
-# here is one that answers a resident wrongly.
-# Research and compose are left alone deliberately. Every attempt to make
-# either think less either did nothing or cost accuracy: at 'low' the writer
-# invented "authorized by state law" and a camera vendor's name, and wrote
-# that the word "gambling" never appears while citing a passage containing
-# "gambling boat". Its deliberation is load-bearing and it is not for sale.
+# Research and compose are left alone deliberately. At 'low' the writer invented
+# "authorized by state law" and a vendor name, and wrote that a word never
+# appears while citing a passage containing it. That deliberation is load-bearing.
 EFFORT_RESEARCH = os.environ.get("ASK_EFFORT_RESEARCH") or None
 EFFORT_COMPOSE = os.environ.get("ASK_EFFORT_COMPOSE") or None
-# Verify is different, and 'medium' is measured: 187s at full effort against
-# 20-45s here, with the same failing-check count over a full eval. It is a
-# narrow question asked about one sentence at a time.
-#
-# It is also on notice. Since the sentence-grouping rewrite it has moved ZERO
-# citations across ten consecutive questions, while the judge went on finding
-# a claim or two per answer that it structurally cannot reach - those are
-# details added on top of a correct bracket, not brackets on the wrong
-# passage. The misattachment it exists for stopped happening when COMPOSE
-# stopped contradicting itself, which is the better place to have fixed it.
-# It stays as insurance, cheaply, and if it is still finding nothing after a
-# few weeks of real questions it should go.
+# Verify is 'medium' by measurement: 187s at full effort against 20-45s here for
+# the same failing-check count. It is on notice. Since the sentence-grouping
+# rewrite it has moved ZERO citations across ten questions, because the
+# misattachment it exists for stopped happening when COMPOSE stopped
+# contradicting itself. It stays as insurance and should go if it stays quiet.
 EFFORT_VERIFY = os.environ.get("ASK_EFFORT_VERIFY") or "medium"
 
-# OFF for the reader, ON for the eval, and the numbers are why.
+# OFF for the reader, ON for the eval. Over 32 runs: 27 found nothing, 5 flagged
+# something stage two declined to replace, and ONE changed a published answer,
+# incorrectly. It cost 12.7% of wall clock and almost all its output was
+# reasoning nobody reads.
 #
-# Counted over 32 question-runs since the sentence-grouping rewrite: 27 found
-# nothing at all; 5 flagged something that stage two then declined to replace,
-# leaving the answer untouched; and ONE changed a published answer, which was
-# the double-bracket defect that wrote `[[176611]]` onto the page. Zero correct
-# corrections, one incorrect one. It cost 12.7% of the wall clock of runs D and
-# E - 192s of 1,511s, mean 32s a question - and 27,382 of its 27,452 output
-# tokens were reasoning nobody reads. One question spent 67 seconds and 9,845
-# reasoning tokens establishing that nothing was wrong.
-#
-# The class it was built for is real; both instances are recorded below. Both
-# were written by the OLD `COMPOSE`, the one that said "cite the clearest one"
-# beside "the citation must be the one that holds the fact". Fixing that
-# contradiction removed the cause, and this is insurance against a fire whose
-# source was plumbed out.
-#
-# It is not deleted, because it is a genuine REGRESSION DETECTOR: if COMPOSE
-# ever drifts back, this number climbs. But a tripwire is worth its price only
-# where somebody reads it, and nobody reads it on a reader's request path.
-# bin/eval_agent.py sets this and prints the count; that is where it belongs.
-#
-# `check()` is a different thing and is NOT gated: it strikes ids this run
-# never saw, it is a regular expression rather than a model, and it costs
-# nothing.
+# Not deleted, because it is a genuine REGRESSION DETECTOR: if COMPOSE drifts
+# back, this number climbs. A tripwire is worth its price only where somebody
+# reads it, and that is eval_agent, not a reader's request path. `check()` is a
+# different thing and is NOT gated: a regular expression, and free.
 VERIFY_ON = (os.environ.get("ASK_VERIFY") or "").strip().lower() not in (
     "", "0", "no", "off", "false")
 
-# Wall clock for the WHOLE question, and it is a different quantity from the
-# batch timeout in ask.py. That one is 600s because a whole-day segmentation
-# prompt legitimately takes ten minutes; here a person is watching a page. The
-# run ends the way the evidence budget ends it - stop calling tools, answer
-# from what is already gathered - so a slow model costs a shorter answer and
-# not a blank one.
-#
-# It also bounds what one reader can hold: a request occupies a server thread
-# and a concurrency slot for its whole life, so "how long may this take" and
-# "how many can run at once" together decide how a public endpoint behaves
-# when someone is unkind to it.
-#
-# 150 was set when nothing could survive being slow anyway: the stream went
-# quiet during a model call and the first proxy in the chain killed it, so a
-# long budget only bought a longer wait for the same dropped connection.
-# web/server.py's HEARTBEAT removed that constraint - these are inactivity
-# timers and the stream is never idle now - which leaves the question of how
-# long a reader will WATCH, and a reader watching real lookups scroll past
-# will give a hard question minutes. What they will not give it is a spinner,
-# and that is not what this is.
+# Wall clock for the WHOLE question, different from ask.py's batch timeout. The
+# run ends the way the evidence budget ends it, so a slow model costs a shorter
+# answer and not a blank one. It also bounds what one reader can hold, since a
+# request occupies a thread and a concurrency slot for its whole life.
 DEADLINE = int(os.environ.get("ASK_DEADLINE") or 420)
-# Never let one call eat the entire budget, and never leave so little that the
-# closing answer cannot be written.
-#
-# MIN_CALL is the one that was actually wrong, and not by a little. Reaching
-# the closing answer by the TIME budget means the deadline has already passed
-# - that is what the check tests - so `left()` is always the floor, and the
-# floor was 20 seconds. ask.py measures the median call of exactly this shape,
-# a large prompt in and a long structured answer out, at 158s. Every hard
-# question was therefore guaranteed to time out while writing its answer, and
-# `retries=1` meant it got one try at an impossible number. 240 is ask.py's
-# own SLOW_CALL threshold: past this the model is not slow, it is broken.
+# Never let one call eat the budget, and never leave too little to write the
+# answer. MIN_CALL was 20 seconds against a measured median call of 158s, so
+# every hard question was guaranteed to time out while writing. 240 is ask.py's
+# SLOW_CALL threshold: past this the model is not slow, it is broken.
 MIN_CALL = 240
-# What is held back for everything that happens AFTER the last tool call, and
-# that is TWO calls now rather than one: the researcher's handover, then the
-# writer. The reserve used to be exactly MIN_CALL because the closing call was
-# the only one left, and splitting the agent quietly broke that arithmetic -
-# the writer would have been guaranteed its floor only by taking the handover's
-# time out of it.
-#
-# A handover is a few sentences, so it is priced as such rather than at a
-# second MIN_CALL, which would hold back eight minutes of a seven-minute
-# budget and start every run against the floor.
+# Held back for what happens AFTER the last tool call, which is TWO calls now:
+# the researcher's handover, then the writer. Priced as a handover rather than a
+# second MIN_CALL, which would hold back eight minutes of a seven-minute budget.
 HANDOVER_GRACE = 60
 ANSWER_GRACE = MIN_CALL + HANDOVER_GRACE
 
@@ -570,7 +445,6 @@ THE RULES
 RESEARCH = RESEARCH.replace("{SOURCES}", SOURCES)
 COMPOSE = COMPOSE.replace("{SOURCES}", SOURCES)
 
-
 def prompts(con):
     """The system prompts with every quoted number measured (tools.facts).
 
@@ -581,16 +455,11 @@ def prompts(con):
     return (toolkit.reflow(RESEARCH.format(**f)),
             toolkit.reflow(COMPOSE.format(**f)))
 
-
-# There is no STOP nudge any more. It existed to make the model write an answer
-# after the budget ran out; the writer does that now from `seen`, so a run that
-# has run out of room stops calling tools and hands over what it has instead of
-# spending its last seconds asking for prose it is too late to get.
-#
-# What replaces it is smaller and is not about the answer at all: the one round
-# a researcher gets after it is told the evidence is spent. Without it, "out of
-# budget" lands between two of the eight calls in a fan-out and the run ends
-# holding whichever half of the question it happened to have reached.
+# No STOP nudge any more: the writer works from `seen`, so a run out of room
+# hands over what it has instead of asking for prose it is too late to get.
+# What replaces it is the one round a researcher gets after being told the
+# evidence is spent, so "out of budget" cannot land between two calls of a
+# fan-out and end the run holding half the question.
 GRACE = (
     "You have used the evidence budget for this question. You are given a "
     "little more, to finish with rather than to carry on: if there is "
@@ -598,7 +467,6 @@ GRACE = (
     "have not opened, a discussion you know is there), get it in this round. "
     "Otherwise hand over now. Nothing after this round will be fetched."
 )
-
 
 # ------------------------------------------------------------- what it saw
 class Seen:
@@ -630,7 +498,6 @@ class Seen:
     def item(self, i):
         self.items.setdefault(i["id"], i)
 
-
 # ------------------------------------------------------- rendering results
 #
 # Tool output goes to the model as text, not JSON. JSON of the raw rows costs
@@ -640,7 +507,6 @@ class Seen:
 def _clip(s, n):
     s = " ".join((s or "").split())
     return s if len(s) <= n else s[:n].rstrip() + "…"
-
 
 def _who(p):
     """Who spoke, as the model should read it.
@@ -654,38 +520,25 @@ def _who(p):
     who = p.get("speaker_display") or p.get("speaker") or "unidentified"
     return "several speakers" if who == "(exchange)" else who
 
-
-# HOW SURE THE NAME IS, in the archive's own four states.
+# HOW SURE THE NAME IS, in the archive's own four states. These are
+# SpeakerChip's, read off the same two fields in the same order, because a
+# reader following a citation from an answer to the page must not be told two
+# different things about one name. Not a confidence threshold: a number would be
+# a second precedence rule about a question the utterance_speaker view owns.
 #
-# These are SpeakerChip's (ui/components/SpeakerChip.tsx, R6.2), read off the
-# same two fields in the same order, because a reader who follows a citation
-# from an answer to the page must not be told two different things about one
-# name. That is the whole reason this is not a confidence threshold: it was
-# written as `conf >= 0.6` first, and a number is a second precedence rule
-# about a question that already has an owner - bin/schema.sql's
-# utterance_speaker view, whose own header says a precedence rule stated twice
-# is one that will disagree with itself. R5.5.6 forbids showing the number to
-# a reader anyway, and a brief is a display like any other.
+#   confirmed  a person stated this name
+#   inferred   matched to a voice AT THIS MEETING, the ordinary case
+#   weak       the name this voice goes by archive-wide, no evidence about this
+#              meeting. This is the one that put two different women under one
+#              name.
+#   several    an exchange, the passage crosses speakers
+#   unknown    no name resolved
 #
-#   confirmed  a person stated this name. 2,786 utterances.
-#   inferred   matched to a voice AT THIS MEETING. 208,495, the ordinary case.
-#   weak       'cluster': the name this voice goes by across the archive, and
-#              no evidence at all about this meeting. 22,682. This is the one
-#              that put two different women under one name.
-#   several    an exchange - the passage crosses speakers.
-#   unknown    no name resolved.
-#
-# Worst case over the passage's utterances; the reduction is in the database
-# (bin/schema.sql, `passage_speaker`) so that every surface reduces alike.
-#
-# KNOWN AND ACCEPTED: this marks fewer passages than the threshold it replaced
-# - 11.7% of personally-named passages against 27.3% - because a voice match
-# is one claim here whatever its score, and 12.4% of them score under 0.6.
-# Those go unmarked now. That is R5.5.6 applied rather than a gap: the scores
-# have not been re-measured since the roster work, so a line drawn through
-# them would assert an accuracy this project cannot currently support, and it
-# would draw it in a place the page does not. If the measurement is ever
-# redone, the place to spend it is the chip - and this follows.
+# Worst case over the passage's utterances, reduced in the database so every
+# surface reduces alike. Known and accepted: this marks fewer passages than the
+# threshold it replaced, because the scores have not been re-measured since the
+# roster work and a line drawn through them would assert an accuracy this
+# project cannot currently support.
 def _name_state(p):
     """SpeakerChip's state for this passage's speaker."""
     who = p.get("speaker")
@@ -699,28 +552,16 @@ def _name_state(p):
     # which is what it was before any of this existed.
     return "weak" if p.get("name_basis") == "cluster" else "inferred"
 
-
-# What each state adds to the line the name is printed on. Said HERE and not
-# once in the prompt, because it is true of some passages and not others and
-# that difference is the entire point.
-#
-# Only the two ends are marked. 'inferred' is 89% of the archive and is what
-# COMPOSE's standing rule about automated speaker names already describes, so
-# marking it would put a warning on almost every line and leave the reader of
-# this brief no way to see which ones matter. An unmarked name is an inferred
-# one.
-#
-# An exchange is marked when the names inside it are weak, and it is not the
-# same case as a single speaker: the passage prints "Clerk: ...", "Mariano:
-# ..." inline in its own text, so there are names in front of the writer even
-# though the header says several speakers.
+# What each state adds to the printed line. Said here and not in the prompt
+# because it is true of some passages and not others. Only the two ends are
+# marked: 'inferred' is 89% of the archive, so marking it would warn on almost
+# every line. An unmarked name is an inferred one.
 _NAME_NOTE = {
     "confirmed": " ✓ NAME CONFIRMED by a person: you may state it plainly",
     "weak": (" ⚠ NAME NOT CONFIRMED: this is the name the voice goes by "
              "across the archive, not evidence about this meeting. Do not "
              "attribute anything here to them by name."),
 }
-
 
 def _name_mark(p):
     state = _name_state(p)
@@ -730,37 +571,15 @@ def _name_mark(p):
                 "this meeting. Do not attribute anything here by name.")
     return _NAME_NOTE.get(state, "")
 
-
-# A passage IN FULL, for everything that relies on its words rather than
-# skimming them. The longest in the archive is 1,582 characters, so nothing is
-# cut at this width and the writer, the citation checker and the eval's judge
-# all see the same thing the passage actually says.
+# A passage IN FULL, for everything that relies on its words rather than skimming
+# them. The longest in the archive is 1,582 characters, so nothing is cut here.
 #
-# 420 - the width for a list being SCANNED - was being used for all four, and
-# it silently broke two of them. 42,006 of 166,998 passages (25.2%) are longer
-# than that. Measured on one answer, all three of the judge's "unsupported
-# claim" findings were the clip and not the answer:
-#
-#   "prohibits chickens in MF-1, MF-2, MF-3" cited [307332], 986 chars, which
-#   says "excluding ER, ER two, MF1, MF two, and MF three" at character 500.
-#   "coop size and height are regulated" and "the property must be occupied,
-#   not a vacation rental" both cited [307333], 1,165 chars, which says both,
-#   at characters 850 and 1,000.
-#
-# The answer was right about all three and was marked wrong, which is exactly
-# what eval_agent.evidence_text's docstring says must never happen again - the
-# fix there routed the judge through THIS renderer and stopped one level short
-# of the number inside it. It also explains `verify_citations`: stage one
-# flags a citation whose clipped text does not carry the sentence, then stage
-# two, reading the same clip, can find nothing better and declines. Five flags,
-# no moves, and the pass looked like noise when it was reading a quarter of a
-# passage.
-#
-# It costs about 2,400 tokens on a 130-passage brief, on the prompt side,
-# which prefix caching and a 92% hit rate make close to free. Generation is
-# the bill (gotcha 98); this is not generation.
+# 420, the width for a list being SCANNED, was used for all four and silently
+# broke two: 25.2% of passages are longer, so the judge marked three correct
+# claims unsupported because the CLIP did not carry the sentence. It also
+# explains verify_citations finding flags it could not act on: both stages were
+# reading a quarter of a passage.
 FULL = 1600
-
 
 def _passage_line(p, width=420):
     # The display name, so the model writes the name the reader will see under
@@ -782,24 +601,14 @@ def _passage_line(p, width=420):
         head += f"\n  under [{ident}]: {_clip(under, 90)}"
     return f"{head}\n  {_clip(p.get('text'), width)}"
 
-
 def _item_block(i, full=False):
     head = " · ".join(x for x in (f"[item:{i['id']}]", i.get("date"),
                                   i.get("body"), i.get("code"),
                                   i.get("case_id")) if x)
-    # 220 is right for a row being SCANNED and wrong for the item itself. A
-    # county title is not a name, it is the whole proposal in one sentence -
-    # 21.3% of the 26,434 items run past 220 characters, and what sits after
-    # the cut is what was being built, how big, and where. Item 21129 clipped
-    # to "...to Allow 300", a number with no unit, and lost "Multi-Family
-    # Units, 100,000 Square Feet of Support Commercial and 1,500,000 Square
-    # Feet of Light Industrial Uses on Approximately 80 Acres, Located South
-    # of County Line Road North and East of Lake Iola Road". An answer then
-    # had to GUESS what the 300 counted, and said so out loud.
-    #
-    # 600 covers the 95th percentile; the longest in the archive is 2,720 and
-    # is a consent block listing every parcel in a resurfacing contract, which
-    # nothing is served by reprinting whole.
+        # 220 is right for a row being SCANNED and wrong for the item itself. A county
+        # title is the whole proposal in one sentence, and 21.3% run past 220, losing
+        # what was being built and where: one clipped to "...to Allow 300", a number
+        # with no unit. 600 covers the 95th percentile.
     out = [head, f"  {_clip(i.get('title'), 600 if full else 220)}"]
     if full and i.get("department"):
         out.append(f"  department: {i['department']}")
@@ -817,7 +626,6 @@ def _item_block(i, full=False):
         out.append("  (no recording of this meeting here - the published "
                    "record is the only evidence of it)")
     return "\n".join(out)
-
 
 def _cover(con, item_id):
     """Which passage each utterance of an item falls inside.
@@ -869,7 +677,6 @@ def _cover(con, item_id):
     # search was marked unconfirmed.
     return toolkit.speaker_sure(con, [dict(r) for r in rows])
 
-
 def _at(cover, video_id, idx):
     for p in cover:
         if (p["video_id"] == video_id and p["start_idx"] is not None
@@ -877,37 +684,26 @@ def _at(cover, video_id, idx):
             return p
     return None
 
-
 # --------------------------------------------------------- second sightings
 #
-# A LIST that hands back something already in the conversation prints a
-# reference to it instead of printing it twice. Two reasons, and the smaller
-# one is the tokens: measured by replaying the recorded call sequences, repeats
-# are 1.3% to 13.2% of everything rendered in a run, median about 4%.
+# --------------------------------------------------------- second sightings
 #
-# The bigger one is that repetition is currently INVISIBLE. On "what was
-# decided about the school zone speed cameras" the researcher reworded the same
-# record search six times and was handed the same items back 58 times without
-# ever being told they were the same, which is a loop it had no way to see it
-# was in. The count says so.
+# A LIST that hands back something already in the conversation prints a reference
+# instead of printing it twice. Repeats are 1.3-13.2% of what a run renders, but
+# the real problem is that repetition is INVISIBLE: on one question the
+# researcher reworded the same search six times and got the same items back 58
+# times without being told they were the same.
 #
-# Only in lists that are SCANNED - search hits, the steps of a case, a
-# meeting's agenda. Never in `get_item`, where the block is the substance of
-# what was asked for rather than a row to skim, and never in `brief()`, which
-# calls the renderers directly because the writer must have the evidence
-# itself. That is also why this lives at the call sites and not inside
-# `_passage_line`/`_item_block`.
-#
-# It is honest only because `msgs` is append-only: "shown above" is true for
-# the whole life of a run. Trim the history and these become dangling
-# references to something the model can no longer see.
+# Only in lists that are SCANNED. Never in `get_item`, where the block is the
+# substance of what was asked for, and never in `brief()`, where the writer must
+# have the evidence itself. Honest only because `msgs` is append-only: trim the
+# history and "shown above" becomes a dangling reference.
 def _again(seen, kind, ident):
     """Times this was already rendered in full. Counts the sighting as it asks."""
     key = (kind, ident)
     n = seen.shown.get(key, 0)
     seen.shown[key] = n + 1
     return n
-
 
 def _hit(p, seen):
     n = _again(seen, "p", p["id"])
@@ -916,14 +712,12 @@ def _hit(p, seen):
     when = p.get("meeting_date") or p.get("upload_date") or "?"
     return f"[{p['id']}] {when} · {_who(p)} · shown above (x{n + 1})"
 
-
 def _row(i, seen, full=False):
     n = _again(seen, "i", i["id"])
     if not n:
         return _item_block(i, full)
     bits = " ".join(x for x in (i.get("date"), i.get("code")) if x)
     return f"[item:{i['id']}] {bits} · shown above (x{n + 1})"
-
 
 def _echoes(rows, kind, seen, unit):
     """One line naming how much of a list the model already had."""
@@ -935,7 +729,6 @@ def _echoes(rows, kind, seen, unit):
     # problem and trying another one will not help.
     return out + (" Rewording is returning what you have. Aim the search "
                   "instead.)" if again * 2 >= len(rows) else ")")
-
 
 def render(name, result, seen, con=None):
     """Tool result → text for the model, and everything it may now cite."""
@@ -973,35 +766,22 @@ def render(name, result, seen, con=None):
     if name == "get_item":
         # `lines` and `thread` hang off the ITEM, not off the envelope.
         item = result.get("item") or {}
-        # Opened already, so say so and stop. `get_item` takes an item_id and
-        # nothing else (tools.MANIFEST), which makes a second call on the same
-        # id deterministically the same 250 rendered lines - for item 11578,
-        # measured, 39,695 characters of context and a fifth of the evidence
-        # budget, to re-read something already in `seen`.
-        #
-        # Observed rather than imagined: on "how have commissioners argued
-        # about growth and impact fees", the researcher opened item 11578 in a
-        # batch of seven, then opened it again the next turn reasoning "I have
-        # the argument from search but not its outcome" - which get_item
-        # had already given it. The completeness check was right; it just paid
-        # twice for the answer.
-        #
-        # A prompt line would be advisory against something deterministic, so
-        # this is here instead. It returns before `_cover()`, which is the
-        # second database round-trip in this branch.
+                # Opened already, so say so and stop. `get_item` takes an item_id and
+                # nothing
+                # else, so a second call on the same id is deterministically the same
+                # output:
+                # measured at 39,695 characters and a fifth of the evidence budget for
+                # one
+                # item. A prompt line would be advisory against something deterministic.
         ident = item.get("id")
         if ident in seen.opened:
-            # Name the SECTIONS of the earlier output rather than explain what
-            # this tool does. The re-fetch that prompted this reasoned "I have
-            # the argument from search but not its outcome" - and the
-            # outcome was under a MINUTES: heading in the result it already
-            # held. A pointer to that heading is the whole useful content of
-            # this reply; the rest was the tool describing itself back to the
-            # model that had just called it.
-            #
-            # Built from what this item actually has, so it can never send the
-            # model looking for a WHAT WAS SAID that an unrecorded meeting
-            # never produced.
+            # Name the SECTIONS of the earlier output rather than explain what this tool
+            # does. The re-fetch that prompted this reasoned "I have the argument but
+            # not
+            # its outcome", and the outcome was under a MINUTES: heading it already
+            # held.
+            # Built from what the item actually has, so it cannot send the model looking
+            # for a WHAT WAS SAID that an unrecorded meeting never produced.
             where = ["MINUTES: for the outcome"]
             if item.get("lines"):
                 where.append("WHAT WAS SAID for the transcript")
@@ -1024,19 +804,11 @@ def render(name, result, seen, con=None):
             return _line(ln, p)
 
         if lines:
-            # A census before the transcript, because the shape of a discussion
-            # is worth knowing before reading 250 lines of it: how long it ran,
-            # how many citable moments are in it, and who did the talking.
-            #
-            # The speaker counts are the useful part. "Mariano 35, Poole 25,
-            # Montcallian 19" answers "is the person I am asking about even in
-            # here" in one line, which is otherwise a read of the whole item -
-            # and it does it WITHOUT the speaker= filter, which drops the 67%
-            # of passages that carry no usable name.
-            #
-            # Not a phase census: phase is an attribute of the agenda item, so
-            # every passage under one item carries the same value and the line
-            # would always read "80 regular".
+            # A census before the transcript: how long it ran, how many citable moments,
+            # and who talked. The speaker counts answer "is the person I am asking about
+            # even in here" in one line, WITHOUT the speaker= filter, which would drop
+            # the 67% of passages carrying no usable name. Not a phase census: phase is
+            # an attribute of the item, so every passage under it reads the same.
             secs = sum((s.get("end") or 0) - (s.get("start") or 0)
                        for s in (item.get("spans") or []))
             who = {}
@@ -1054,15 +826,9 @@ def render(name, result, seen, con=None):
                 + (f", {moments} citable moments" if moments else "")
                 + f". Who spoke: {census}.")
 
-            # The whole item, in order — this is the tool that recovers a
-            # motion and a vote. They sit at the END of an item and carry no
-            # topic words, so ranking never reaches them; here they are simply
-            # the last few lines. This replaces `decisions_in_play()`.
-            #
-            # An item can run to 2,000 lines, which alone would exceed the
-            # whole evidence budget. When it has to be cut, the END is kept:
-            # that is where a board decides things, and it is the half that
-            # retrieval could not have found by itself.
+            # The whole item, in order. This is the tool that recovers a motion and a
+            # vote: they sit at the END of an item and carry no topic words, so ranking
+            # never reaches them. When it has to be cut, the END is kept.
             out.append(f"\nWHAT WAS SAID, {len(lines)} lines, in order"
                        + (" (item truncated upstream)" if item.get("truncated")
                           else "") + ":")
@@ -1143,7 +909,6 @@ def render(name, result, seen, con=None):
 
     return _clip(json.dumps(result), 4000)
 
-
 def _line(ln, p=None):
     who = ln.get("display_name") or ln.get("name") or "unidentified"
     # The same claim the passage lines carry, one glyph wide. An item runs to
@@ -1158,7 +923,6 @@ def _line(ln, p=None):
     tag = f"[{p['id']}]" if p else "[not citable]"
     return f"  {tag} {who}: {_clip(ln.get('text'), 300)}"
 
-
 # --------------------------------------------------------------- citations
 # A bracket may arrive carrying several ids - "[69052, 69056]", "[3069-3071]"
 # - because that is how people write citations and the model imitates it. Each
@@ -1169,7 +933,6 @@ def _line(ln, p=None):
 CITE = re.compile(r"\[(item:)?\s*(\d{1,7}(?:\s*[,;/]\s*\d{1,7}"
                   r"|\s*[-‐-―]\s*\d{1,7})*)\s*\]")
 IDS = re.compile(r"\d{1,7}")
-
 
 def check(answer, seen):
     """Strike every citation this run did not actually see - and repair the
@@ -1230,20 +993,16 @@ def check(answer, seen):
     # downstream has to know that a list was ever possible.
     return cleaned.strip(), sorted(set(bad)), used, sorted(set(fixed))
 
-
 # ---------------------------------------------------------------- handover
 #
-# Built from `seen` and NOT from the conversation, which is the whole point of
-# there being two halves. The writer never sees the rejected calls, the failed
-# ones, the truncation notices, or the hundreds of passages that were read and
-# put aside - and, more importantly, every id in front of it is one the tools
-# really returned. `check()` still strikes anything else, but fabrication now
-# has to survive a context where there is nothing to fabricate FROM.
+# ---------------------------------------------------------------- handover
 #
-# It is also why this costs no extra model call in the paths that matter. The
-# researcher's last turn is a few sentences of handover rather than a full
-# answer, and the budget and step-limit paths lose their closing call entirely
-# - they go straight here.
+# Built from `seen` and NOT from the conversation, which is the point of there
+# being two halves. The writer never sees the rejected calls or the passages put
+# aside, and every id in front of it is one the tools really returned, so
+# fabrication has to survive a context with nothing to fabricate from. It also
+# costs no extra call: the researcher's last turn is a handover, and the budget
+# paths lose their closing call entirely.
 def _said(passages):
     """Transcript passages by meeting, in spoken order, continuations marked.
 
@@ -1301,7 +1060,6 @@ def _said(passages):
             prev = p
     return "\n\n".join(out)
 
-
 def brief(question, seen, trace, notes):
     """Everything the writer may use, in the order the research met it."""
     out = [f"THE QUESTION\n\n{question}"]
@@ -1332,14 +1090,11 @@ def brief(question, seen, trace, notes):
                    "meetings were never recorded, so this is usually silence "
                    "rather than absence.")
 
-    # What was tried and came back empty, because "the county published no
-    # outcome for this" is a real answer and the writer can only give it
-    # if it knows the looking was done.
-    # Two different facts, and they used to be one line. A search that matched
-    # NOTHING is the evidence behind "the archive does not show this" - the
-    # only evidence there can be, since no passage proves an absence. A search
-    # that matched things already seen is not: it succeeded. Listing them
-    # together offered a successful search as proof that nothing is there.
+        # What was tried and came back empty, because "the county published no outcome
+        # for this" is a real answer the writer can only give if it knows the looking
+        # was done. A search matching NOTHING is that evidence; a search matching things
+        # already seen is not, and listing them together offered success as proof of
+        # absence.
     nil = [t for t in trace if t.get("ok") and t.get("found") == 0]
     dup = [t for t in trace if t.get("ok") and t.get("found")
            and not t.get("new")]
@@ -1361,27 +1116,17 @@ def brief(question, seen, trace, notes):
 
     return "\n\n".join(out)
 
-
 # ------------------------------------------------------- citations, checked
 #
-# A citation that points at a real passage which does not contain the claim is
-# the failure this archive can least afford: the whole promise is that a reader
-# clicks through and sees for themselves. `check()` cannot see it - the id was
-# genuinely returned by a tool - and neither can any other structural test.
+# ------------------------------------------------------- citations, checked
 #
-# Measured, twice, by hand: "ticket drivers going 11 mph or more over the
-# limit" cited a speaker saying "I'm not familiar with it until today" while
-# the passage that says "eleven over during the school zone hours" sat two
-# sentences away, already cited; and a sentence about an $11m agreement "with a
-# clawback" cited a passage that never mentions one, though another cited
-# passage does.
-#
-# TWO PROMPT ATTEMPTS FAILED at this, which is what makes it structural rather
-# than a wording problem. The writer is doing recall over thirty passages
-# organised by source, and reaches for a plausible neighbour. So it gets a
-# second look instead of firmer instructions - and the corrections are applied
-# by code, not by asking for the answer again, because a rewrite would put
-# every other sentence back in play to fix three brackets.
+# A citation pointing at a real passage that does not contain the claim is the
+# failure this archive can least afford, and no structural test can see it: the
+# id was genuinely returned by a tool. TWO PROMPT ATTEMPTS FAILED at it, which is
+# what makes it structural. The writer is doing recall over thirty passages and
+# reaches for a plausible neighbour, so it gets a second look instead of firmer
+# instructions, and corrections are applied by code rather than by asking for the
+# answer again.
 VERIFY = """Below is a numbered list. Each entry is ONE sentence from an
 answer and EVERY citation it carries, with the text of each.
 
@@ -1430,7 +1175,6 @@ ABBREV = re.compile(r"\b(?:[A-Z]|Mr|Mrs|Ms|Dr|St|Ave|Rd|Blvd|Hwy|No|Inc|"
                     r"Co|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec|"
                     r"approx|est|vs)\.\s*$")
 
-
 def _sentence(text, at, upto):
     """The sentence of `text` containing the span [at, upto). Half-open."""
     start, end = 0, len(text)
@@ -1443,7 +1187,6 @@ def _sentence(text, at, upto):
             end = m.start() + 1
             break
     return start, end
-
 
 def _groups(answer, seen):
     """Each SENTENCE of the answer with all of its citations and their text.
@@ -1488,7 +1231,6 @@ def _groups(answer, seen):
                 else _passage_line(src, width=FULL))
         g["cites"].append({"tok": m.group(0), "text": _clip(text, FULL + 400)})
     return out
-
 
 def verify_citations(answer, seen, model, timeout, brief_text):
     """Two passes, the second only if the first found something.
@@ -1564,16 +1306,15 @@ def verify_citations(answer, seen, model, timeout, brief_text):
         sentence = answer[start:end]
         if bad not in sentence:
             continue
-        # A replacement id has to be one this run really saw, or the repair
-        # would be the very thing it exists to stop.
-        #
-        # Normalised first, because the id comes back in whatever shape the
-        # model felt like: `69083`, `[69083]`, `item:21129`, `[item:21129]`.
-        # Taken literally it produced `[[69083]]` on the page, and an
-        # `[item:N]` reply failed its own startswith("item:") test - so it was
-        # looked up among the PASSAGES, where that number is a different
-        # record entirely. Both were live bugs; neither was visible in the
-        # log, which printed the model's string and not what was written.
+                # A replacement id has to be one this run really saw, or the repair
+                # would be
+                # the thing it exists to stop. Normalised first, because the id comes
+                # back as
+                # `69083`, `[69083]`, `item:21129` or `[item:21129]`; taken literally
+                # that
+                # produced `[[69083]]` on the page, and an `[item:N]` reply was looked
+                # up among
+                # the PASSAGES, where the number is a different record entirely.
         r = str(right or "").strip().strip("[]")
         is_item = r.startswith("item:")
         n = int(re.sub(r"\D", "", r) or 0)
@@ -1596,7 +1337,6 @@ def verify_citations(answer, seen, model, timeout, brief_text):
         answer = answer[:start] + sentence.replace(bad, tok) + answer[end:]
         applied.append(f"{bad} → {tok}")
     return re.sub(r"[ \t]{2,}", " ", answer), applied
-
 
 # -------------------------------------------------------------- the loop
 def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
@@ -1706,33 +1446,23 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
                 args = {}
             emit("tool", id=c.get("id"), name=name, args=args)
             before = len(seen.passages) + len(seen.items)
-            # Checked HERE, between calls, because between turns is too late:
-            # the rest of a batch runs whatever the totals say by then. A
-            # refusal is a fact about this call and not a reason to lose the
-            # run, so it takes the same shape as any other unusable result -
-            # text back to the model, `ok` false, the loop carries on - and it
-            # still gets a tool message, because every tool_call id must be
-            # answered or the next turn has nothing to attach its results to.
-            # The ceiling MOVES: the soft cap stops the batch that reaches it,
-            # and only the grace round is allowed to spend up to the hard one.
-            #
-            # It was a single hard ceiling, and that made the soft cap dead
-            # code on the only question that ever reached it. A batch of eight
-            # get_item calls runs while it is under the hard cap and the call
-            # that crosses it can add fifty thousand characters by itself, so
-            # the batch ended PAST hard, the grace round was skipped as
-            # pointless, and "you have a little more if you need it" was never
-            # said to anybody. Measured: graced=False on the one question in
-            # four that exits on the evidence budget.
+            # Checked HERE, between calls, because between turns is too late: the rest
+            # of
+            # a batch runs whatever the totals say by then. A refusal takes the shape of
+            # any other unusable result and still gets a tool message, since every
+            # tool_call id must be answered. The ceiling MOVES: the soft cap stops the
+            # batch that reaches it, and only the grace round may spend up to the hard
+            # one. As a single hard ceiling the soft cap was dead code, because a batch
+            # of eight could cross it mid-flight and skip the grace round as pointless.
             ceiling = EVIDENCE_HARD if graced else MAX_EVIDENCE
             spent = seen.chars >= ceiling or time.monotonic() >= ends_at
             t_call, found = time.monotonic(), None
             try:
                 if spent:
-                    # Not a ToolError: that type means "a bad call", and this
-                    # call was never made. The distinction is the model's as
-                    # much as the reader's - a rejected call invites a fixed
-                    # one, and this one must not.
+            # Not a ToolError: that type means "a bad call", and this
+            # call was never made. The distinction is the model's as
+            # much as the reader's - a rejected call invites a fixed
+            # one, and this one must not.
                     text = ("Not run: the budget for this question is spent. "
                             "Nothing further will be fetched. Hand over what "
                             "you have.")
@@ -1741,12 +1471,12 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
                     result = toolkit.call(con, name, args)
                     text = render(name, result, seen, con)
                     ok = True
-                    # How many it MATCHED, which is not how many were new.
-                    # An absence claim rests on this number being zero, and
-                    # `new` cannot carry it: a search returning ten passages
-                    # already seen also has new=0, and listing that under
-                    # "looked for and not found" would offer a search that
-                    # succeeded as proof that nothing is there.
+            # How many it MATCHED, which is not how many were new.
+            # An absence claim rests on this number being zero, and
+            # `new` cannot carry it: a search returning ten passages
+            # already seen also has new=0, and listing that under
+            # "looked for and not found" would offer a search that
+            # succeeded as proof that nothing is there.
                     found = len(result.get("hits") or result.get("items") or
                                 ([result["item"]] if result.get("item") else []))
             except toolkit.ToolError as e:
@@ -1773,32 +1503,23 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
             msgs.append({"role": "tool", "tool_call_id": c.get("id"),
                          "content": text})
 
-        # Both budgets end the run the same way, and the time one is checked
-        # here rather than at the top of the loop so a step that has already
-        # paid for its evidence gets to contribute it.
-        # Both budgets end the run the same way, and the time one is checked
-        # here rather than at the top of the loop so a step that has already
-        # paid for its evidence gets to contribute it.
-        #
-        # Neither asks the model for anything now. The evidence is in `seen`
-        # either way, so the run goes straight to the writer - which is one
-        # fewer call than this used to make on exactly the questions that had
-        # already run out of room.
+                # Both budgets end the run the same way, and the time one is checked
+                # here
+                # rather than at the top of the loop so a step that has already paid for
+                # its
+                # evidence gets to contribute it. Neither asks the model for anything
+                # now:
+                # the evidence is in `seen`, so the run goes straight to the writer.
         out_of_time = time.monotonic() >= ends_at
         # No gate on the hard cap here any more: the moving ceiling above stops
         # the batch AT the soft cap, so reaching this point over budget means
         # there is a grace round's worth of room left by construction.
         if (seen.chars >= MAX_EVIDENCE and not graced and not out_of_time):
-            # The soft cap: say so, and give it one round to finish. Time gets
-            # no grace round - the deadline is a promise to somebody watching
-            # a page, and there is nothing to spend it on but waiting.
-            #
-            # `stopped` is set HERE rather than at the break below, and stays
-            # set however the run ends. The reader's question is "might there
-            # be more than this", and once the evidence budget has bitten the
-            # answer is yes - including when the researcher takes its grace
-            # round, decides it has enough and hands over neatly, which from
-            # the outside is indistinguishable from a run that never ran out.
+            # The soft cap: say so, and give it one round to finish. Time gets no grace
+            # round, since the deadline is a promise to somebody watching a page.
+            # `stopped` is set HERE and stays set however the run ends, because the
+            # reader's question is "might there be more than this" and once the evidence
+            # budget has bitten the answer is yes.
             graced = True
             stopped = "evidence budget"
             msgs.append({"role": "user", "content": GRACE})
@@ -1855,7 +1576,7 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
 
     # Evidence is returned as the objects the UI already knows how to render,
     # not as text - the answer's citations are ids, and the page resolves them
-    # (R5.5.2, R5.5.3). Only what was CITED: everything else was looked at and
+    #. Only what was CITED: everything else was looked at and
     # not used, and showing it as evidence would overstate the answer.
     evidence = [seen.passages[i] for i in used["passages"]]
     record = [seen.items[i] for i in used["items"]]
@@ -1882,18 +1603,17 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
         # run rather than reproduced under a profiler.
         "spend": spend,
         "stopped": stopped,
-        # Whether the soft cap fired and the researcher was given its round.
-        # Reported rather than inferred: "turns went up and so did the passage
-        # count" is consistent with a grace round and with the model simply
-        # taking another turn, and those are different things to be told.
-        #
-        # It is also the number worth watching over time. If most questions
-        # start needing the grace round, the evidence budget is too small for
-        # what readers are asking - which is a fact about the questions, and
-        # nothing else in this system would report it.
+                # Whether the soft cap fired and the researcher got its round. Reported
+                # rather
+                # than inferred: "turns went up and so did the passage count" is
+                # consistent
+                # with both a grace round and an ordinary extra turn. It is also the
+                # number
+                # worth watching: if most questions need the grace round, the evidence
+                # budget
+                # is too small for what readers are asking.
         "graced": graced,
     }
-
 
 def main():
     import argparse
@@ -1917,7 +1637,6 @@ def main():
           f"{len(r['evidence'])}+{len(r['record'])} · struck {r['struck']} · "
           f"{llm.usage_report()}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

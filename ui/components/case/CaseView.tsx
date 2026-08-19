@@ -25,7 +25,7 @@ import type { CaseDetail, CaseHearing, CaseStep, Line, Office } from "@/lib/type
 import s from "./CaseView.module.css";
 
 /**
- * `/case/:id` (§5.4) — the sleeper feature.
+ * `/case/:id` — the sleeper feature.
  *
  * A rezoning is heard by the Planning Commission, transmitted by the Board and
  * adopted months later. `PDE-25-7738` was taken up twelve times across ten
@@ -40,7 +40,7 @@ import s from "./CaseView.module.css";
  * times buries the sequence — and the small part that does change is the most
  * informative thing on the page, because it is where the application itself
  * changed. So the title is stated once and each step is redlined against it
- * (R5.4.2, `redlineTitle`).
+ *.
  */
 export function CaseView({ data }: { data: CaseDetail }) {
   const { steps, terminal, title } = data;
@@ -83,7 +83,7 @@ export function CaseView({ data }: { data: CaseDetail }) {
 
   // The axis is in epoch days: a case runs for months, and rendering it on a
   // real date axis rather than as evenly-spaced rows is what shows the five
-  // months of silence in the middle of this one (R7.1).
+  // months of silence in the middle of this one.
   const axis = useMemo(() => {
     const at = (d: string) => Math.round(Date.parse(`${d}T00:00:00Z`) / 86_400_000);
     const days = steps.map((x) => at(x.date));
@@ -114,13 +114,13 @@ export function CaseView({ data }: { data: CaseDetail }) {
     [steps, title],
   );
 
-  /* The speech, filed under the appearance it belongs to (R5.4.4, R5.4.7).
+  /* The speech, filed under the appearance it belongs to.
    * `heard` arrives as its own chronological list and used to render as one,
    * which meant the same seven meetings were printed twice — once as a step
    * with its date, body, code and outcome, and again as a transcript
    * header carrying the same four things. Keyed on item id; a step can hold
    * more than one hearing because a board does take an item up twice in a day
-   * (R5.2.7), and `nth/of` is what says so. */
+   *, and `nth/of` is what says so. */
   const spokenAt = useMemo(() => {
     const by = new Map<number, CaseHearing[]>();
     for (const h of data.heard) {
@@ -174,7 +174,7 @@ export function CaseView({ data }: { data: CaseDetail }) {
             )}
           </p>
 
-          {/* R5.4.3: the terminal outcome, findable at a glance among the
+          {/* the terminal outcome, findable at a glance among the
               procedural steps that precede it. A continuance is never one —
               it is the board saying "not today". */}
           <div className={`${s.verdict} ${terminal ? s[outcomeTone(terminal.outcome)] : s.openCase}`}>
@@ -203,7 +203,7 @@ export function CaseView({ data }: { data: CaseDetail }) {
             )}
           </div>
 
-          {/* R5.4.2: the full official title, once. */}
+          {/* the full official title, once. */}
           {title ? (
             <div className={s.official}>
               <h2 className={s.officialLabel}>Official title</h2>
@@ -256,7 +256,7 @@ export function CaseView({ data }: { data: CaseDetail }) {
                 </span>
               </h2>
 
-              {/* Said once, so it does not have to be said per step (R5.4.2). */}
+              {/* Said once, so it does not have to be said per step. */}
               {anyReworded ? (
                 <p className={s.legend}>
                   Each appearance carries the official title above. Where the county&rsquo;s
@@ -283,7 +283,7 @@ export function CaseView({ data }: { data: CaseDetail }) {
                   {/* An appearance the county held with no recording is not a
                       silence in the argument — it is a hole in our evidence,
                       and the difference matters on a page claiming to hold
-                      everything said (R3.2). */}
+                      everything said. */}
                   {recorded < steps.length ? (
                     <>
                       {" "}
@@ -361,7 +361,7 @@ function Step({
   terminal: boolean;
   onSeek: () => void;
   /** What was said at THIS appearance. Usually one; two when the board took
-   *  the item up twice in a day (R5.2.7). Empty when it was not recorded. */
+   *  the item up twice in a day. Empty when it was not recorded. */
   hearings: CaseHearing[];
   tags: Map<number, string>;
   offices: Record<string, Office>;
@@ -395,7 +395,7 @@ function Step({
           <OutcomeBadge outcome={step.outcome} size="sm" />
         </div>
 
-        {/* R5.4.2. Redlined against the title stated once above: additions in
+        {/* . Redlined against the title stated once above: additions in
             the step's own wording, deletions struck. Unchanged stretches
             collapse to an ellipsis — a second copy of the title is exactly
             what this view exists to avoid. */}
@@ -491,7 +491,7 @@ function Step({
  * meetings twice — once as a step carrying date, body, code and
  * outcome, and again as a transcript header carrying the same four.
  * The speech is now filed under the appearance it belongs to, in `Step`,
- * which keeps one continuous read down the page (R5.4.4) and drops the
+ * which keeps one continuous read down the page and drops the
  * duplicate headers. */
 
 /** `idx` of the last line at or before `seconds`, or -1. */

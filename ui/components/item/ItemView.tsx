@@ -24,7 +24,7 @@ import type { Facts, ItemDetail, ItemRun, Line, Video } from "@/lib/types";
 import s from "./ItemView.module.css";
 
 /**
- * `/item/:id` (§5.3). The **Verify** surface: the place a claim bottoms out in
+ * `/item/:id`. The **Verify** surface: the place a claim bottoms out in
  * something the county wrote or something a microphone caught.
  *
  * The order of this page is an argument, not a layout preference. The record
@@ -127,7 +127,7 @@ export function ItemView({
             <ProvenanceMark kind={published ? "agenda" : "derived"} />
           </div>
 
-          {/* The county's own words, set as the document they are (R2.2).
+          {/* The county's own words, set as the document they are.
               Zoning titles are legal prose and run past 60 words — at the page
               title's natural size that is seven lines of 28px serif, which
               reads as shouting rather than as a heading. Long titles step down
@@ -162,7 +162,7 @@ export function ItemView({
 
       <div className={s.split}>
         <main className={s.main}>
-          {/* ------------------------------------------- the record (R5.3.1) */}
+          {/* ------------------------------------------- the record */}
           <section className={s.block} aria-labelledby="record-head">
             <h2 id="record-head" className={s.blockHead}>
               What the county recorded
@@ -217,7 +217,7 @@ export function ItemView({
             )}
           </section>
 
-          {/* ----------------------------- the county's own document (R5.3.5) */}
+          {/* ----------------------------- the county's own document */}
           {item.files.length ? (
             <section className={s.block} aria-labelledby="source-head">
               <h2 id="source-head" className={s.blockHead}>
@@ -235,7 +235,7 @@ export function ItemView({
             </section>
           ) : null}
 
-          {/* ------------------------------------- the case thread (R5.3.3) */}
+          {/* ------------------------------------- the case thread */}
           {item.case_id && item.thread.length ? (
             <section className={s.block}>
               <CaseThread
@@ -247,7 +247,7 @@ export function ItemView({
             </section>
           ) : null}
 
-          {/* ------------------------------------- what was said (R5.3.4) */}
+          {/* ------------------------------------- what was said */}
           <section className={s.block} aria-labelledby="said-head">
             <h2 id="said-head" className={s.blockHead}>
               What was said
@@ -311,8 +311,7 @@ export function ItemView({
                   </div>
                   {/* `runs`, not `spans`: two spans five seconds apart are the
                       binder cutting one discussion, not the board leaving and
-                      returning, and this line used to claim otherwise
-                      (R5.2.7). */}
+                      returning, and this line used to claim otherwise. */}
                   {item.runs.length > 1 ? (
                     <p className={s.parts}>
                       Taken up {item.runs.length} times, not once through. It was set aside and
@@ -399,7 +398,7 @@ export function ItemView({
               ) : null}
             </section>
 
-            {/* R4.3: no dead ends. Reading an agenda through should not mean
+            {/* no dead ends. Reading an agenda through should not mean
                 going back to the meeting between every item. */}
             {prev || next ? (
               <nav className={s.railBlock} aria-label="Adjacent agenda items">
@@ -447,7 +446,7 @@ function activeIdx(lines: Line[], seconds: number): number {
 }
 
 /**
- * The seam between one appearance and the next (R5.2.7).
+ * The seam between one appearance and the next.
  *
  * Drawn rather than implied. Without it, an item argued at 18:05, set down and
  * taken up again at 3:38:04 renders as one continuous exchange with three and

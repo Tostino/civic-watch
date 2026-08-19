@@ -47,8 +47,7 @@ real PID 1 for signal handling and zombie reaping — that matters because this
 image runs two processes.
 
 **`ASK_TRUST_PROXY=1` because NPM is in front.** At `0`, `client_ip()` sees the
-proxy for every visitor and the whole internet shares one rate-limit bucket
-(gotcha 89). Only set it with a proxy actually in front — it is a trust switch,
+proxy for every visitor and the whole internet shares one rate-limit bucket. Only set it with a proxy actually in front — it is a trust switch,
 and turning it on with nothing forwarding lets a caller forge an address.
 
 **Only `LLM_API_KEY` and friends are for `/api/ask`.** Everything else — search,
@@ -65,7 +64,7 @@ mkdir -p /mnt/user/appdata/civicwatch/models && chown -R 65534:65534 /mnt/user/a
 ```
 
 Get this wrong and the model re-downloads on every recreation at best, and never
-loads at all at worst. The startup line in §5 tells you which.
+loads at all at worst. The startup line tells you which.
 
 ## 3. Point NPM at it
 
@@ -92,7 +91,7 @@ depend on getting NPM right:
 The second lock exists *because* of unification. While the API and the UI were
 separate containers, `admin.loopback()` was a hard guarantee — the peer was the
 UI's container address, never loopback. Proxying from inside one container makes
-the peer 127.0.0.1, which would have softened that into gotcha 94's
+the peer 127.0.0.1, which would have softened that into the forwarding-header
 forwarding-header check: still correct, but dependent on every public request
 arriving through a proxy that sets the header. A guarantee about somebody else's
 config is not a guarantee.
@@ -115,7 +114,7 @@ The failure reads:
     [api] [tools] dense retrieval UNAVAILABLE - <the actual exception>
     [api] [tools] search will answer on BM25 alone; paraphrase queries will find nothing
 
-— almost always the `/models` ownership in §2. This is the one degradation in
+— almost always the `/models` ownership above. This is the one degradation in
 the stack that does not announce itself: search keeps answering, on BM25 alone,
 and looks healthy until someone notices paraphrase queries stopped working.
 
@@ -157,4 +156,4 @@ Then, from the workstation with `PASCO_DSN` repointed:
 ```
 
 The bar is that it returns **the same result as the source**, not zero — today
-that is 2 failing of 47, both the redaction residue in `LAUNCH.md` §4.
+that is 2 failing of 47, both the redaction residue.

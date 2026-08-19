@@ -11,8 +11,7 @@ out somewhere between here and the browser.
 
 So this is the detached runner, in the shape `bin/rederive.py` established:
 status to logs/redact.json, output to logs/redact.log, and the pid in the
-status so a crash reads as "died" rather than as work still in progress
-(gotchas 50/51).
+status so a crash reads as "died" rather than as work still in progress.
 
 Progress is reported PER RECORDING rather than per redaction. That is the unit
 the time is actually spent in - one re-index covers however many addresses were
@@ -77,7 +76,7 @@ def run(ids=None):
     # came out of it. redact.apply() already dedupes internally; doing it here
     # too is what makes the progress count meaningful.
     by_video = {}
-    for r in rows:                                      # positional: gotcha 13
+    for r in rows:                                      # positional: a db.Row unpacks to column names
         by_video.setdefault(r[1], []).append(r[0])
 
     # Recordings already carrying an APPLIED redaction that never reached the

@@ -4,7 +4,7 @@
 The archive had no verified voiceprint for a single board member. Every
 commissioner name came from the handoff announcement - "Commissioner Starkey?"
 - which names whoever speaks NEXT and is wrong whenever the floor does not go
-where the chair said (gotcha 34). With no anchor to correct it, the names
+where the chair said. With no anchor to correct it, the names
 drifted into mixtures: 223 voices under "Mariano" resolved into 15 internally
 coherent groups, and 76% of the pairs between them sat below 0.35, where no
 verified same-person pair has ever been observed.
@@ -222,7 +222,7 @@ def main():
         for c in calls:
             # The derived layer only. A human label on any of these voices
             # still wins, because utterance_speaker consults speaker_label
-            # first (R5.8.7).
+            # first.
             # c, not `cluster`/`name` - neither exists in this scope. This
             # raised NameError on the first cluster it had to apply, which
             # is every run of `--write` that finds anything, and took

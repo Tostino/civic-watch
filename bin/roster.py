@@ -222,7 +222,7 @@ def main():
             # honorific this parser used to keep. Without that arm the fix
             # would live only in the database, and replaying this file over a
             # repaired row would leave the row repaired but the rule unproven
-            # (gotcha 68).
+            #.
             cur.execute("INSERT INTO people (surname, full_name) VALUES (%s,%s) "
                         # The predicate is REQUIRED, not decoration: it is how
                         # Postgres infers the partial index. `kind` is not in the

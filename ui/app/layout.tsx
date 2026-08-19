@@ -7,7 +7,7 @@ import { siteUrl } from "@/lib/site";
 import { Providers } from "./providers";
 import "./globals.css";
 
-/* Two families, because the archive has two kinds of truth (R2.2).
+/* Two families, because the archive has two kinds of truth.
  *
  * Source Serif carries the county's published record - agendas, minutes,
  * official titles - and reads as a document. Inter carries everything this

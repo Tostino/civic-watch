@@ -18,10 +18,10 @@ import s from "./DisputePassage.module.css";
  *
  * So this is deliberately NOT a SpeakerChip. There is no state here to draw
  * honestly, and drawing one anyway would be the archive asserting a kind of
- * claim it cannot support (R2.3, D3). It asks the question and lets the review
+ * claim it cannot support. It asks the question and lets the review
  * screen, which reads the lines, show the four possible answers.
  *
- * Nothing renders for a reader (R9.1), and nothing renders for a passage that
+ * Nothing renders for a reader, and nothing renders for a passage that
  * cannot say which utterances it covers.
  */
 export function DisputePassage({ hit }: { hit: TranscriptHit }) {
@@ -31,7 +31,7 @@ export function DisputePassage({ hit }: { hit: TranscriptHit }) {
    * passage crossing several speakers, and one the archive cannot name at all
    * — so the test is the same either way, and neither the label nor this has
    * to know that `(exchange)` exists. It used to test the raw key here, which
-   * was the last copy of a rule R6.2.1 wants in one place; web/archive.py's
+   * was the last copy of a rule the design wants in one place; web/archive.py's
    * `who()` is that place now. */
   const named = hit.who.name !== null;
   return (

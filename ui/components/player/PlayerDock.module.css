@@ -4,7 +4,7 @@
  * that could disagree with it.
  *
  * The card is `position: fixed` in all three. It is the iframe's permanent
- * home (R6.1) and moving that node between containers would remount it, so the
+ * home and moving that node between containers would remount it, so the
  * lane is made by reserving room in the page - globals.css pads <main> by
  * --dock-lane - rather than by putting the dock inside the page's own grid. */
 
@@ -88,7 +88,7 @@
 }
 
 /* ----------------------------------------------------------------- sheet
- * R8.3. Too narrow to give up a column: full width, flush to the bottom edge,
+ * Too narrow to give up a column: full width, flush to the bottom edge,
  * above the safe area. */
 .dock[data-mode="sheet"] {
   inset-inline: 0;

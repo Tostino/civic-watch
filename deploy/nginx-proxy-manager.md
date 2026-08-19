@@ -17,12 +17,11 @@ both fail silently:
 
 1. **`admin.loopback()` reads the TCP peer**, which becomes 127.0.0.1 for every
    request on earth once anything proxies. The app also refuses any request
-   carrying a forwarding header (gotcha 94), so the edge is the *second* lock
+   carrying a forwarding header, so the edge is the *second* lock
    rather than the only one. Belt and braces on the one door that writes to
    human judgement.
 2. **`web/limits.py` counts questions per address.** Without `X-Forwarded-For`
-   it counts them per PROXY, so the whole internet shares one bucket
-   (gotcha 89). NPM sends the header by default — set `ASK_TRUST_PROXY=1` to go
+   it counts them per PROXY, so the whole internet shares one bucket. NPM sends the header by default — set `ASK_TRUST_PROXY=1` to go
    with it, and **only** once NPM is really in front. It is a trust switch:
    turned on with nothing forwarding, a caller can forge their own address and
    bypass the limit entirely.

@@ -418,8 +418,7 @@ def rebuild_video(con, video_id, device="cuda:1", verbose=True):
     the passages still carried the address. That half-state is the reason this
     exists.
 
-    Passage ids are reassigned. That is already true of every full rebuild
-    (gotcha 10) and nothing outside the index stores one; the BM25 postings for
+    Passage ids are reassigned. That is already true of every full rebuild and nothing outside the index stores one; the BM25 postings for
     the old ids are dropped by passing them to bm25_refresh alongside the new.
     """
     fresh = build_passages(con, video_id)

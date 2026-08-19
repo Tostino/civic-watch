@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Gate } from "@/components/admin/Gate";
 import s from "./admin.module.css";
 
-/* The curation shell (§4.2, R9.1): its own chrome, visibly not the reading
+/* The curation shell: its own chrome, visibly not the reading
  * surface, reached only by knowing the URL. The public header returns null
  * under /admin, and nothing public links here. */
 export const metadata: Metadata = {

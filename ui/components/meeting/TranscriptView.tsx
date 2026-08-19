@@ -16,11 +16,11 @@ import type { Cue } from "./MeetingView";
 import s from "./TranscriptView.module.css";
 
 /**
- * R5.2.3: the transcript, synchronised to the player. Clicking a line seeks;
+ * the transcript, synchronised to the player. Clicking a line seeks;
  * playing scrolls.
  *
  * Virtualised because a meeting-day runs to 2,252 utterances and a four-hour
- * afternoon session is the normal case, not the outlier (R8.1, R7.5). Lines
+ * afternoon session is the normal case, not the outlier. Lines
  * are grouped into turns - consecutive lines from one voice - so the speaker
  * is named once per turn rather than once per line, which is both how a
  * transcript is read and a large reduction in visual noise.
@@ -72,7 +72,7 @@ export function TranscriptView({
   onReading: (itemId: number | null) => void;
 }) {
   const playhead = usePlayhead();
-  /* The console bridge (R5.8.3): the error is noticed while reading, so the
+  /* The console bridge: the error is noticed while reading, so the
    * fix starts here. Readers never see it — the probe answers false. Shared
    * with the item and the case views, which raise the same correction from
    * their own layout: components/admin/useDispute. */
@@ -354,7 +354,7 @@ export function TranscriptView({
                 style={{ top: v.start }}
               >
                 {row.kind === "caveat" ? (
-                  /* R2.3, said where it belongs: at the top of the words it
+                  /* said where it belongs: at the top of the words it
                      is about, as the first thing in the transcript rather
                      than a header above it. Every claim is here — what this
                      is, that the names are inferred, how many carry one, that
@@ -464,7 +464,7 @@ function Turn({
   onDispute?: () => void;
 }) {
   const first = lines[0];
-  // The office held AT THIS MEETING (R5.2.5). Names resolve by surname, which
+  // The office held AT THIS MEETING. Names resolve by surname, which
   // is what the roster keys on.
   const office = first.name ? (offices[first.name] ?? offices[first.name.split(" ").pop() ?? ""]) : null;
 

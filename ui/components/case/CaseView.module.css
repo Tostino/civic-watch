@@ -114,7 +114,7 @@
 
 /* --ink-4 clears 4.5:1 on the page backgrounds but lands at 4.45 on the tinted
  * verdict panels, which is the one label on this page that must not be
- * marginal (gotcha 37: the quiet text is where the meaning is). */
+ * marginal (the quiet text is where the meaning is). */
 .verdictLabel {
   font-size: var(--text-2xs);
   font-weight: 700;

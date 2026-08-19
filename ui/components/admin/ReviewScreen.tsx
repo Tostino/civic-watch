@@ -22,13 +22,13 @@ import type { Line } from "@/lib/types";
 import s from "./ReviewScreen.module.css";
 
 /**
- * One recording's contested voices, with everything needed to decide (§5.8):
+ * One recording's contested voices, with everything needed to decide:
  * the lines themselves, the audio at the offset (the global player), what
  * else each voice says — here and in other meetings — and WHY the pipeline
  * proposed each name (`basis`, four very different claims). Selection is
- * direct: click a line, shift-click to extend (R5.8.4). The four verbs of
- * R5.8.2 write to speaker_override at utterance grain; whole-voice label and
- * ignore write at voice grain (R9.3).
+ * direct: click a line, shift-click to extend. The four verbs of
+ * write to speaker_override at utterance grain; whole-voice label and
+ * ignore write at voice grain.
  */
 export function ReviewScreen({
   video,
@@ -108,7 +108,7 @@ export function ReviewScreen({
 
   /* What ties the transcript to the audio. The line the recording is inside
    * is marked as sounding, and the list follows it while `following` holds —
-   * the same discipline as the reading view (gotcha 39): manual scroll turns
+   * the same discipline as the reading view: manual scroll turns
    * following off, any explicit play turns it back on. */
   const [following, setFollowing] = useState(true);
   const activePos = useMemo(() => {
@@ -131,7 +131,7 @@ export function ReviewScreen({
   const soundingIdx = activePos >= 0 ? shown[activePos].idx : -1;
 
   /* Selection is a contiguous idx range on the FULL transcript — that is the
-   * unit the override table stores (R5.8.1) — even when the view is filtered.
+   * unit the override table stores — even when the view is filtered.
    * The action bar states what the range actually contains, so a filtered
    * view cannot hide that a range swept up somebody else's lines. */
   const [anchor, setAnchor] = useState<number | null>(null);
@@ -180,7 +180,7 @@ export function ReviewScreen({
     estimateSize: () => 58,
     overscan: 10,
     getItemKey: (i) => shown[i].idx,
-    /* Gotchas 38/40: batch instead of flushSync, measure outside commit. */
+    /* batch instead of flushSync, measure outside commit. */
     useFlushSync: false,
     useAnimationFrameWithResizeObserver: true,
   });

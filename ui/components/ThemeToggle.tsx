@@ -19,7 +19,7 @@ function subscribe(cb: () => void) {
 const read = (): Theme =>
   (document.documentElement.getAttribute("data-theme") as Theme | null) ?? "system";
 
-/** R8.4. System preference is the default; an explicit choice overrides it and
+/** System preference is the default; an explicit choice overrides it and
  *  persists across visits. */
 export function ThemeToggle() {
   const theme = useSyncExternalStore(subscribe, read, () => "system" as Theme);

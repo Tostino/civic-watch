@@ -8,7 +8,7 @@ import type { Facts, ThreadStep } from "@/lib/types";
 import s from "./CaseThread.module.css";
 
 /**
- * R5.3.3 — the case thread, on the item.
+ * the case thread, on the item.
  *
  * An item is rarely the whole story. A rezoning is heard by the Planning
  * Commission, transmitted by the Board and adopted months later; read one of
@@ -18,7 +18,7 @@ import s from "./CaseThread.module.css";
  * "has this come up before" is the next question they have.
  *
  * Compact by design. The dedicated view is one click away and does the work of
- * showing what changed between appearances (R5.4.2); this only has to show
+ * showing what changed between appearances; this only has to show
  * that the sequence exists and where in it the reader is standing.
  */
 export function CaseThread({

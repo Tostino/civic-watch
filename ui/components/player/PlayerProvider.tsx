@@ -13,7 +13,7 @@ import {
 import { PlayerDock } from "./PlayerDock";
 
 /**
- * R6.1. One player for the whole app.
+ * One player for the whole app.
  *
  * The old pages implemented the YouTube embed four times and each one
  * remounted on every render, so a seek restarted the video. Here the iframe is
@@ -67,7 +67,7 @@ interface PlayerState {
   ready: boolean;
   failed: boolean;
   expanded: boolean;
-  /** Load a video and jump to a point in it. The one entry point (R6.1).
+  /** Load a video and jump to a point in it. The one entry point.
    *  `autoplay: false` loads and holds - used when restoring a shared link,
    *  where starting audio unbidden is hostile (and blocked anyway). */
   play(source: Source, seconds?: number, autoplay?: boolean): void;
@@ -76,7 +76,7 @@ interface PlayerState {
   toggle(): void;
   close(): void;
   setExpanded(v: boolean): void;
-  /** Re-attempt after a failure. YouTube is someone else's service (D2). */
+  /** Re-attempt after a failure. YouTube is someone else's service. */
   retry(): void;
 }
 
@@ -276,7 +276,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       {children}
       {/* The dock is the iframe's permanent home. It is always in the tree -
           moving the iframe between containers would remount it, which is
-          exactly what R6.1 forbids - and collapsing only changes its size. */}
+          exactly what the design forbids - and collapsing only changes its size. */}
       <PlayerDock hostRef={hostRef} />
     </Ctx.Provider>
   );

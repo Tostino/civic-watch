@@ -160,10 +160,10 @@ PASCO_DSN="$UNRAID_DSN" ./emb-venv/bin/python bin/audit.py
 
 The bar is that the target returns **the same result as the source**, not that
 it returns zero. On 2026-08-14 both report *2 failing of 47* — the redaction
-residue in §4 of `LAUNCH.md`, left deliberately. A target that disagrees with
+redaction residue, left deliberately. A target that disagrees with
 the source is a migration fault; a target that agrees is a faithful copy.
 
-**On the collation warning** that §2 step 4 of `LAUNCH.md` tells you to watch
+**On the collation warning** worth watching
 for: it is a smaller risk here than it sounds. The container is glibc 2.36
 (Debian 12) against 2.35 on this host, and a glibc difference genuinely can
 reorder text indexes — but that bites a *physical* copy or `pg_upgrade`. A
@@ -183,4 +183,4 @@ will not restore, and it churns constantly against files Postgres rewrites.
 **Exclude `/mnt/user/appdata/civicwatch-postgres/` and back up dumps instead.**
 Write a scheduled `pg_dump` somewhere else under `/mnt/user/` and let Backblaze
 carry that: a dump is consistent by construction, and it is the artifact you
-would actually restore from. Nothing schedules one today (`LAUNCH.md` §3.1).
+would actually restore from. Nothing schedules one today.

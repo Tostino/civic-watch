@@ -10,11 +10,11 @@ import { ApiError, getBodies, getHighlights, getIssues, getMeetings, getOverview
 import { duration, isoWeekday, meetingDate } from "@/lib/format";
 import s from "./browse.module.css";
 
-/* `/` - the archive as an object (§5.1), not a search box on a photo.
+/* `/` - the archive as an object, not a search box on a photo.
  *
- * Four things in order, and the order is the argument: what is here (R5.1.1),
- * its shape over twelve years (R5.1.2), what those twelve years were ABOUT,
- * and somewhere to go if you arrived without a question (R5.1.4). The third
+ * Four things in order, and the order is the argument: what is here,
+ * its shape over twelve years, what those twelve years were ABOUT,
+ * and somewhere to go if you arrived without a question. The third
  * was missing until it was not: every other panel here counts meetings,
  * coverage or the last six of something, so the page could describe the
  * collection completely and name nothing the county ever argued about.
@@ -23,7 +23,7 @@ import s from "./browse.module.css";
  * informative view of a collection this size and was the whole page in
  * slice 1.
  *
- * Every filter is in the URL (R4.2), so a month of the archive is a link
+ * Every filter is in the URL, so a month of the archive is a link
  * somebody can send. */
 
 type Props = {
@@ -95,7 +95,7 @@ export default async function BrowsePage({ searchParams }: Props) {
   // lists sixteen, most of them advisory committees with nothing behind them.
   const listed = bodies.filter((b) => b.recorded > 0 || b.with_agenda > 0);
 
-  /** Builds a URL that changes one facet and keeps the rest (R4.2). */
+  /** Builds a URL that changes one facet and keeps the rest. */
   const href = (next: {
     body?: string; year?: string; month?: string; axis?: string; open?: string;
   }) => {
@@ -176,7 +176,7 @@ export default async function BrowsePage({ searchParams }: Props) {
       {/* "Not yet held" is gone. It rendered four rows of the same
           Metropolitan Planning Organization meeting in January 2027 with no
           agenda, no minutes and no recording, because that is all a scheduled
-          meeting has - and UI_REQUIREMENTS section 5.9.1 predicted exactly
+          meeting has - and the design notes predicted exactly
           this: built before the agendas are fetched on a schedule it "would
           render 37 rows of not posted yet, which is the honest state and is
           not a door anyone walks through". `bin/forward.sh` is the missing
@@ -228,7 +228,7 @@ export default async function BrowsePage({ searchParams }: Props) {
 
                   <span className={s.main}>
                     <span className={s.bodyName}>{m.body}</span>
-                    {/* R5.1.3: what you will get, before you click. */}
+                    {/* what you will get, before you click. */}
                     <span className={s.cover}>
                       {m.items ? (
                         <span>{m.items} items</span>

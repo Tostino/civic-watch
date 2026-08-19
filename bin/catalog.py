@@ -37,7 +37,7 @@ KINDS = [
 # meeting on, so a title this misses is not a cosmetic loss - it is a
 # recording that belongs to no meeting, permanently. Those 17 are 39 hours,
 # indexed and searchable, with no meeting page and no agenda behind them
-# (STATE.md, honest limits).
+#.
 DATE_RE = re.compile(
     r"(?<!\d)(\d{1,2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{2,4})(?!\d)")
 MONTHS = ("january", "february", "march", "april", "may", "june", "july",

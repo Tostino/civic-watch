@@ -303,7 +303,7 @@
 
 /* A module class and the global :focus-visible have equal specificity, so
  * animating an outline for hover deletes the focus ring the component
- * inherits — see the same note in TimeAxis.module.css (R8.2, WCAG 2.4.7). */
+ * inherits — see the same note in TimeAxis.module.css. */
 .cell:focus-visible {
   outline-color: var(--accent);
   outline-offset: 1px;
