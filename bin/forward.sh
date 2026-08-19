@@ -1,37 +1,15 @@
 #!/bin/bash
-# Catch agendas for meetings that have NOT HAPPENED YET.
-#
-# The county publishes its calendar months out and the agenda days out. Right
-# now that gap is the whole story: 35 meetings are on the books through
-# 2027-01-14 and not one of them has an agenda, because every fetch we have
-# ever done predates the documents. Nothing is broken - we have simply never
-# looked again.
-#
-# HOW OFTEN, from the archive rather than a guess. Days between an agenda being
-# published and its meeting, over 1,161 agendas:
-#
-#     median 3 · p90 7 · 710 of them land 1-14 days ahead · only 17 earlier
-#
-# So a DAILY run catches everything, and the tightest real case - published the
-# day before - still has a full cycle of slack. Anything slower than daily
-# starts missing the short ones.
-#
-# This is the cheap door of the three in UI_REQUIREMENTS §5.9. It needs no new
-# extractor and no model: `parse_agenda`, the item rows and the coverage chips
-# already work and have nothing to learn. It is also the only one of the three
-# that lets a resident ACT rather than check.
-#
-# Nothing here touches the derived layers. It adds portal events, adds file
-# text, and lands meetings and published items. Segments, spans, speaker names
-# and the search index are all somebody else's job and are left alone.
+# Catch agendas for meetings that have NOT HAPPENED YET. The county publishes
+# its calendar months out and the agenda days out: median 3 days, p90 7, over
+# 1,161 agendas. So a daily run catches everything and anything slower misses
+# the short ones. Nothing here touches the derived layers.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 source bin/_env.sh
 
-# Re-ask about the recent past as well as the future. An agenda is often
-# REVISED after it is first posted - a continuance added, an item pulled - and
-# a window that starts today would take the first version and keep it.
+# Re-ask about the recent past too: agendas get revised after they are posted,
+# and a window starting today would keep the first version forever.
 SINCE=$(date -d '21 days ago' +%Y-%m-%d 2>/dev/null || date -v-21d +%Y-%m-%d)
 
 echo "=== $(date '+%F %T')  forward fetch, events since $SINCE ==="
@@ -41,35 +19,17 @@ echo
 echo "=== fetching text for any newly published file ==="
 $PY bin/civicclerk.py --text | tail -4
 
-# --no-spans, and it is load-bearing. Plain `land_agenda.py` re-runs bind_spans,
-# which is NOT idempotent: two runs on unchanged data added 447 then 262
-# transcript-derived items and stranded the originals without spans. A nightly
-# job doing that would grow the table forever. Not --redo either - that deletes
-# every span in the archive.
-#
-# Nothing is lost by skipping it here. This job exists for meetings that have
-# not happened yet; they have no recording, so no segments, so nothing for
-# bind_spans to do.
+# --no-spans is load-bearing: bind_spans is NOT idempotent and a nightly job
+# running it would grow the table forever. Not --redo either, which deletes
+# every span. Meetings that have not happened have no recording to bind.
 echo
 echo "=== landing meetings and published items (no span binding) ==="
 $PY bin/land_agenda.py --no-spans | tail -6
 
-# WHAT THE FRONT PAGE READS IS A TABLE, and nothing above rebuilds it. The
-# issues strip reads `subject_year` rather than computing it, because the live
-# join costs 163 seconds once sub-subjects exist - and only bin/subjects.py
-# writes that table, from passes that are all CURATION. So landing agendas or
-# parsing minutes changes what every subject matches while the public page
-# keeps yesterday's numbers, rendering perfectly and saying nothing wrong.
-# That is the failure mode subjects.rollup() names: worse than slow.
-#
-# Unconditional rather than a stage to remember, for the same reason. It is
-# 12 seconds against stages measured in hours, it is a no-op on a database
-# with no kept vocabulary, and it is one transaction - readers see the old
-# rows until it commits, never an empty table.
-#
-# Time-dependent as well as data-dependent: the record lane counts meetings
-# with `date <= now()`, so a meeting whose agenda landed a week ago enters
-# the counts on the day it is held, with no ingest involved at all.
+# subjects --rollup: the front page reads `subject_year` rather than computing
+# it, because the live join costs 163 seconds, and only this stage writes it.
+# Unconditional because 12 seconds against hour-long stages is not worth
+# remembering, and it is one transaction, so readers never see a gap.
 echo
 echo "=== subjects --rollup ==="
 $PY bin/subjects.py --rollup

@@ -1,19 +1,14 @@
 #!/bin/bash
-# Wait for the segment+land run and the name_speakers run to finish, then do
-# the rest of the rebuild. Both of those are long, independent, and already
-# running detached; this exists so the remaining stages start the moment they
-# are ready instead of whenever someone next looks.
-#
-# The order below is the one refresh.sh documents. minutes writes outcomes onto
-# the items land created; index bakes the item subject AND the resolved speaker
-# name into what gets embedded, so it must be last.
+# Wait for the detached segment+land and name_speakers runs, then finish the
+# rebuild in the order refresh.sh documents: minutes writes outcomes onto the
+# items land created, and index bakes both the item subject and the resolved
+# speaker name into what gets embedded, so it goes last.
 cd "$(dirname "$0")/.."
 source bin/_env.sh
 
 wait_for () {           # $1 = log file, $2 = marker, $3 = label
     echo "waiting for $3 ..."
     while ! grep -q "$2" "$1" 2>/dev/null; do
-        # If the process is gone and the marker never appeared, it died.
         if ! pgrep -f "$4" > /dev/null 2>&1; then
             sleep 5
             grep -q "$2" "$1" 2>/dev/null && break
@@ -28,10 +23,8 @@ wait_for () {           # $1 = log file, $2 = marker, $3 = label
 wait_for logs/refresh.log "=== chain complete ===" "segment+land" "segment.py|land_agenda.py" || exit 1
 wait_for logs/names.log   "=== done ==="            "name_speakers" "name_speakers.py" || exit 1
 
-# The segments table was rebuilt wholesale (--redo), so the spans bound to the
-# OLD segment boundaries are stale. A plain re-land only upserts on
-# (video_id, start_idx) and would leave every span whose boundary moved behind
-# as an orphan, breaking the tiling that index_passages relies on.
+# --redo: a plain re-land upserts on (video_id, start_idx) and would orphan
+# every span whose boundary moved, breaking the tiling index_passages needs.
 echo; echo "=== land_agenda --redo ==="; date "+    started %H:%M:%S"
 $PY bin/land_agenda.py --redo || exit 1
 
@@ -41,22 +34,10 @@ $PY bin/parse_minutes.py --write || exit 1
 echo; echo "=== index_passages ==="; date "+    started %H:%M:%S"
 $PY bin/index_passages.py || exit 1
 
-# WHAT THE FRONT PAGE READS IS A TABLE, and no stage above rebuilds it. The
-# issues strip reads `subject_year` rather than computing it, because the live
-# join costs 163 seconds once sub-subjects exist - and only bin/subjects.py
-# writes that table, from passes that are all CURATION. So landing agendas or
-# parsing minutes changes what every subject matches while the public page
-# keeps yesterday's numbers, rendering perfectly and saying nothing wrong.
-# That is the failure mode subjects.rollup() names: worse than slow.
-#
-# Unconditional rather than a stage to remember, for the same reason. It is
-# 12 seconds against stages measured in hours, it is a no-op on a database
-# with no kept vocabulary, and it is one transaction - readers see the old
-# rows until it commits, never an empty table.
-#
-# Time-dependent as well as data-dependent: the record lane counts meetings
-# with `date <= now()`, so a meeting whose agenda landed a week ago enters
-# the counts on the day it is held, with no ingest involved at all.
+# subjects --rollup: the front page reads `subject_year` rather than computing
+# it, because the live join costs 163 seconds, and only this stage writes it.
+# Unconditional because 12 seconds against hour-long stages is not worth
+# remembering, and it is one transaction, so readers never see a gap.
 echo; echo "=== subjects --rollup ==="; date "+    started %H:%M:%S"
 $PY bin/subjects.py --rollup || exit 1
 
@@ -64,8 +45,6 @@ echo; echo "=== audit ==="; date "+    started %H:%M:%S"
 $PY bin/audit.py
 
 echo; echo "=== eval_agent ==="; date "+    started %H:%M:%S"
-# --agent runs the questions in ANSWERS through the real agent, which is the
-# check that gates: retrieval rank is a diagnostic, an answer is the product.
 $PY bin/eval_agent.py --agent
 
 echo; echo "=== ALL DONE ==="; date

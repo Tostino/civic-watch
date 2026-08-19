@@ -1,35 +1,16 @@
 #!/bin/bash
 # Throw away everything DERIVED and build it again, without re-downloading a
-# single video or re-running ASR.
+# video or re-running ASR. The derived layers are where the bugs live, and
+# after enough targeted fixes nobody can say which rows came from which
+# version of the code. A rebuild from the same inputs answers that.
 #
-# This exists because the derived layers are where the bugs live - naming,
-# segmentation, agenda binding, minutes parsing, the index - and after enough
-# targeted fixes nobody can say for certain which rows came from which version
-# of the code. A rebuild from the same inputs answers that.
-#
-# WHAT IS KEPT, and why each one is unrecoverable or expensive:
-#
-#   utterances        the ASR output. 298,737 rows, 1,036 hours of GPU. This is
-#                     the thing this script exists to avoid recomputing.
-#   videos            download state and metadata; also the claim/attempt
-#                     bookkeeping the fleet uses.
-#   speaker_label     HUMAN labels. 59 of them, each a person's judgement.
-#   speaker_override  HUMAN corrections at utterance range (§5.8).
-#   speaker_ignore    HUMAN "this voice is not a person".
-#   portal_events     what the county published, as fetched. Re-fetchable in
-#   portal_files      principle - ~2,000 requests against someone else's
-#                     server, and they are free to change or withdraw a
-#                     document. Not worth re-pulling to prove a parser.
-#   vec_cache         454,403 embeddings, 2.5 GB, keyed by content hash. THIS
-#                     IS WHY A FULL REBUILD IS CHEAP. Clearing it would turn
-#                     twenty minutes into hours of GPU for identical vectors.
-#
-# Everything else is a function of those, and is dropped. The two VIEWS
-# (utterance_speaker, voice_name) are definitions rather than data — they have
-# nothing to truncate and resolve again the moment their tables are rebuilt.
-#
-# The diarization turns and voice centroids live in data/*.json, not in
-# Postgres, so they are untouched by definition.
+# KEEP and DROP below are exhaustive over the schema and the block proves it
+# every run, so an unclassified table stops the script rather than being
+# silently destroyed. KEEP is anything unrecoverable or expensive: the ASR
+# output, download state, every HUMAN judgement (labels, overrides, ignores,
+# redactions, the curated subject vocabulary, tuned speaker_method ranks),
+# the public /ask/<id> answers, the portal payloads, and vec_cache, which is
+# what makes a full rebuild twenty minutes instead of hours of GPU.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -57,65 +38,27 @@ for a in "$@"; do
     --yes)      APPLY=1 ;;
     # TWO stages call the model, not one: name_speakers, and segment - which
     # is what cuts a meeting into agenda items. Without credit, segments cannot
-    # be rebuilt, so --no-llm PRESERVES them rather than destroying something
-    # it cannot put back. land_agenda then binds spans from the segments of the
-    # previous run, which is honest as long as it is said out loud.
+    # be rebuilt, so --no-llm PRESERVES them rather than destroying what it cannot
+    # put back, and land_agenda then binds spans from the previous run's segments.
     --no-llm)   SKIP_LLM=1 ;;
     *) echo "usage: $0 [--yes] [--no-llm]" >&2; exit 2 ;;
   esac
 done
 
-# The two lists are exhaustive over the schema, and the block below proves it
-# every run. A table added later belongs in one of them by a decision somebody
-# makes, not by whichever default it happens to fall into - so an unclassified
-# table stops this script rather than being silently destroyed.
+# KEEP holds anything a rebuild cannot re-derive. `redaction` is KEEP because
+# dropping it would silently un-redact every home address taken out, which is
+# the exact harm the feature exists to prevent. `answers` is KEEP because
+# /ask/<id> is a public URL and a redaction surface. `subject`/`subject_term`
+# hold a curated vocabulary a rebuild cannot re-derive, and `speaker_method`
+# holds precedence ranks somebody tuned. The dropped ones are all cheap and
+# deterministic to rebuild, and two stages at the foot of this script do it;
+# without them an empty `subject_year` sends the front page to a 163s join.
 SKIP_LLM=$SKIP_LLM $PY - <<'PYEOF'
 import sys
 sys.path.insert(0, "bin")
 import db
 
 import os
-# `redaction` is KEEP for the same reason the speaker tables are: it holds
-# decisions a PERSON made, which outrank anything a rebuild derives. Dropping
-# it would silently un-redact every home address the archive has taken out -
-# the precise harm the feature exists to prevent - and the transcript would
-# keep the marker with no row left to explain or reverse it.
-#
-# Ten tables were unclassified and this script has been refusing to run since
-# the first of them landed, which is the guard working. Classified:
-#
-#   answers          KEEP. `/ask/<id>` is a PUBLIC URL and this is what it
-#                    reads, so dropping it 404s every answer anyone has
-#                    shared. It is also a redaction surface - bin/redact.py
-#                    rewrites `answer` in place and redaction.gone_from_answers
-#                    proves it happened - so it is `redaction`'s case exactly.
-#   subject          KEEP. The curated vocabulary: which subjects exist, what
-#   subject_term     they are called, what nests under what, and 533 phrases a
-#                    person kept after seeing what each one matches here. A
-#                    rebuild cannot re-derive a judgement, and re-proposing
-#                    them costs the whole model chain and every decision again.
-#   speaker_method   KEEP. Precedence as data rather than as a CASE. schema.sql
-#                    seeds it ON CONFLICT DO NOTHING, which restores the
-#                    defaults and silently discards any rank somebody tuned -
-#                    and tuning one is the single UPDATE its own comment
-#                    advertises.
-#
-#   person_alias     drop. Written by speaker_claims --link, and NOT NULL
-#   organizations    against `people`, which is dropped here - so a cascade
-#   organization_    would empty them anyway and KEEP would be a fiction.
-#     alias
-#   speaker_claim    drop. Derived, and cheaply: `--all` is deterministic and
-#   speaker_resolved calls no model. Every human claim in them is a restatement
-#                    of speaker_override / speaker_label, which are KEEP, so
-#                    --backfill puts the irreplaceable half back.
-#   subject_year     drop. Pure rollup output. It is a function of the kept
-#                    vocabulary and the rebuilt items, so keeping it across a
-#                    rebuild would preserve counts of items that no longer
-#                    exist - stale in the one way nothing on the page reveals.
-#
-# The last three are rebuilt by two stages at the foot of this script. Without
-# those an empty `subject_year` sends the front page to the live join, which
-# is 163 seconds per request.
 KEEP = {"utterances", "videos", "speaker_label", "speaker_override",
         "speaker_ignore", "redaction", "answers", "speaker_method",
         "subject", "subject_term",
@@ -153,25 +96,11 @@ for t in sorted(live):
     print(f"{t:22s}{n:>12,d}   {fate}")
 PYEOF
 
-# SAVED ANSWERS CITE AGENDA ITEMS BY RAW ID, and the truncate below restarts
-# the identity sequence. `answers` is KEEP - it has to be, those are public
-# URLs and a redaction surface - but `cites.items` is a plain list of integers
-# that web/answers.py resolves at render time with items_at(). Nothing checks
-# that item 17923 today is item 17923 after a rebuild, and it will not be.
-#
-# The passage half of a citation was built against exactly this hazard and is
-# safe: it is keyed by (video_id, start_idx, end_idx) because index_passages
-# reassigns passage ids on every run and says so. The item half was written
-# believing `/item/<id>` is durable, which is true of the live archive and
-# false across this script. So the failure is silent and it is the bad kind -
-# not a citation that stops resolving, a citation that resolves to the WRONG
-# item, on a public page, under an answer somebody was shown.
-#
-# This REFUSES rather than warns, for the same reason the unclassified-table
-# guard above refuses: a line of warning inside a multi-hour rebuild is a line
-# nobody reads. The fix is a policy call - drop the item cites so they read as
-# honestly gone, the way a moved redaction boundary already does, or re-key
-# them onto something durable - and it wants deciding once, by a person.
+# SAVED ANSWERS CITE AGENDA ITEMS BY RAW ID and the truncate restarts the
+# identity sequence, so a kept citation resolves to the WRONG item on a public
+# page. The passage half is safe, keyed by (video_id, start_idx, end_idx).
+# This refuses rather than warns: the fix is a policy call about whether to
+# drop the item cites or re-key them, and it wants deciding once, by a person.
 $PY - <<'ANSWEOF'
 import os, sys
 sys.path.insert(0, "bin")
@@ -199,16 +128,10 @@ if [ "$APPLY" -ne 1 ]; then
   exit 0
 fi
 
-# PREFLIGHT THE THING THAT CAN FAIL EXPENSIVELY, BEFORE DESTROYING ANYTHING.
-#
-# Two of the stages below call the inference API, and `set -e` means a failure
-# there aborts the script - AFTER the truncate. The archive would be left with
-# no passages, no index and no spans, from a run that never had a chance of
-# finishing. This costs one token and removes that whole class of outcome.
-#
-# It is also the specific way this bit us: name_speakers died on
-# `HTTP 402 Insufficient Balance` mid-chain, and the only reason that was
-# survivable is that the truncate had not happened yet.
+# PREFLIGHT THE PAID CALL BEFORE DESTROYING ANYTHING. Two stages below call
+# the inference API and `set -e` aborts AFTER the truncate, which would leave
+# no passages, no index and no spans. name_speakers really did die mid-chain
+# on HTTP 402, and the truncate not having happened yet is why it survived.
 if [ "$SKIP_LLM" -ne 1 ]; then
   echo
   echo "=== preflight: inference API ==="
@@ -240,9 +163,8 @@ fi
 
 echo
 echo "=== dropping derived tables ==="
-# One statement, so Postgres resolves the foreign-key order itself and the
-# whole thing is a single transaction: either every derived table is empty or
-# none of them is.
+# One statement, so Postgres resolves the foreign-key order and either every
+# derived table is empty or none of them is.
 SKIP_LLM=$SKIP_LLM $PY - <<'PYEOF'
 import sys
 sys.path.insert(0, "bin")
@@ -267,21 +189,11 @@ live = {r[0] for r in con.execute(
     "SELECT tablename FROM pg_tables WHERE schemaname='public'")}
 todo = [t for t in DROP if t in live]
 
-# TWO KEPT TABLES POINT AT A DROPPED ONE, and Postgres refuses to truncate the
-# parent of a live foreign key. `videos.meeting_id` and
-# `portal_events.meeting_id` both reference `meetings`, so the TRUNCATE below
-# failed outright - meaning this script has never been able to do the thing it
-# exists to do. bin/sandbox.py running it against an empty database is what
-# found that.
-#
-# TRUNCATE ... CASCADE is the wrong fix and would be a catastrophe: it cascades
-# INTO videos and utterances, which is 1,036 hours of GPU this script exists to
-# preserve. Clearing the two columns is right on its own terms - both are
-# DERIVED by land_agenda, which re-derives them in the first stage below, so
-# they are as much a product of the rebuild as `meetings` itself is.
-#
-# Kept exhaustive rather than hardcoded: a new foreign key from a kept table
-# into a dropped one would otherwise reintroduce the same failure silently.
+# TWO KEPT TABLES POINT AT A DROPPED ONE, and Postgres will not truncate the
+# parent of a live foreign key, so this script could never do its job until
+# the columns were cleared first. CASCADE is the wrong fix and would cascade
+# into videos and utterances, which is the GPU time this exists to preserve.
+# Kept exhaustive so a new foreign key cannot reintroduce the failure quietly.
 blockers = [(r[0], r[1]) for r in con.execute("""
     SELECT tc.table_name, kcu.column_name
       FROM information_schema.table_constraints tc
@@ -296,11 +208,8 @@ for table, col in blockers:
     con.execute(f'UPDATE {table} SET "{col}" = NULL')
     print(f"cleared {table}.{col} (derived; land_agenda rebuilds it)")
 
-# Clearing the VALUES is not enough: Postgres refuses to TRUNCATE any table
-# that is the parent of a foreign key, whether or not a single row actually
-# references it. So the referenced ones are emptied with DELETE, which checks
-# the constraint per row and passes now that the columns are null. `meetings`
-# is 1,214 rows, so the difference in speed is nothing.
+# Clearing the values is not enough: Postgres refuses to TRUNCATE any parent
+# of a foreign key, referenced or not. DELETE checks per row and passes.
 parents = {t for t, _ in
            [(r[0], r[1]) for r in con.execute("""
              SELECT ccu.table_name, tc.table_name
@@ -324,25 +233,17 @@ PYEOF
 
 stage () { echo; echo "=== $* ==="; date "+    started %H:%M:%S"; }
 
-# The order below is refresh.sh's, with one difference that only matters from
-# empty: land_agenda runs TWICE. Its single pass does meetings -> items ->
-# spans, and spans need segments, which do not exist yet on the first run. The
-# first pass is what gives roster and segment their meetings to work from; the
-# second is what binds the spans and lands the transcript-derived items.
+# refresh.sh's order, with one difference that only matters from empty:
+# land_agenda runs TWICE, because its spans need segments that do not exist on
+# the first pass. The first pass gives roster and segment their meetings.
 stage "land_agenda (1 of 2: meetings and published items)"
 $PY bin/land_agenda.py --redo
 
 stage roster
-# BOTH BODIES. `roster.py --body` defaults to the Board of County
-# Commissioners, so a bare call builds BCC terms and rosters only - and this
-# script truncates people, board_terms and meeting_roster first. A rebuild
-# would therefore DELETE the 18 Planning Commission board_terms and 1,003
-# Planning meeting_roster rows and not put them back, degrading exactly the
-# guard that took cross-body misattributions from 10,715 to 0.
-#
-# The sandbox already reported this and it was misread: `--compare` showed
-# "roster rows 16 -> 10 DIFFERS" and that was explained away as a
-# five-meeting-fixture artifact. It was this.
+# BOTH BODIES. `roster.py --body` defaults to the BCC, and this script
+# truncates the roster tables first, so a bare call would delete the Planning
+# Commission terms and rosters without putting them back, degrading the guard
+# that took cross-body misattributions to zero.
 $PY bin/roster.py --write
 $PY bin/roster.py --write --body "Planning Commission"
 
@@ -381,25 +282,9 @@ $PY bin/land_agenda.py --redo
 stage parse_minutes
 $PY bin/parse_minutes.py --write
 
-# BEFORE THE INDEX, for the reason refresh.sh gives about affinity: the index
-# bakes the resolved speaker name into every passage it embeds. It reads that
-# name from `utterance_speaker`, and that view is
-#
-#     utterances LEFT JOIN speaker_resolved LEFT JOIN people
-#
-# which this script truncates. Run after index_passages - where this stage
-# first sat - it rebuilt the names into a table nothing would read again, and
-# all 167,061 passages would carry no speaker at all. Nothing downstream
-# fails: search returns, the page renders, and every quotation is anonymous.
-#
-# `speaker_resolved` is NOT the shadow table its schema comment still calls
-# it. The cutover happened - utterance_speaker is built on it, so it is the
-# live naming path for the whole archive, and both tables here are load
-# bearing rather than an experiment kept alongside.
-#
-# Deterministic and model-free: --backfill restates speaker_override and
-# speaker_label, which are KEEP, and the rest is derived from speaker_identity
-# and the transcript.
+# BEFORE THE INDEX: the index bakes the resolved speaker name into every
+# passage, reading it from `utterance_speaker`, which joins tables this script
+# truncates. Run after index_passages, every passage carries no speaker.
 stage "speaker_claims (evidence, links and the resolved name)"
 $PY bin/speaker_claims.py --all
 

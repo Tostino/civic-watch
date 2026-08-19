@@ -1,16 +1,8 @@
 #!/bin/bash
-# Start the reading + curation server the way it has to be started: through
-# bin/_env.sh, so the process holds the DSN, the inference key and the limits
-# that bound what /api/ask may spend.
-#
-# This script exists because starting it any other way is a silent failure and
-# not a loud one. `python web/server.py` from a plain shell comes up, serves
-# the archive perfectly, reports `llm_key: false` in the console, and answers
-# every question with an error - which is how the server ran for weeks while
-# the CLI worked (gotchas 87, 88).
-#
-# No `set -e`: bin/_env.sh ends in a conditional that is false on the normal
-# path, and exec is the last thing here anyway.
+# Start the server through bin/_env.sh, which is the only path that puts the
+# DSN, the inference key and the ask limits into the process. Started any other
+# way it comes up, serves the archive perfectly, reports `llm_key: false`, and
+# refuses every question. No `set -e`: _env.sh ends in a false conditional.
 #
 #   bin/serve.sh                 # the archive on :8765
 #   bin/serve.sh --port 8799     # a second one, for a check

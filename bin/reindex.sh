@@ -1,9 +1,7 @@
 #!/bin/bash
-# Rebuild passages against the current item_spans, then prove it.
-# Written as its own file rather than edited into a running one: bash reads a
-# script incrementally by byte offset, so editing a script that is already
-# executing silently skips or repeats whatever the edit shifted. That is how
-# the land_agenda --redo step got dropped from finish_chain.sh mid-run.
+# Rebuild passages against the current item_spans, then prove it. Its own file
+# rather than an edit to a running one: bash reads a script by byte offset, so
+# editing one mid-run skips or repeats whatever the edit shifted.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source bin/_env.sh
@@ -15,10 +13,8 @@ echo; echo "=== audit ==="; date "+    started %H:%M:%S"
 $PY bin/audit.py || true
 
 echo; echo "=== eval_agent ==="; date "+    started %H:%M:%S"
-# --agent as well: a rebuild reassigns every passage id, and the point
-# of the answer checks is that they survive it. Tolerated here - the
-# index is already written by this point and worth knowing about, not
-# worth unwinding.
+# --agent: a rebuild reassigns every passage id and the answer checks exist to
+# prove citations survive it. Tolerated, since the index is already written.
 $PY bin/eval_agent.py --agent || true
 
 echo; echo "=== REINDEX DONE ==="; date
