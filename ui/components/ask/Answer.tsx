@@ -61,10 +61,21 @@ export function Answer({ r }: { r: AskResult }) {
         <section className={s.block} aria-labelledby="ev-record">
           <header className={s.blockHead}>
             <h2 id="ev-record" className={s.blockTitle}>
-              What the county published
+              What the county recorded
             </h2>
-            <ProvenanceMark kind="minutes" compact />
+            {/* `agenda`, not `minutes`, and the same mark /search puts on the
+                same block. A row here is an agenda title WITH the minutes
+                outcome under it, which is what the agenda mark means; marking
+                it `minutes` claimed the title was minuted too. */}
+            <ProvenanceMark kind="agenda" compact />
           </header>
+          {/* The sentence /search runs under this head, verbatim. Both blocks
+              on both pages now say what they are: this one had no line at
+              all while the transcript block beside it carried its caveat. */}
+          <p className={s.blockWhy}>
+            Published agendas and the outcomes the approved minutes recorded, whether
+            or not a camera was running.
+          </p>
           {/* In the order the answer refers to them: a numbered list that does
               not ascend is a list somebody has to search. */}
           <ul className={s.list}>

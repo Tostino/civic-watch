@@ -167,9 +167,14 @@
   color: var(--ink);
 }
 
+/* `.about` in Hits.module.css, to the value: the line under a block head
+ * saying what the block is. It was the same size and colour already and set
+ * neither of the two things that make a sentence readable. */
 .blockWhy {
   font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
   color: var(--ink-3);
+  max-width: 68ch;
 }
 
 .list {
@@ -196,11 +201,14 @@
   padding-inline: var(--sp-2);
 }
 
+/* The meta line over a record row, on `.where`'s baseline rather than its own
+ * centre line: a row of small caps, a mono code and an outcome badge sit on
+ * their baselines everywhere else on the site. */
 .recTop {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.15rem 0.5rem;
   font-size: var(--text-2xs);
 }
 
@@ -347,12 +355,15 @@
   color: var(--ink-4);
 }
 
+/* Speech, in the record serif at reading measure. Identical to `.said` in
+ * Hits.module.css: the same passage is quoted on both pages and it was
+ * measured to 76ch here and 78ch there for no reason either file gives. */
 .said {
   font-family: var(--font-record);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
   color: var(--ink);
-  max-width: 76ch;
+  max-width: 78ch;
   text-wrap: pretty;
 }
 
