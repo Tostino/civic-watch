@@ -201,6 +201,7 @@ function Empty() {
         <b>What was said</b> is the transcript, and only the meetings that were
         recorded have one.
       </p>
+      <h2 className={s.triesHead}>Examples</h2>
       <ul className={s.tries}>
         {tries.map(([q, why]) => (
           <li key={q}>

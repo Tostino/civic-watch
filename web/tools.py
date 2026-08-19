@@ -456,6 +456,68 @@ def _outline(row, words=12):
     return out
 
 
+DOC_WINDOW = 20_000
+
+
+def _squeeze(text):
+    """Drop the column alignment the PDF extractor turned into runs of spaces."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = "\n".join(line.rstrip() for line in text.split("\n"))
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def get_document(con, file_id, offset=0, limit=DOC_WINDOW):
+    """The county's own agenda or minutes, as text.
+
+    WINDOWED, because these are not small: the 90th percentile is 44,556
+    characters for an agenda and 57,522 for a set of minutes, and the largest
+    is 115,681. Returned whole, one document could take half an evidence
+    budget, which is the same way `get_item` used to bite.
+
+    There is nothing structural to offset against. CivicClerk's `plainText=true`
+    returns flat text: the printed page footers survive it, so a caller can
+    read "Page 41 of 41" and search for one, but nothing marks a page boundary
+    to the tool. A window is a character range.
+
+    LAYOUT PADDING IS COLLAPSED FIRST, and it is 29% of these documents:
+    measured over the 40 largest, 3,233,311 characters of extraction hold
+    2,307,435 of text. The county's PDF is laid out in columns and the
+    extractor keeps the alignment as runs of spaces, so a window spent raw is
+    nearly a third padding. No word is changed, and `offset` counts the text a
+    caller actually receives - `chars` stays the raw figure the archive stores,
+    so the two do not agree and `text_chars` is the one to page against.
+    """
+    r = con.execute("""
+        SELECT f.file_id, f.kind, f.name, f.published_at, f.chars,
+               f.body_text, pe.meeting_id
+        FROM portal_files f
+        JOIN portal_events pe ON pe.id = f.event_id
+        WHERE f.file_id = %s""", (file_id,)).fetchone()
+    if r is None:
+        raise ToolError(
+            f"no document with file_id {file_id}. The id comes from the "
+            f"`files` list on get_item or get_meeting, and is not an item's "
+            f"`file_number`.")
+    out = {k: r[k] for k in ("file_id", "kind", "name", "published_at",
+                             "meeting_id", "chars")}
+    body = r["body_text"]
+    if not body:
+        # Only Agenda and Minutes are ever listed, so this is a fetch that has
+        # not happened rather than a kind that is skipped.
+        out.update(text=None, held=False, truncated=False, offset=0,
+                   returned=0)
+        return out
+    body = _squeeze(body)
+    offset = max(0, int(offset or 0))
+    limit = max(1, min(int(limit or DOC_WINDOW), 100_000))
+    window = body[offset:offset + limit]
+    out.update(text=window, held=True, offset=offset, returned=len(window),
+               text_chars=len(body),
+               truncated=offset + len(window) < len(body))
+    return out
+
+
 SPECS = [
     {
         "name": "search_transcript",
@@ -663,6 +725,46 @@ SPECS = [
             "type": "object", "required": ["case_id"],
             "properties": {"case_id": {"type": "string",
                                        "description": "e.g. 'PDE-25-7738'."}},
+        },
+    },
+    {
+        "name": "get_document",
+        "description":
+            "The county's own agenda or minutes for a meeting, as text - the "
+            "document the record was parsed FROM, rather than this archive's "
+            "reading of it. Use it when an item's title and outcome are not "
+            "enough and you need the county's own wording.\n"
+            "Only agendas and minutes are held. The agenda PACKET, which is "
+            "where a contract, a staff memo or an exhibit would be, is not "
+            "collected and cannot be fetched here.",
+        "run": get_document,
+        "parameters": {
+            "type": "object", "required": ["file_id"],
+            "properties": {
+                "file_id": {"type": "integer",
+                            "description": "From the `files` list on get_item "
+                                           "or get_meeting. NOT an item's "
+                                           "`file_number` - that is the "
+                                           "county's case identifier, like "
+                                           "'PDD24-0129', and means something "
+                                           "else entirely."},
+                "offset": {"type": "integer", "default": 0,
+                           "description": "Character to start at, counted "
+                                          "against `text_chars` - what you "
+                                          "receive - and not against `chars`, "
+                                          "which is the raw extraction before "
+                                          "its column padding is collapsed. A "
+                                          "long document comes back in windows "
+                                          "and says `truncated` when there is "
+                                          "more. There is no page to ask for: "
+                                          "the extraction is flat text, though "
+                                          "the printed page footers survive it "
+                                          "and can be searched."},
+                "limit": {"type": "integer", "default": 20000,
+                          "description": "Characters to return. Leave it "
+                                         "alone unless you have read the "
+                                         "window and need the rest."},
+            },
         },
     },
     {

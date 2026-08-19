@@ -89,12 +89,21 @@
   text-wrap: pretty;
 }
 
+/* The examples read as a list of links unless something says what they are. */
+.triesHead {
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-block-start: var(--sp-2);
+}
+
 .tries {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  margin-block-start: var(--sp-2);
 }
 
 .tries li {

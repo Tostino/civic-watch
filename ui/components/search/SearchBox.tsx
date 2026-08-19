@@ -79,8 +79,8 @@ export function SearchBox({
       </div>
       {compact ? null : (
         <p id={`${id}-hint`} className={s.hint}>
-          Subject words search the published agenda items and the recordings. An item
-          code or case number is matched as an identifier.
+          Subject words match agenda item titles and what was said in the
+          recordings. Item codes and case numbers match exactly.
         </p>
       )}
       {Object.entries(hidden).map(([k, v]) =>
