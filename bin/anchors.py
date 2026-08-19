@@ -1,33 +1,4 @@
-"""Anchor-based speaker assignment.
-
-Blind clustering fails on this corpus: per-recording centroids are dominated by
-mic/seat/room, so the same person lands further apart across meetings than two
-different people within one meeting. Measured, it fragments each commissioner
-across ~15 clusters and no threshold fixes it (purity collapses before
-fragmentation resolves).
-
-This inverts the dependency. Text supervises voice:
-
-  ANCHORS   voices whose identity is already known - from the per-meeting
-            handoff assignment ("Commissioner Starkey?" then she speaks) and
-            from human labels, which are authoritative.
-  REFERENCE the set of anchor voiceprints for one person. Similarity is the
-            MAX over that set, not the distance to their mean: a person's
-            voice across 60 recordings is a cloud, not a point, and averaging
-            it blurs exactly the variation that matters.
-  ASSIGN    every remaining voice goes to its best-matching person above a
-            similarity floor, with per-meeting matching so one person cannot
-            occupy two voices in the same meeting.
-
-Anchors then grow with each round (EM-style), so a person recognised in one
-meeting becomes findable in meetings where nobody said their name.
-
-Growth is the point and it is also the danger, so the two thresholds do
-different jobs: SIM_FLOOR decides what may be REPORTED as a match, and the
-higher TRUST_FLOOR decides what may become EVIDENCE for the next round. Letting
-one number do both is what turned this loop into a drift machine - see the
-constants below for what it cost.
-"""
+"""Anchor-based speaker assignment."""
 import collections
 
 import numpy as np
@@ -48,14 +19,6 @@ ROUNDS = 3
 # A derived assignment may only become a REFERENCE for the next round if it
 # scores in the same-person regime. This is the difference between growing
 # anchors and drifting.
-#
-# Without it the loop eats itself: round 1 admits a handful of borderline
-# voices, they enter the reference matrix, and in round 2 a stranger who
-# resembles those strangers clears the floor against them. It compounds - the
-# rounds GREW, 3507 -> 4117 -> 5035 - and "Barbara Wilhite" finished with 664
-# voices across 316 clusters, of which only 48 (7%) actually resemble her 43
-# confirmed voiceprints. The median assigned voice scored 0.382 against her:
-# squarely a different person.
 TRUST_FLOOR = 0.85
 
 

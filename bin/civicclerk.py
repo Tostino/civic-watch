@@ -1,32 +1,11 @@
 """Ingest Pasco County's published agendas and minutes from CivicClerk.
 
-Everything else in this pipeline reconstructs meeting structure from audio:
-what item was taken up, who moved it, how it went. The county already
-publishes that, authoritatively, and this is the source that should anchor the
-rest. The transcript then becomes what it is actually good for - what was
-*said* - bound to a spine that is simply known.
-
-The portal is an OData v4 service with no authentication:
-
-    /v1/Events?$filter=...              events, with publishedFiles[] inline
-    /v1/Meetings/GetMeetingFileStream(fileId=N,plainText=true)
-
-Two things about it worth knowing before touching this code:
-
   PAGE SIZE IS FIXED AT 15. `$top` is accepted and ignored. Enumeration must
   follow @odata.nextLink; asking for 250 and believing the answer gets you 15
   events and a wrong conclusion about how much exists.
 
   THE SINGLE-ENTITY FORM 404s. `Events(1798)` does not resolve, and it is the
-  form that omits publishedFiles anyway. Use the collection with a filter.
-
-`plainText=true` returns text the server extracted from the PDF, so nothing
-here parses PDFs.
-
-Raw payloads are stored untouched in portal_events.raw. The portal is someone
-else's system and will change shape; keeping the original means a parsing bug
-is re-runnable from the database instead of re-scraped from a county server.
-"""
+  form that omits publishedFiles anyway. Use the collection with a filter."""
 import argparse
 import concurrent.futures as cf
 import json

@@ -7,21 +7,12 @@ utterances from before she took office, the retrieval query that omitted
 `segment_id` so an entire expansion step silently did nothing. Each of those
 was invisible in the summary statistics and obvious against an invariant.
 
-So the invariants are written down here instead, and checked in bulk. A check
-states something that must be true, counts the rows where it is not, and shows
-a few. Nothing is repaired: the point is to know, and a repair that runs before
-anyone has looked at the failure is how a data bug becomes permanent.
-
 Every check also reports HOW MANY ROWS IT EXAMINED, and that is not decoration.
 This audit once printed "18/18 ok" when two of its checks were ranging over an
 empty set: both filter on `passages.agenda_item_id IS NOT NULL`, and at that
 moment not one passage had been bound to an agenda item, so both passed by
 examining nothing. A green board meant only that the rebuild had not run yet.
-A check with no rows under it proves nothing and now says so.
-
-    bin/audit.py            run everything
-    bin/audit.py --only x   run checks whose name contains x
-"""
+A check with no rows under it proves nothing and now says so."""
 import argparse
 import os
 import sys
@@ -32,29 +23,15 @@ import speaker_claims
 
 CHECKS = []
 
-
 def check(name, why, review=False):
-    """Register an invariant.
-
-    The function returns (n_bad, sql_for_examples, sql_for_population). The
-    third is the denominator: the set the invariant ranges over. Without it a
-    check cannot distinguish "nothing is broken" from "nothing is there".
-
-    review=True marks a check that surfaces WORK rather than a defect - cases
-    needing human judgement, where a non-zero count is expected and not a bug.
-    These are counted and shown separately, because a check that can never
-    reach zero would leave the board permanently red and teach everyone to
-    ignore it, which costs more than the check is worth.
-    """
+    """Register an invariant."""
     def deco(fn):
         CHECKS.append((name, why, fn, review))
         return fn
     return deco
 
-
 def count(con, sql, args=()):
     return con.execute(sql, args).fetchone()[0]
-
 
 # ---------------------------------------------------------------- structure
 @check("passages.item_fk", "every passage points at an agenda item that exists")
@@ -66,7 +43,6 @@ def _(con):
         WHERE p.agenda_item_id IS NOT NULL AND NOT EXISTS
           (SELECT 1 FROM agenda_items ai WHERE ai.id = p.agenda_item_id) LIMIT 5""", \
         "SELECT COUNT(*) FROM passages WHERE agenda_item_id IS NOT NULL"
-
 
 @check("spans.same_meeting",
        "a span's video and its agenda item belong to the SAME meeting")
@@ -80,7 +56,6 @@ def _(con):
                ai.meeting_id AS item_meeting, ai.code {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM item_spans"
 
-
 @check("spans.no_overlap", "two item spans never cover the same utterance")
 def _(con):
     q = """FROM item_spans a JOIN item_spans b
@@ -90,14 +65,12 @@ def _(con):
         SELECT a.video_id, a.start_idx, a.end_idx, b.start_idx, b.end_idx {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM item_spans"
 
-
 @check("spans.ordered", "start_idx <= end_idx on every span")
 def _(con):
     return count(con, "SELECT COUNT(*) FROM item_spans WHERE start_idx > end_idx"), """
         SELECT id, video_id, start_idx, end_idx FROM item_spans
         WHERE start_idx > end_idx LIMIT 5""", \
         "SELECT COUNT(*) FROM item_spans"
-
 
 @check("spans.tile",
        "spans cover a video with no gap between one item and the next")
@@ -116,7 +89,6 @@ def _(con):
         SELECT video_id, end_idx, nxt, nxt - end_idx - 1 AS gap {q} LIMIT 6""", \
         "SELECT COUNT(*) FROM item_spans"
 
-
 @check("items.no_duplicate_transcript",
        "one transcript-only item per span, not one per land_agenda run")
 def _(con):
@@ -129,7 +101,6 @@ def _(con):
            JOIN agenda_items ai ON ai.id=sp.agenda_item_id
            WHERE ai.source='transcript'"""
 
-
 @check("items.source_shape",
        "published items carry a code; transcript items never do")
 def _(con):
@@ -139,7 +110,6 @@ def _(con):
         SELECT id, meeting_id, source, code, left(title,44) {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM agenda_items"
 
-
 @check("utterances.contiguous", "utterance idx runs 0..n-1 with no holes")
 def _(con):
     q = """FROM (SELECT video_id, COUNT(*) n, MIN(idx) lo, MAX(idx) hi
@@ -148,22 +118,17 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), f"SELECT * {q} LIMIT 5", \
         "SELECT COUNT(DISTINCT video_id) FROM utterances"
 
-
 @check("queue.no_stranded_claims",
        "no video is held by a worker that is no longer running")
 def _(con):
-    # `claim` only considers `claimed_by IS NULL`, so a worker killed mid-item
-    # leaves a row nothing will ever pick up again - not errored, not pending,
-    # just gone from the queue. The longest meeting in the archive is 8.2h and
-    # diarization runs ~14x realtime, so nothing legitimately holds a claim for
-    # six hours. Workers now call db.reclaim() at startup; this catches the
-    # case where the worker never comes back at all.
+        # `claim` only considers `claimed_by IS NULL`, so a worker killed mid-item
+        # leaves a row nothing will pick up again. Nothing legitimately holds a claim
+        # for six hours: the longest meeting is 8.2h and diarization runs ~14x.
     q = ("FROM videos WHERE claimed_by IS NOT NULL "
          "AND updated_at < now() - interval '6 hours'")
     return count(con, f"SELECT COUNT(*) {q}"), f"""
         SELECT id, claimed_by, updated_at, downloaded, diarized, transcribed
         {q} LIMIT 6""", "SELECT COUNT(*) FROM videos"
-
 
 # ---------------------------------------------------------------- semantics
 # The one phase vocabulary the app filters on. Published agendas name their
@@ -173,7 +138,6 @@ PHASES = ("call_to_order", "proclamation", "public_comment", "consent",
           "regular", "public_hearing", "staff_report", "board_reports",
           "recess", "adjourn", "other")
 
-
 @check("phase.one_vocabulary",
        "agenda_items.phase only ever holds a canonical phase")
 def _(con):
@@ -182,7 +146,6 @@ def _(con):
         SELECT phase, source, COUNT(*) n {q.replace('%s', "'{" + ",".join(PHASES) + "}'")}
         GROUP BY phase, source ORDER BY n DESC LIMIT 8""", \
         "SELECT COUNT(*) FROM agenda_items WHERE phase IS NOT NULL"
-
 
 @check("passages.phase_agrees",
        "a passage's phase is the one its agenda item carries")
@@ -194,7 +157,6 @@ def _(con):
         GROUP BY 1,2 ORDER BY n DESC LIMIT 6""", \
         """SELECT COUNT(*) FROM passages p
            JOIN agenda_items ai ON ai.id = p.agenda_item_id"""
-
 
 # Was `outcome.matches_disposition` until the column was renamed.
 @check("outcome.matches_text",
@@ -209,7 +171,6 @@ def _(con):
         """SELECT COUNT(*) FROM agenda_items
            WHERE outcome IS NOT NULL AND outcome_text IS NOT NULL"""
 
-
 # Was `minutes.no_subsidiary_disposition`; same rename.
 @check("minutes.no_subsidiary_outcome",
        "an item's recorded outcome is not a motion about something else")
@@ -219,20 +180,12 @@ def _(con):
     record, or decide to hear the item at all - and the parser used to keep
     whichever came FIRST, so 106 items (88 of them public hearings) read
     "Approved" where what was approved was somebody's paperwork. Two were
-    outright denials shown as approvals.
-
-    The pattern is `parse_minutes.SUBSIDIARY_SQL`, imported rather than
-    restated so this check and the parser cannot drift into blessing exactly
-    what the parser broke.
-    """
+    outright denials shown as approvals."""
     import parse_minutes
     rx = parse_minutes.SUBSIDIARY_SQL
-    # Scoped to the items parse_minutes actually governs - those whose meeting
-    # has a minutes document we can still read. 964 items on 10 meetings hold an
-    # outcome derived from minutes that have since been re-linked to a same-day
-    # sibling meeting; the parser cannot reach them to correct or clear them,
-    # and `minutes.orphaned_outcomes` below is where that is reported. Mixing
-    # the two would leave this permanently red for a reason it does not test.
+        # Scoped to the items parse_minutes actually governs. 964 items hold an outcome
+        # from minutes since re-linked to a same-day sibling meeting, which the parser
+        # cannot reach; `minutes.orphaned_outcomes` reports those instead.
     readable = """EXISTS (SELECT 1 FROM portal_events pe
                           JOIN portal_files pf ON pf.event_id = pe.id
                          WHERE pe.meeting_id = agenda_items.meeting_id
@@ -247,24 +200,11 @@ def _(con):
         f"SELECT code, outcome, outcome_source, left(outcome_text,80) {lit} LIMIT 6", \
         f"SELECT COUNT(*) FROM agenda_items WHERE outcome_text IS NOT NULL AND {readable}"
 
-
 @check("minutes.orphaned_outcomes",
        "an outcome whose minutes are no longer attached to its meeting",
        review=True)
 def _(con):
-    """These items hold an outcome that `parse_minutes` can no longer see.
-
-    Their meeting has no readable minutes document, because the portal event
-    carrying it is now linked to a DIFFERENT meeting record for the same day -
-    every one of the 10 meetings involved has exactly one same-day sibling and
-    two or three recordings. So the day was split into two meeting rows and the
-    agenda items went to one while the minutes went to the other.
-
-    Review rather than failure, and deliberately not repaired: the stored
-    outcomes came from real minutes and are mostly right, so deleting them
-    would lose the record to tidy up a bookkeeping error. Fixing the LINKAGE
-    is the actual repair, and it belongs in land_agenda, not here.
-    """
+    """These items hold an outcome that `parse_minutes` can no longer see."""
     q = """FROM agenda_items ai
            WHERE ai.outcome IS NOT NULL AND NOT EXISTS (
              SELECT 1 FROM portal_events pe JOIN portal_files pf ON pf.event_id = pe.id
@@ -276,25 +216,11 @@ def _(con):
         GROUP BY 1, 2 ORDER BY items DESC LIMIT 5""", \
         "SELECT COUNT(*) FROM agenda_items WHERE outcome IS NOT NULL"
 
-
 @check("minutes.one_sentence_one_item",
        "two items in different sections never share one minutes sentence")
 def _(con):
     """`code` is not unique within a meeting, and the writer treated it as if
-    it were.
-
-    39 (meeting_id, code) pairs carry more than one row and 25 sit in DIFFERENT
-    sections - meeting 27's C1 is a Consent resolution AND a Public Hearings
-    rezoning. `parse_minutes` resolved to a code and then updated
-    `WHERE meeting_id=%s AND code=%s`, so one sentence landed on both: 58 rows
-    across 28 pairs held an outcome parsed for a genuinely different item,
-    and which sentence it was depended on the query plan (task #33).
-
-    Restricted to rows in DIFFERENT sections deliberately. Two items in the
-    SAME section really can share one sentence - "Approved the Consent Agenda"
-    disposes of all of them at once - and 4 rows do, correctly. Across a
-    section boundary there is no sentence that legitimately covers both.
-    """
+    it were."""
     q = """FROM agenda_items a
            JOIN agenda_items b ON b.meeting_id = a.meeting_id
                               AND b.code = a.code AND b.id <> a.id
@@ -308,7 +234,6 @@ def _(con):
              AND EXISTS (SELECT 1 FROM agenda_items b
                           WHERE b.meeting_id = a.meeting_id AND b.code = a.code
                             AND b.id <> a.id)"""
-
 
 @check("roster.terms_respected",
        "no voice is attributed to a commissioner outside their board term")
@@ -332,27 +257,11 @@ def _(con):
            JOIN people p ON p.kind = 'board' AND lower(p.surname) = lower(si.name)
            WHERE v.upload_date IS NOT NULL"""
 
-
 @check("speaker.rollcall_merged",
        "the clerk's roll call and the member's answer are one utterance",
        review=True)
 def _(con):
-    """Why the clerk wears a commissioner's name, measured.
-
-    "District three, Commissioner Starkey. Aye." is TWO people in one
-    utterance: the clerk calling the roll and the member answering it. No
-    per-utterance attribution can be right about that row, and the name
-    signal - a surname adjacent to a voice - lands on whichever of the two the
-    diarizer gave the segment to. Archive-wide, 170 voices that read the roll
-    carry a board member's name, 134 of them Starkey.
-
-    It is deliberately NOT repaired by a naming rule. "A voice that reads the
-    roll is not a commissioner" would be right for the clerk and wrong for the
-    134 meetings where the merged label is mostly the member, and it would
-    strip a correct name on evidence that is itself contaminated. The fix is
-    upstream, in how these utterances are cut;.8's utterance-range
-    correction is what expresses it meanwhile.
-    """
+    """Why the clerk wears a commissioner's name, measured."""
     q = r"""FROM utterances u
             WHERE u.text ~* 'district \w+,? commissioner \w+\.?[[:space:]]+(aye|nay|here)'"""
     return count(con, f"SELECT COUNT(*) {q}"), f"""
@@ -360,26 +269,11 @@ def _(con):
         ORDER BY length(u.text) DESC LIMIT 6""", \
         """SELECT COUNT(*) FROM utterances WHERE text ~* 'call the roll|district'"""
 
-
 @check("speaker.queue_unreadable",
        "a clerk's queue announcement the parser can find no lead name in",
        review=True)
 def _(con):
-    """The residual, after the off-by-one fix.
-
-    `speaker_id.ANNOUNCE` used to match only "followed by X", which is the
-    speaker AFTER next: on 1OmEmpL-7qY Elaine Lance's turn was labelled Anthony
-    Sikhenes, Anthony's was labelled Nancy Hazelwood, and Nancy - the only one
-    the announcement could have named correctly - spoke unattributed.
-    `speaker_id.queue_names()` now reads the announcement as the queue it is
-    and takes the head of it.
-
-    What this counts is what is LEFT: an announcement with no name in front of
-    the first "followed by" for the parser to take. Usually the clerk gave a
-    count rather than a name ("I have four individuals signed up"), so the
-    person about to speak is genuinely unnamed and only self-identification can
-    reach them.
-    """
+    """The residual, after the off-by-one fix."""
     # `~*` throughout: Postgres ARE has no inline (?i:...) group, so the
     # case-insensitive flag has to come from the operator.
     # Unreadable means no name the parser can take EITHER side of the split:
@@ -394,7 +288,6 @@ def _(con):
         ORDER BY u.video_id, u.idx LIMIT 8""", \
         """SELECT COUNT(*) FROM utterances WHERE text ~* '\\yfollowed by\\y'"""
 
-
 @check("speaker.rail_is_people",
        "every name the public speaker rail offers is a person, or is known to "
        "not be one",
@@ -402,24 +295,11 @@ def _(con):
 def _(con):
     """What the site PUBLISHES as a list of people.
 
-    `/search`'s rail is the one place the archive states, in its own voice,
-    "these are the people you may filter by". Four values on it were places -
-    `Connected City` is a development off SR-52, `Sun Coast` is the parkway -
-    and one, `What`, was 601 lines of an ASR fragment. All five arrived by the
-    same `voice`/`cluster` route as the real names beside them, which is why
-    no structural test separates them and `archive.NOT_A_PERSON` has to be a
-    written list.
-
     A written list goes stale silently, so this is the thing that notices. It
     counts rail values that are neither on the board nor in `people` and are
     not already named in that list. A non-zero count is WORK, not a defect:
     most of what it catches will be a real member of the public the roster has
-    never heard of, and the judgement of which is which is a person's.
-
-    The lines themselves are untouched - suppressing a name here does not
-    detach it from the ~7,000 utterances still carrying it. That is
-    Organisations are a known gap, and the work is unstarted.
-    """
+    never heard of, and the judgement of which is which is a person's."""
     # Inlined rather than passed as a parameter: the runner calls
     # `con.execute(sample)` with no arguments, so the example query and the
     # count query have to be self-contained to be the same query.
@@ -437,7 +317,6 @@ def _(con):
             WHERE name IS NOT NULL GROUP BY name
             HAVING COUNT(*) >= 500 LIMIT 40) x"""
 
-
 def _rail_exempt():
     """`archive.NOT_A_PERSON` as a SQL array literal.
 
@@ -453,27 +332,16 @@ def _rail_exempt():
                      for n in sorted(archive.NOT_A_PERSON))
     return f"ARRAY[{names}]::text[]"
 
-
 @check("subjects.terms_are_live",
        "a kept subject phrase that finds nothing in either source",
        review=True)
 def _(con):
-    """A phrase that sounded right and matches nothing.
-
-    Harmless to the counts and not harmless to the reader: it is a claim, in
-    the table, that the county uses this wording, and it is false. Usually the
-    model proposing a programme name this county does not run, or an acronym
-    it spells differently. Review rather than defect - the honest fix is to
-    drop the term, and that is a person's call.
-    """
-    # PROPOSED, not kept. `--triage` never keeps a phrase that found nothing,
-    # so scoping this to kept made it an invariant that could not fire - it
-    # would have read "ok" forever while 143 dead phrases sat in the queue
-    # behind it. What it should count is the queue itself, which is also the
-    # only measure anyone has of how much of the proposal was invented: 143 of
-    # 488 phrases name wording this county does not use, and among them is
-    # "trim costs", where the model read Florida's TRIM notice - Truth In
-    # Millage - as the English word.
+    """A phrase that sounded right and matches nothing."""
+        # PROPOSED, not kept. `--triage` never keeps a phrase that found nothing, so
+        # scoping this to kept made it an invariant that could not fire. The queue is
+        # also the only measure of how much of the proposal was invented: 143 of 488
+        # phrases name wording this county does not use, including "trim costs", where
+        # the model read Florida's TRIM notice as the English word.
     q = """FROM subject_term t JOIN subject s ON s.slug = t.slug
            WHERE t.status = 'proposed' AND s.status = 'kept'
              AND coalesce(t.n_items, 0) = 0
@@ -482,21 +350,11 @@ def _(con):
         f"SELECT t.slug, t.phrase {q} ORDER BY t.slug LIMIT 12", \
         "SELECT COUNT(*) FROM subject_term"
 
-
 @check("subjects.terms_are_specific",
        "a kept subject phrase broad enough to name most of the archive",
        review=True)
 def _(con):
-    """The `SHIP` failure, as an invariant.
-
-    `SHIP` as a substring matched 942 published titles because most of them
-    contain "township". Word boundaries fixed that one, and the general shape
-    survives them: a phrase can be perfectly bounded and still be so common
-    that it says nothing about a subject. A positive term naming more than a
-    twentieth of the published record is that, and it wants a person's eye.
-
-    Negative terms are exempt: a broad exclusion is doing its job.
-    """
+    """The `SHIP` failure, as an invariant."""
     total = count(con, "SELECT COUNT(*) FROM agenda_items WHERE source = 'agenda'")
     cap = max(50, total // 20)
     q = f"""FROM subject_term t JOIN subject s ON s.slug = t.slug
@@ -507,26 +365,10 @@ def _(con):
             ORDER BY t.n_items DESC LIMIT 12""", \
         "SELECT COUNT(*) FROM subject_term WHERE status = 'kept' AND NOT negative"
 
-
 @check("subjects.rollup_is_current",
        "the strip the front page reads was built from the vocabulary it has now")
 def _(con):
-    """A stale `subject_year` is worse than a slow one.
-
-    The front page reads a precomputed table because the live join costs 163
-    seconds once sub-subjects exist. That trade is only safe while the table
-    agrees with the terms that produced it, and nothing about a stale rollup
-    LOOKS wrong: the strip renders perfectly, in yesterday's vocabulary.
-
-    Every pass that can move a row calls the rebuild, so this fires when
-    somebody edits `subject_term` by hand - which is exactly the moment it is
-    hard to remember, and exactly when the numbers on a public page would
-    quietly stop matching the words underneath them.
-
-    Both directions: a kept subject with no rolled-up row is a row missing
-    from the page, and a rolled-up row for a subject that is no longer kept is
-    a row that should have gone.
-    """
+    """A stale `subject_year` is worse than a slow one."""
     q = """FROM (
              SELECT s.slug FROM subject s
               WHERE s.status = 'kept'
@@ -543,18 +385,10 @@ def _(con):
         f"SELECT x.slug {q} ORDER BY 1 LIMIT 12", \
         "SELECT COUNT(DISTINCT slug) FROM subject_year"
 
-
 @check("subjects.children_fit_their_parent",
        "no sub-subject counts more items than the subject it narrows")
 def _(con):
-    """An indented row that is bigger than the row above it is a lie.
-
-    A child's vocabulary is not a subset of its parent's, it is a different
-    list, so left unconstrained a sub-subject reaches items the subject it
-    narrows never matched. `_issue_specs` pushes the parent's own pattern down
-    as `record_in` to stop that; this is what proves it stayed true, since the
-    failure is invisible on the page - the row just looks like a big one.
-    """
+    """An indented row that is bigger than the row above it is a lie."""
     q = """FROM subject c
            JOIN subject p ON p.slug = c.parent
            JOIN (SELECT slug, SUM(items) AS n FROM subject_year GROUP BY slug) cy
@@ -566,7 +400,6 @@ def _(con):
         f"SELECT c.slug, cy.n AS child, p.slug AS parent, py.n {q} LIMIT 12", \
         "SELECT COUNT(*) FROM subject WHERE parent IS NOT NULL AND status = 'kept'"
 
-
 @check("subjects.have_a_vocabulary",
        "every kept subject has kept phrases, or descendants that do")
 def _(con):
@@ -575,14 +408,7 @@ def _(con):
     Not a review item: `patterns()` silently drops such a subject, so the
     front page loses a row and nothing says why. That is a curation defect,
     and `--keep`-ing a subject whose phrases were all dropped produces it
-    easily.
-
-    A THEME legitimately has none of its own. Nobody files an item about
-    "public safety" - a theme's pattern is the union of what it contains, and
-    requiring phrases of it was this check failing all eight of them the
-    moment they existed. So the rule is phrases OR descendants with phrases,
-    walked to any depth, which is exactly what `patterns()` enforces.
-    """
+    easily."""
     q = """FROM subject s
            WHERE s.status = 'kept'
              AND NOT EXISTS (
@@ -598,7 +424,6 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), \
         f"SELECT s.slug, s.label {q} ORDER BY s.slug LIMIT 12", \
         "SELECT COUNT(*) FROM subject WHERE status = 'kept'"
-
 
 @check("people.surname_unambiguous",
        "no surname is claimed by two different boards")
@@ -618,38 +443,28 @@ def _(con):
         WHERE bt.person_id IN (SELECT person_id {q})
         GROUP BY 1,2 LIMIT 5""", "SELECT COUNT(*) FROM people"
 
-
 @check("people.full_name_is_a_name",
        "no stored full_name carries an honorific")
 def _(con):
-    # full_name stopped being reference data the day display_name() started
-    # expanding a board surname into it: it is now what a reader sees on every
-    # speaker chip, search hit and citation for that person. The older Planning
-    # Commission agendas write "Mr. Calvin Branche" and roster.py kept the
-    # whole matched string, so 11 of 28 people carried one and 33,122
-    # utterances were a deploy away from being spoken by "Mr. Jaimie Girardi".
-    #
-    # roster.clean_name strips them on the way in now. This is the assertion
-    # that the parser and the stored rows have not drifted apart again - and
-    # the pattern is roster.HONORIFIC_SQL, which is where to change it.
-    # BOARD ONLY. This asserts that roster.clean_name and the stored rows have
-    # not drifted - it is about names parsed from published agendas. `people`
-    # holds members of the public now, whose names come from the transcript and
-    # who really are introduced as "Pastor Danny Fields"; that is what the
-    # record says and not a parser defect.
+        # BOARD ONLY. full_name stopped being reference data the day display_name()
+        # began expanding a board surname into it, so it is now what a reader sees on
+        # every chip and citation. Older agendas write "Mr. Calvin Branche" and
+        # roster.py kept the whole string. This asserts roster.clean_name and the
+        # stored rows have not drifted; the pattern is roster.HONORIFIC_SQL.
+        #
+        # Members of the public are excluded: they really are introduced as
+        # "Pastor Danny Fields", which is what the record says, not a parser defect.
     q = f"""FROM people WHERE kind = 'board'
               AND full_name ~* '{roster.HONORIFIC_SQL}'"""
     return count(con, f"SELECT COUNT(*) {q}"), \
         f"SELECT surname, full_name {q} LIMIT 5", \
         "SELECT COUNT(*) FROM people WHERE full_name IS NOT NULL"
 
-
 @check("cases.dates_sane", "a case's first_seen never follows its last_seen")
 def _(con):
     return count(con, "SELECT COUNT(*) FROM cases WHERE first_seen > last_seen"), """
         SELECT id, first_seen, last_seen FROM cases WHERE first_seen > last_seen LIMIT 5""", \
         "SELECT COUNT(*) FROM cases"
-
 
 @check("meetings.date_agrees",
        "a video's upload_date matches the meeting it is attached to")
@@ -659,7 +474,6 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), f"""
         SELECT v.id, v.upload_date, m.date, m.body {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM videos WHERE meeting_id IS NOT NULL"
-
 
 # ---------------------------------------------------------------- speakers
 @check("speaker.labels_honoured",
@@ -673,23 +487,10 @@ def _(con):
                si.name AS stored {q} LIMIT 6""", \
         "SELECT COUNT(*) FROM speaker_label"
 
-
 @check("speaker.ignore_honoured",
        "a human 'not a person' leaves no derived name behind, anywhere")
 def _(con):
     """The veto that did nothing.
-
-    `speaker_ignore` is a person writing "this voice is not a person". The
-    pipeline held those voices out of clustering and then never retracted what
-    an earlier run had decided about them, because `speaker_id` only ever
-    inserted and updated: the single human veto in this archive - video
-    T-fN-fVcYJM / SPEAKER_10 - was still stored as **Oakley, confidence 0.954**
-    and still displayed on 17 utterances. the precedence rule exactly inverted, and on the
-    surface the admin console is being built against.
-
-    Both layers are checked, because clearing either one alone still leaves a
-    name on the page: `speaker_identity` names the voice directly, and a stale
-    `utterances.cluster` hands it a name through `voice_name`.
 
     A HUMAN name is not a violation. If someone both vetoed a voice and
     labelled it, that is two people's statements disagreeing and not something
@@ -717,25 +518,10 @@ def _(con):
         {q} LIMIT 6""", \
         "SELECT COUNT(*) FROM speaker_ignore"
 
-
 @check("speaker.chair_anchor_intact",
        "no cluster is stored under a name the county's own roster contradicts")
 def _(con):
     """`speaker_id` erased the chair anchor, and nothing noticed.
-
-    `chair_anchor` decides which voice cluster belongs to which commissioner
-    from two published facts - the roster block on the county's agenda names
-    who CHAIRED, and the presiding officer reads a fixed script - and records
-    it as `source='chair'`. `speaker_id` is the only writer of that column and
-    its upsert wrote NULL over every row, so one bare `refresh.sh speakers`
-    reverted the lot: measured, ZERO rows carried source='chair' and three
-    clusters covering 69,596 utterances held a name the anchor contradicts
-    (task #31).
-
-    Recomputed here rather than compared against a stored flag, because the
-    erasure destroyed the flag - a check reading `source` would have gone green
-    on an archive with no anchor left in it at all. The thresholds are imported
-    from chair_anchor so the two cannot drift.
 
     chair_anchor also refuses to rewrite a cluster that holds more than one
     person, and that gate needs the voice embeddings; it is not applied here.
@@ -772,7 +558,6 @@ def _(con):
                                    AND mr.office = 'chair'
             WHERE u.cluster IS NOT NULL"""
 
-
 @check("speaker.cluster_known",
        "every clustered utterance belongs to a cluster speaker_identity knows")
 def _(con):
@@ -783,7 +568,6 @@ def _(con):
         GROUP BY u.video_id, u.cluster LIMIT 5""", \
         "SELECT COUNT(*) FROM utterances WHERE cluster IS NOT NULL"
 
-
 @check("speaker.one_name_per_voice",
        "voice_name resolves each (meeting, voice) to exactly one name")
 def _(con):
@@ -792,20 +576,14 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), f"SELECT * {q} LIMIT 5", \
         "SELECT COUNT(*) FROM voice_name"
 
-
 @check("speaker.voice_coheres",
        "a recurring name is carried by a voice, not by being mentioned a lot")
 def _(con):
-    # A real person's voice consolidates into a few clusters however many
-    # meetings they attend: the commissioners run 0.06-0.13 distinct clusters
-    # per meeting over 100-260 meetings. A name approaching 1.0 has a brand-new
-    # voice every time, which means it was never matched by voice at all - it
-    # was attached by someone SAYING it nearby. Barbara Wilhite sat at 1.07
-    # across 294 meetings, Justin Grant at 0.48, and both had unrelated
-    # people's testimony filed under their name.
-    #
-    # 0.40 sits in the empty gap between the two regimes; every legitimate
-    # recurring speaker measured is below 0.25.
+        # A real person's voice consolidates into a few clusters however many meetings
+        # they attend: commissioners run 0.06-0.13 distinct clusters per meeting. A
+        # name approaching 1.0 has a brand-new voice every time, meaning it was never
+        # matched by voice at all, only attached by someone SAYING it nearby. 0.40 sits
+        # in the empty gap; every legitimate recurring speaker measured is below 0.25.
     q = """FROM (SELECT name, COUNT(DISTINCT video_id) m,
                         COUNT(DISTINCT cluster)::float / COUNT(DISTINCT video_id) r
                  FROM speaker_identity WHERE name IS NOT NULL
@@ -818,21 +596,15 @@ def _(con):
            WHERE name IS NOT NULL GROUP BY name
            HAVING COUNT(DISTINCT video_id) >= 8) t"""
 
-
 @check("speaker.one_voice_per_meeting",
        "review: a board member attached to two voices in one meeting",
        review=True)
 def _(con):
-    # Reported as a REVIEW list, not a defect: diarization genuinely splits one
-    # person across two labels when they move mic or the audio shifts, so some
-    # of these are correct. But it is also how a wrong attribution looks - in
-    # wSkGsd74JPc, utterances 116 and 118 are SPEAKER_04 and 117 is SPEAKER_05,
-    # all three shown as Mariano, and one of them is somebody else. Nothing in
-    # the UI could express "not this stretch", which is why it stayed.
-    # Ordered by how many utterances the split actually touches, not by how
-    # many voices it splits into. A review list is only workable if its head is
-    # the row worth fixing first; this one used to be sorted by voice count,
-    # which put a 3-utterance stutter above a 500-utterance misattribution.
+        # A REVIEW list, not a defect: diarization genuinely splits one person across
+        # two labels when they move mic. It is also how a wrong attribution looks, and
+        # nothing in the UI could express "not this stretch", which is why it stayed.
+        # Ordered by how many utterances the split touches, not by how many voices it
+        # splits into, so the head of the list is the row worth fixing first.
     q = """FROM (SELECT si.video_id, si.name,
                         COUNT(DISTINCT si.local_label) voices,
                         (SELECT COUNT(*) FROM utterance_speaker us
@@ -849,7 +621,6 @@ def _(con):
            FROM speaker_identity si
            JOIN people p ON p.kind = 'board' AND lower(p.surname) = lower(si.name)
            WHERE si.name IS NOT NULL GROUP BY 1, 2) t"""
-
 
 @check("speaker.body_respected",
        "no voice is shown as a member of a board that meeting does not belong to")
@@ -877,7 +648,6 @@ def _(con):
            JOIN voice_name vn ON vn.video_id=u.video_id AND vn.cluster=u.cluster
            JOIN people p ON p.kind = 'board' AND lower(p.surname)=lower(vn.name)"""
 
-
 # ---------------------------------------------------------------- index
 @check("bm25.in_step", "BM25 postings describe the passages that exist now")
 def _(con):
@@ -889,14 +659,12 @@ def _(con):
         SELECT {n} AS passages, {docs} AS bm25_docs, {orphan} AS orphan_postings""", \
         "SELECT COUNT(*) FROM passage_len"
 
-
 @check("embeddings.present", "every passage has a vector")
 def _(con):
     return count(con, "SELECT COUNT(*) FROM passages WHERE embedding IS NULL"), """
         SELECT id, video_id, left(text,50) FROM passages
         WHERE embedding IS NULL LIMIT 5""", \
         "SELECT COUNT(*) FROM passages"
-
 
 # ------------------------------------------------------ corrections
 @check("override.in_range",
@@ -914,19 +682,16 @@ def _(con):
         f"SELECT o.id, o.video_id, o.start_idx, o.end_idx, o.action {q} LIMIT 5", \
         "SELECT COUNT(*) FROM speaker_override"
 
-
 @check("label.surname_form",
        "a human statement names a board member by SURNAME, not full name",
        review=True)
 def _(con):
-    # "Mike Wells" does not join people.surname = 'Wells', so a full-name
-    # label or override bypasses the roster guard AND the split-voice review
-    # check, and search holds two speakers where there is one. Observed on the
-    # console's first day of use: the operator labeled a voice "Mike Wells",
-    # the queue row vanished, and nothing on any surface could show the
-    # mistake again. The console now canonicalises on write
-    # (admin.canonical_name); this catches what predates it, what the CLI
-    # writes, and any path the canonicaliser does not cover.
+        # "Mike Wells" does not join people.surname = 'Wells', so a full-name label
+        # bypasses the roster guard and the split-voice check, and search holds two
+        # speakers where there is one. Observed on the console's first day: the queue
+        # row vanished and no surface could show the mistake again. The console
+        # canonicalises on write now; this catches what predates it and what the CLI
+        # writes.
     q = """FROM (SELECT 'label' AS kind, video_id, local_label AS place, name
                  FROM speaker_label
                  UNION ALL
@@ -937,7 +702,6 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), \
         f"SELECT h.kind, h.video_id, h.place, h.name, p.surname AS store_as {q} LIMIT 5", \
         "SELECT COUNT(*) FROM speaker_label"
-
 
 @check("override.human_outranks_machine",
        "a human correction is what the reader sees, at every granularity")
@@ -956,7 +720,6 @@ def _(con):
                 AND us.idx BETWEEN o.start_idx AND o.end_idx
            WHERE o.status = 'applied'"""
 
-
 @check("override.pending_changes_nothing",
        "an unreviewed proposal never alters what a reader is shown")
 def _(con):
@@ -972,7 +735,6 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), f"SELECT o.id, us.idx {q} LIMIT 5", \
         "SELECT COUNT(*) FROM speaker_override WHERE status = 'pending'"
 
-
 @check("speaker.name_supported",
        "no one is shown speaking at a meeting their body and term do not place them at")
 def _(con):
@@ -987,17 +749,10 @@ def _(con):
         f"SELECT us.video_id, us.idx, us.name, us.basis {q} LIMIT 5", \
         "SELECT COUNT(*) FROM utterance_speaker WHERE name IS NOT NULL"
 
-
 @check("override.roundtrip",
        "a correction actually takes effect, proved by making one and rolling it back")
 def _(con):
     """Exercise the correction path instead of reporting EMPTY about it.
-
-    The three checks above range over a table that is empty until someone makes
-    a correction, so they proved nothing - which is the failure that check is
-    about. This one proves the mechanism itself, the same way segment.preflight
-    proves the INSERT before an hour of LLM calls is spent against it: do the
-    write, assert the reader sees it, roll it back. Nothing is left behind.
 
     Guards the two properties that matter and cannot be checked statically:
     a named correction replaces the derived name, and `detach` - the operation
@@ -1011,12 +766,9 @@ def _(con):
             "SELECT COUNT(*) FROM utterances"
     vid, idx = row[0], row[1]
     bad = []
-    # THE REAL PATH, not a shortcut to the reader. Resolution is materialised
-    # now, so an override written to speaker_override reaches nobody until
-    # something resolves it - which is what web/admin.py and bin/correct.py
-    # both do. Reading utterance_speaker straight after the INSERT tested a
-    # guarantee the archive stopped making. commit=False so the whole probe
-    # still vanishes on rollback.
+        # THE REAL PATH, not a shortcut. Resolution is materialised, so an override
+        # reaches nobody until something resolves it. Reading utterance_speaker straight
+        # after the INSERT tested a guarantee the archive stopped making.
     import speaker_claims
     with con.transaction(force_rollback=True):
         con.execute("""INSERT INTO speaker_override
@@ -1048,7 +800,6 @@ def _(con):
         if bad else "'ok' AS note"), \
         "SELECT 2 AS assertions"
 
-
 @check("speaker.no_disproved_names",
        "nobody is shown as a person their own voice was measured not to be")
 def _(con):
@@ -1063,7 +814,6 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), \
         f"SELECT us.video_id, us.idx, us.name, va.similarity {q} LIMIT 5", \
         "SELECT COUNT(*) FROM utterance_speaker WHERE basis = 'cluster'"
-
 
 @check("speaker.affinity_measured",
        "voices that could inherit a cluster name but have never been scored",
@@ -1089,33 +839,20 @@ def _(con):
                                                 AND vn.cluster = u.cluster
                               WHERE vn.name IS NOT NULL) t"""
 
-
 @check("passages.speaker_agrees",
        "the name baked into a passage is the name the transcript gives")
 def _(con):
-    # passages.speaker is a denormalised copy that feeds search, the speaker
-    # filter and every quote the agent prints. When it drifts from the
-    # transcript the archive contradicts itself, and the agent is the half
-    # nobody is reading closely enough to notice.
-    # EVERY LINE, not merely one of them. This asked whether the baked name
-    # was a name the transcript gives SOMEWHERE inside the passage, and that
-    # is too weak to see the defect it exists for: passage 329-331 of
-    # BTQQU-4nOq8 was Michael Killian's letter plus the first two lines of
-    # Joanne Killian's, filed under Michael Killian, and it passed - because
-    # line 329 really is his. A passage is built from a contiguous run of ONE
-    # speaker, so every named line under it must be that speaker, and any
-    # passage that cannot say so should be `(exchange)` and carry inline
-    # labels.
-    #
-    # The weaker form was written when a voice was a speaker for the length of
-    # a run, which was true until read_aloud began attributing whole letters
-    # to their authors across a single reader's voice.
-    # Joined on the INDEX range, not the time window. A passage is built from a
-    # contiguous run of utterances and stores their idx bounds exactly, while
-    # `start` and `end` are doubles that do not always round-trip: three of the
-    # eight violations this check first reported had their utterance sitting a
-    # float hair outside `u.start >= p.start`, so the check could not tell a
-    # stale name from its own boundary arithmetic. Integers cannot drift.
+        # passages.speaker is a denormalised copy feeding search, the speaker filter and
+        # every quote the agent prints, and when it drifts the archive contradicts
+        # itself where nobody is reading closely enough to notice.
+        #
+        # EVERY LINE, not merely one of them. Asking whether the baked name appears
+        # SOMEWHERE in the passage is too weak: one passage was two speakers' letters
+        # filed under the first, and it passed because the first line really is his.
+        #
+        # Joined on the INDEX range, not the time window. `start` and `end` are doubles
+        # that do not always round-trip, so three of the first eight violations were the
+        # check's own boundary arithmetic. Integers cannot drift.
     q = """FROM passages p
            WHERE p.speaker <> '(exchange)'
              AND EXISTS (
@@ -1128,7 +865,6 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), \
         f"SELECT p.id, p.video_id, p.speaker, p.start {q} LIMIT 5", \
         "SELECT COUNT(*) FROM passages WHERE speaker <> '(exchange)'"
-
 
 @check("schema.matches_definition",
        "the live database has the columns bin/schema.sql defines")
@@ -1206,10 +942,8 @@ def _(con):
             f"SELECT * FROM (VALUES {vals}) AS t(relation, drift)", None
     return 0, None, None
 
-
 def _lit(s):
     return "'" + str(s).replace("'", "''") + "'"
-
 
 @check("speaker.cluster_only_names",
        "how much of the archive is named ONLY by the archive-wide cluster majority",
@@ -1224,22 +958,7 @@ def _(con):
         {q} AND name IS NOT NULL GROUP BY name ORDER BY n DESC LIMIT 8""", \
         "SELECT COUNT(*) FROM utterance_speaker WHERE name IS NOT NULL"
 
-
 # ---------------------------------------------------------------- redaction
-#
-# A redaction is only worth anything if the address is gone from EVERY surface
-# a reader can reach, and there are six of them holding the same words: the
-# transcript, the passage text, the passage's search_text, the BM25 postings,
-# the full-text vector, and the prose of a saved answer. bin/redact.py removes
-# it at the source and re-indexes, so the first five should follow - but
-# "should follow" is exactly the assumption that leaves an address in the
-# search index and nowhere else, and a spot check of a few rows cannot find
-# that. The sixth is the odd one out and gets its own check below: it is the
-# only copy in the archive, because generated prose cannot be recomputed.
-#
-# So the invariant is stated over every applied redaction at once: no span we
-# took out may still be found anywhere. This is the check that makes the
-# feature true rather than intended.
 @check("redaction.gone_from_transcript",
        "no redacted address is still in the transcript it was removed from")
 def _(con):
@@ -1250,28 +969,11 @@ def _(con):
         SELECT r.id, r.video_id, r.idx, left(r.span, 40) AS span {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
-
 @check("redaction.gone_from_index",
        "no redacted address survives in the passages search reads")
 def _(con):
     """COUNTS occurrences rather than looking for one, and the difference is
     the whole check.
-
-    Both columns: `text` is what a result shows a reader and `search_text` is
-    what the ranking reads. They are built from the same utterances and they
-    have drifted apart before.
-
-    The naive form - is the span ANYWHERE in the passage - cannot work, and
-    said so on 84 of 3,440. A passage spans many utterances and a redaction
-    removes ONE of them. 'Green Key' cut from "I live at [address]" is still
-    ordinary speech two utterances later in "we have a lot of issues in Green
-    Key", and the span 'A' occurs in 273 other lines of its own meeting. A
-    privacy check that cries wolf 84 times is a privacy check people learn to
-    scroll past.
-
-    So: the passage may not contain MORE copies of the span than the live
-    utterances it is built from. Equal is the legitimate case. Greater means
-    the passage is carrying text the transcript no longer has.
 
     THAT CATCHES THE ONE THIS CHECK EXISTS FOR, which nothing else can see. An
     address split across an utterance boundary - idx 158 ending "located at
@@ -1291,12 +993,10 @@ def _(con):
                   FROM utterances u
                  WHERE u.video_id = p.video_id
                    AND u.idx BETWEEN p.start_idx AND p.end_idx)"""
-    # Three characters cannot be a residence, and the spans that short are
-    # the section-redactor's misfires - 'A', 'L', 'one', 'two' - which
-    # `span_is_plausible` below reports as the over-redaction they are. Left
-    # in here they fail on the agenda title in search_text, which no
-    # utterance-level denominator can account for, and a privacy check that
-    # is permanently red is one nobody reads.
+        # Three characters cannot be a residence, and spans that short are the section
+        # redactor's misfires, which `span_is_plausible` reports as over-redaction.
+        # Left in, they fail on the agenda title and leave a privacy check permanently
+        # red, which is a check nobody reads.
     q = f"""FROM redaction r JOIN passages p
               ON p.video_id = r.video_id
              AND r.idx BETWEEN p.start_idx AND p.end_idx
@@ -1310,23 +1010,16 @@ def _(con):
         {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
-
 @check("redaction.unfindable",
        "a redacted address cannot be found by searching for it")
 def _(con):
-    # The end-to-end statement, made the way a person would make it: take the
-    # words out of the span, put them through the same full-text query search
-    # uses, and assert the LINE IT WAS CUT FROM no longer comes back. It
-    # catches what the two checks above cannot - a stale `tsv` - by asking the
-    # question a reader would ask.
-    #
-    # Scoped to that one line, and it was not: it asked whether the phrase
-    # occurred anywhere in the whole recording, and answered yes 84 times out
-    # of 3,440. Redaction spans are ordinary English - 'Wesley Chapel' is a
-    # town of 65,000, 'Westport' and 'Signal Cove' are subdivisions - and a
-    # meeting about a place says its name many times. Cutting an address out
-    # of one sentence has never meant erasing the neighbourhood from the
-    # archive, and asserting it did made this check unreadable.
+        # The end-to-end statement: put the span through the same full-text query search
+        # uses and assert the LINE IT WAS CUT FROM no longer comes back. It catches a
+        # stale `tsv`, which the two checks above cannot.
+        #
+        # Scoped to that one line, and it was not: asking whether the phrase occurred
+        # anywhere in the recording answered yes 84 times of 3,440. Spans are ordinary
+        # English, and a meeting about a place says its name many times.
     q = """FROM redaction r
            WHERE r.status = 'applied' AND EXISTS (
              SELECT 1 FROM utterances u
@@ -1336,19 +1029,15 @@ def _(con):
         SELECT r.id, r.video_id, left(r.span, 40) AS span {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
-
-# A saved answer's citations, one row each, expanded ONCE so the two checks
-# below can hash-join against `redaction` instead of re-expanding every answer's
-# jsonb for every applied redaction. The CASE is the guard that keeps a
-# malformed row from raising: jsonb_array_elements refuses anything that is not
-# an array, and a check that errors is a check that stops being run.
+# A saved answer's citations, one row each, expanded ONCE so the checks below can
+# hash-join against `redaction` instead of re-expanding every answer's jsonb. The
+# CASE keeps a malformed row from raising, and a check that errors is a check
+# that stops being run.
 #
-# Two shapes because the two checks ask different questions of the same data.
-# CITED_VIDEOS is "which recordings does this answer quote from", and must NOT
-# drop a citation with a malformed range - the answer's PROSE is what is being
-# tested and a bad index cannot excuse it. CITED_RANGES is "which utterances
-# does it cover", where a range that is not a number cannot be compared at all
-# and is dropped.
+# Two shapes, because the checks ask different questions. CITED_VIDEOS is "which
+# recordings does this answer quote", and must NOT drop a citation with a
+# malformed range, since the PROSE is what is being tested. CITED_RANGES is
+# "which utterances does it cover", where an uncomparable range is dropped.
 _CITED = """
       FROM answers a
       CROSS JOIN LATERAL jsonb_array_elements(
@@ -1365,25 +1054,11 @@ CITED_RANGES = f"""SELECT DISTINCT a.id AS answer_id, a.question,
                     WHERE jsonb_typeof(p -> 'start_idx') = 'number'
                       AND jsonb_typeof(p -> 'end_idx')   = 'number'"""
 
-
 @check("redaction.span_is_plausible",
        "an applied redaction that removed an ordinary word, not an address",
        review=True)
 def _(con):
-    """OVER-redaction, which no other check here looks for.
-
-    Everything else asks whether an address survived. This asks the opposite
-    question: whether the redactor cut something that was never an address.
-    Five applied rows are spans of one to three characters - 'A' and 'L',
-    each the whole of a one-token utterance, and three of the word 'one' or
-    'two' - all authored by redact.py:section and all marked kind
-    'residence'. Removing 'one' from a sentence changes what the sentence
-    says, and the archive publishes the result as the speaker's words.
-
-    review=True: reverting is a judgement about the transcript, and
-    redaction.revert restores the text, so this is work to look at rather
-    than a defect to count.
-    """
+    """OVER-redaction, which no other check here looks for."""
     q = """FROM redaction r
            WHERE r.status = 'applied' AND length(btrim(r.span)) < 4"""
     return count(con, f"SELECT COUNT(*) {q}"), f"""
@@ -1391,40 +1066,21 @@ def _(con):
         ORDER BY r.id LIMIT 5""", \
         "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
-
 @check("redaction.gone_from_answers",
        "no saved answer still carries an address a redaction removed")
 def _(con):
-    # The sixth surface, and the only text in this archive that is a COPY. A
-    # saved answer (web/answers.py) stores what it cited and reads its quotes
-    # back out of `passages` at render time, so the five checks above cover
-    # them. Its prose cannot be read back from anywhere - it is what the model
-    # wrote, quoting what it cited - and it sits at a URL somebody may have
-    # circulated. bin/redact.py takes the span out of that prose and leaves the
-    # row standing; this is what says it actually happened.
-    #
-    # LOCATING is load-bearing, and it is here because of a real failure. The
-    # first version of this check flagged a correct answer over the word
-    # 'Florida' - an applied span - in the sentence "Florida Statute
-    # 163.31801(6) caps annual impact-fee increases". A number and a place-name
-    # together locate a house; either half alone is a ZIP, a town or a state,
-    # and the applied set is full of halves. A length floor cannot separate
-    # them either: '9641 Jerome' is eleven characters and is somebody's house.
-    # The length arm catches the addresses the recogniser spelled out in words,
-    # which carry no digit at all. Keep this identical to redact.LOCATING -
-    # grep the name to find both, they have to agree or the check and the fix
-    # are describing different things.
-    #
-    # jsonb_array_elements RAISES on a non-array, and a check that errors is a
-    # check that stops being run. Same guard as redact.scrub_answers.
-    #
-    # CITED_VIDEOS expands each answer's citations ONCE and the join does the
-    # rest. Written as an EXISTS it re-expanded every answer's jsonb for every
-    # one of the 3,440 applied redactions: measured over 5,000 answers, 4.1s
-    # here and 15.8s for the review check below, both growing linearly with the
-    # table. This shape is 0.06s and 0.04s for identical counts, planted
-    # violations included. An audit that runs after every rebuild has to stay
-    # cheap or it stops being run, which is the same failure as one that errors.
+        # The sixth surface, and the only text here that is a COPY. A saved answer reads
+        # its quotes back out of `passages`, so the checks above cover them, but its
+        # prose cannot be read back from anywhere and sits at a URL somebody may have
+        # circulated.
+        #
+        # LOCATING is load-bearing. The first version flagged a correct answer over the
+        # word 'Florida' in "Florida Statute 163.31801(6) caps annual impact-fee
+        # increases". A number and a place-name together locate a house; either half
+        # alone is a ZIP, a town or a state. A length floor cannot separate them
+        # either: '9641 Jerome' is eleven characters and is somebody's house. Keep this
+        # identical to redact.LOCATING or the check and the fix describe different
+        # things.
     locating = ("((r.span ~ '[0-9]' AND r.span ~ '[A-Za-z]{3}')"
                 " OR length(r.span) >= 20)")
     q = f"""FROM redaction r JOIN ({CITED_VIDEOS}) c
@@ -1436,29 +1092,13 @@ def _(con):
                left(c.question, 40) AS question {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM answers"
 
-
 @check("redaction.answers_quoting_a_redacted_line",
        "saved answers that cited a line a redaction removed - read the wording",
        review=True)
 def _(con):
-    # The one case a string search cannot settle, and therefore the one this
-    # file refuses to settle on its own.
-    #
-    # `scrub_answers` replaces a span it can find. It cannot find a PARAPHRASE:
-    # an answer that cited the moment and wrote the address in its own words,
-    # reordered or half of it. Nothing can, so nothing here pretends to - these
-    # are listed for a person, which is bin/redact.py's own rule (a detector
-    # proposes, a person decides) applied to the residue.
-    #
-    # review=True on purpose: a non-zero count is expected and is not a defect.
-    # An answer citing a passage that happened to contain an address is normal,
-    # and usually its prose says nothing about the address at all.
-    #
-    # The range guards are here rather than in CITED_RANGES' shared shape for a
-    # reason: a citation whose start_idx is not a number cannot be compared, and
-    # dropping it is right HERE but would be wrong in the text check above,
-    # where a malformed range must not hide an answer whose prose carries the
-    # span. Same data, two different questions.
+        # The one case a string search cannot settle, and therefore the one this file
+        # refuses to settle alone. `scrub_answers` replaces a span it can find; it
+        # cannot find a PARAPHRASE, and nothing can, so these are listed for a person.
     q = f"""FROM redaction r JOIN ({CITED_RANGES}) c
               ON c.video_id = r.video_id AND r.idx BETWEEN c.lo AND c.hi
             WHERE r.status = 'applied'"""
@@ -1467,17 +1107,12 @@ def _(con):
                r.video_id, r.idx {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM answers"
 
-
-# The other half of the guarantee. The four checks above say the address is
-# gone from everything a reader can reach; these two say it is still in the
-# record, and that what is published is exactly derivable from it.
-#
-# That is the whole point of `text_raw`: a redaction removes an address from
-# what the archive PUBLISHES without editing what the recogniser heard. If the
-# raw column were quietly rewritten too, a revert would have nothing to
-# recompute from and the archive would have destroyed part of the record to
-# protect somebody - which is not the trade anyone agreed to.
-
+# The other half of the guarantee. The checks above say the address is gone from
+# everything a reader can reach; these say it is still in the record and that
+# what is published is derivable from it. That is the whole point of `text_raw`:
+# if it were quietly rewritten too, a revert would have nothing to recompute
+# from and the archive would have destroyed part of the record to protect
+# somebody, which is not the trade anyone agreed to.
 
 @check("redaction.raw_preserved",
        "the ASR still holds what a redaction removed from the publication")
@@ -1490,16 +1125,13 @@ def _(con):
         SELECT r.id, r.video_id, r.idx, left(r.span, 40) AS span {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM redaction WHERE status = 'applied'"
 
-
 @check("utterances.published_is_derived",
        "an utterance with nothing applied to it publishes its ASR unchanged")
 def _(con):
-    # Stated over the 295,000 lines that have NO applied redaction, where the
-    # two columns must be identical. Those are the rows where a stray write to
-    # `text` would hide - the ones with a redaction are covered by the three
-    # checks above, and between them the pair pins down every line in the
-    # archive. text_raw IS NULL is a violation too: it means an ingest wrote
-    # the publication without recording what it was derived from.
+        # Stated over the lines with NO applied redaction, where the two columns must be
+        # identical: those are the rows where a stray write to `text` would hide.
+        # text_raw IS NULL is a violation too, meaning an ingest wrote the publication
+        # without recording what it was derived from.
     q = """FROM utterances u
            WHERE NOT EXISTS (SELECT 1 FROM redaction r
                               WHERE r.video_id = u.video_id AND r.idx = u.idx
@@ -1510,7 +1142,6 @@ def _(con):
                left(COALESCE(u.text_raw, '(null)'), 50) AS raw {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM utterances"
 
-
 # --------------------------------------------------------------- claims
 # What materialising resolution costs: a view could not be stale, and a table
 # can. These three guard the ways it goes wrong quietly.
@@ -1518,21 +1149,7 @@ def _(con):
 @check("claims.resolution_is_current",
        "the resolved table says what the claims say right now")
 def _(con):
-    """THE check that materialisation made necessary.
-
-    utterance_speaker was a view: it could not disagree with its inputs
-    because it WAS its inputs. speaker_resolved is a table, and every path
-    that writes a claim without recomputing leaves it lying. web/admin.py
-    calls refresh_video before it re-indexes, and each producer refreshes
-    what it touched - but nothing forces that, and a new producer that
-    forgets would be silent. A reader would keep seeing the old name with no
-    error anywhere.
-
-    Recomputed from speaker_claims.RESOLUTION, the SAME string resolve()
-    runs, so this cannot pass while a paraphrase drifts from the original.
-    It does not check that the resolver is RIGHT - only that the table
-    agrees with it. Roughly a minute over the whole archive.
-    """
+    """THE check that materialisation made necessary."""
     cols = "video_id, idx, name_text, person_id, method, contested"
     # pg_temp-qualified on purpose: unqualified, this would find a permanent
     # table of the same name if the temp one did not exist, and drop THAT.
@@ -1546,22 +1163,10 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), f"SELECT {cols} {q} LIMIT 5", \
         "SELECT COUNT(*) FROM speaker_resolved"
 
-
 @check("claims.derived_are_not_duplicated",
        "a producer re-running re-asserts its claims instead of piling them up")
 def _(con):
-    """Guards claim_derived_identity, and it has already been needed once.
-
-    Every producer runs again on every pipeline pass and says what it said
-    last time. Before the unique index, one press of the label button wrote
-    65 rows and the next press wrote 65 more - measured. The index makes that
-    an upsert; this check notices if a deployment ever lacks it, because the
-    symptom is a table quietly growing rather than anything failing.
-
-    Overrides are excluded, exactly as the index excludes them. They are
-    events and repeat legitimately: Alice, then Bob, then Alice again is
-    three real corrections, and the third is an exact copy of the first.
-    """
+    """Guards claim_derived_identity, and it has already been needed once."""
     q = """FROM (SELECT video_id, start_idx, end_idx, method, name_text,
                         COUNT(*) AS copies
                    FROM speaker_claim WHERE method <> 'override'
@@ -1569,22 +1174,10 @@ def _(con):
     return count(con, f"SELECT COUNT(*) {q}"), f"SELECT * {q} ORDER BY copies DESC LIMIT 5", \
         "SELECT COUNT(*) FROM speaker_claim WHERE method <> 'override'"
 
-
 @check("claims.people_are_real_people",
        "every person the extractor created has a full name and a claim behind them")
 def _(con):
-    """Both halves of this fired on the first archive-wide run.
-
-    A one-token name is the extractor having matched a greeting: 48 people
-    were created named things like 'Good', off 'Good morning'. A two-token
-    minimum stopped it, and this is what says whether the minimum still
-    holds.
-
-    A person no claim references is the other residue - the scoped link()
-    path made a second Henry and left the first behind. Neither is visible
-    from the reader's side, and both quietly widen the set of names the
-    resolver can reach for.
-    """
+    """Both halves of this fired on the first archive-wide run."""
     q = """FROM people p
            WHERE p.kind = 'public'
              AND (array_length(regexp_split_to_array(btrim(p.full_name),
@@ -1598,7 +1191,6 @@ def _(con):
                     THEN 'one token' ELSE 'no claim' END AS why {q} LIMIT 5""", \
         "SELECT COUNT(*) FROM people WHERE kind = 'public'"
 
-
 @check("claims.quotes_are_verbatim",
        "a claim's quote is still the words in the range it covers")
 def _(con):
@@ -1610,18 +1202,7 @@ def _(con):
     verbatim, and name_speakers.py refuses a proposal whose quote it cannot
     find. Nothing re-checks it afterwards, and A REDACTION CHANGES THE TEXT
     UNDERNEATH: the archive removed '14720 Bluestone Lane' from a line in
-    August, and any claim quoting that line no longer quotes anything.
-
-    Whitespace is normalised on both sides. The quote was captured from one
-    utterance and is compared against a range joined with spaces, so a line
-    break inside the quote would fail on formatting rather than on substance.
-
-    Restricted to claims that HAVE a quote - 1,661 of 258,317. Coverage is a
-    separate question and `evidence_coverage` below reports it, because
-    `chair` cannot always answer it: its evidence is cluster-wide and its
-    claims are per-run, so a run that contains no chair-script line has no
-    in-range quote to record and never will.
-    """
+    August, and any claim quoting that line no longer quotes anything."""
     q = """FROM speaker_claim c
            WHERE c.quote IS NOT NULL AND btrim(c.quote) <> ''
              AND position(regexp_replace(btrim(c.quote), '[[:space:]]+', ' ', 'g')
@@ -1636,21 +1217,12 @@ def _(con):
                left(c.quote, 50) AS quote {q} ORDER BY c.id LIMIT 5""", \
         "SELECT COUNT(*) FROM speaker_claim WHERE quote IS NOT NULL"
 
-
 @check("claims.spans_are_real",
        "a claim covers utterances that exist, in one recording")
 def _(con):
     """the design notes The span is what makes a claim resolvable -
     specificity breaks ties, so a claim covering a range that is not there
-    outranks better evidence over nothing at all.
-
-    `video_id` is one column, so a claim CANNOT span two recordings by
-    construction; what it can do is point outside the one it names, which is
-    the same defect arriving by a different door. Backwards ranges too: `lo`
-    and `hi` come from MIN/MAX over a gaps-and-islands window in four
-    different producers, and an empty window yields NULLs rather than an
-    error.
-    """
+    outranks better evidence over nothing at all."""
     q = """FROM speaker_claim c
            WHERE c.start_idx IS NULL OR c.end_idx IS NULL
               OR c.end_idx < c.start_idx
@@ -1662,7 +1234,6 @@ def _(con):
         SELECT c.id, c.video_id, c.start_idx, c.end_idx, c.method {q}
         ORDER BY c.id LIMIT 5""", \
         "SELECT COUNT(*) FROM speaker_claim"
-
 
 @check("claims.evidence_coverage",
        "resolved utterances whose winning claim rests on no quotable evidence",
@@ -1676,13 +1247,7 @@ def _(con):
     The number worth watching is not how many claims lack evidence but how
     much of what a READER SEES rests on a claim that does - if that share
     falls, the archive is asserting more than it can show, and nothing else
-    here would say so.
-
-    The 16,122 `llm` claims carrying no quote are backfilled from
-    `speaker_identity`, which had nowhere to keep one. name_speakers.py
-    records the quote it already verifies, so this shrinks as meetings are
-    re-named rather than needing a migration.
-    """
+    here would say so."""
     q = """FROM speaker_resolved r
            WHERE r.method IN ('cluster', 'voice', 'chair', 'llm', 'label')"""
     return count(con, f"SELECT COUNT(*) {q}"), """
@@ -1691,29 +1256,15 @@ def _(con):
           FROM speaker_resolved GROUP BY method ORDER BY utterances DESC""", \
         "SELECT COUNT(*) FROM speaker_resolved"
 
-
 @check("claims.contested", "spans where two unvetoed methods name different people",
        review=True)
 def _(con):
-    """A WORKLOAD MEASURE, not a failure - the design notes is explicit.
-
-    Two methods asserting different names for one span is a fact the old
-    pipeline computed and printed away. It is now recorded per utterance and
-    shown to the reader as `Disputed`, which is the honest rendering: the
-    archive holds two answers and does not know which is right.
-
-    It became reportable at all when the resolver stopped modelling a voice's
-    span as MIN..MAX of its utterances. Under that model a voice interleaved
-    with another - which is most of them - covered the whole meeting, so
-    almost every span overlapped almost every other and 89 percent came out
-    contested. Contiguous runs took it to the number below.
-    """
+    """A WORKLOAD MEASURE, not a failure - the design notes is explicit."""
     q = "FROM speaker_resolved WHERE contested"
     return count(con, f"SELECT COUNT(*) {q}"), """
         SELECT video_id, COUNT(*) AS utterances FROM speaker_resolved
          WHERE contested GROUP BY video_id ORDER BY 2 DESC LIMIT 5""", \
         "SELECT COUNT(*) FROM speaker_resolved"
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -1769,7 +1320,6 @@ def main():
     tail += f" · {todo} with items to review" if todo else ""
     print(f"\n{bad} failing checks of {ran}{tail}")
     return 1 if bad else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

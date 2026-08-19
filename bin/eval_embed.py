@@ -1,18 +1,4 @@
-"""Bake off retrieval methods on the real corpus.
-
-The MTEB leaderboard does not cover county land-use meetings, and its two
-closest legal benchmarks disagree by 41 points, so the model is chosen by
-measurement here rather than by published score.
-
-Design note on fairness: each query is written in natural language that
-deliberately AVOIDS the anchor term defining its ground truth ("automatic
-tracking of vehicles" for the Flock/ALPR topic). If queries contained the
-anchor word, BM25 would win by construction and tell us nothing.
-
-Ground truth is topic-level: a passage is relevant if it mentions the anchor.
-That is generous, so absolute numbers matter less than the ranking between
-methods, which all face the identical labels.
-"""
+"""Bake off retrieval methods on the real corpus."""
 import json
 import os
 import re

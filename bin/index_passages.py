@@ -1,20 +1,4 @@
-"""Build the passage + vector index that natural-language search runs on.
-
-Passages are speaker-bounded with a word floor - the shape that measured best
-(MRR 0.762 vs 0.655 for speaker-blind chunks). Every passage belongs to exactly
-one speaker, which is what lets an answer say who said something.
-
-Retrieval is hybrid by design: BM25 beats every dense model on meeting-
-transcript benchmarks and is unbeatable on proper nouns ("Orange Belt Trail",
-"PDE-260022"), while embeddings find the passages that never use the query's
-words. Neither alone is enough.
-
-What is indexed is NOT what is displayed. A passage carries its agenda item's
-subject in `search_text` and its verbatim words in `text`. Without that a vote
-("All in favor say aye. Aye.") is unreachable: it contains no topic words, so
-neither signal can find it, and the decision a question is actually asking
-about goes missing from the answer. See segment.py.
-"""
+"""Build the passage + vector index that natural-language search runs on."""
 import argparse
 import bisect
 import hashlib
@@ -32,23 +16,6 @@ FLOOR = 35
 BATCH = 64
 
 # The shortest passage worth indexing, measured on what actually GETS indexed.
-#
-# This used to be applied inside emit(), to the raw words, before the agenda
-# subject was attached - and it discarded 29,261 chunks, 1,672 of them carrying
-# motion or vote language. Among them, verbatim:
-#
-#     "Starkey: District One, Commissioner Oakley. Moore: Aye."
-#
-# That is the roll call. Exchange passages exist precisely so a vote survives
-# being made of five two-word turns, and then a second floor threw the result
-# away anyway - the same failure the exchange mechanism was built to fix,
-# re-introduced one function later.
-#
-# Applied to search_text instead, 21,752 of those come back, including 1,373 of
-# the 1,672 votes: "Aye." is not retrievable, but "R-58 school zone speed
-# cameras. Mariano: Aye." is, and that is the string the index holds. The 7,509
-# that still fall short carry no subject and no substance, and are the noise
-# the floor was meant to catch.
 MIN_INDEXED = 12
 
 # How long an utterance has to be to count as a TURN rather than a beat in a
@@ -69,12 +36,7 @@ def indexable(passages):
     twelve words where "Starkey" spent one. Measured when the display names
     went in: 1,043 passages crossed the floor on the strength of the extra
     words alone, 879 of them landing exactly on 12, and they read
-    "Ron Oakley: Thank you." - precisely the noise this exists to catch.
-
-    A correction is the same hazard in miniature. Relabel one voice from
-    "Grey" to "Barbara Wilhite" and, undiscounted, a passage that says nothing
-    would appear in the index because a person fixed a name.
-    """
+    "Ron Oakley: Thank you." - precisely the noise this exists to catch."""
     return [p for p in passages
             if len(p["search_text"].split()) - p.get("name_pad", 0) >= MIN_INDEXED]
 
@@ -88,24 +50,12 @@ def build_passages(con, video_id=None):
     turns across five people. Every one falls under the floor, so a
     floor-only index silently loses roughly three quarters of the moments where
     the board actually DECIDED something - the exact thing "what was decided"
-    questions need.
-
-    So runs of short turns are emitted as one cross-speaker exchange passage
-    with inline speaker labels, keeping the decision intact and attributable.
-    """
+    questions need."""
     # Resolved through utterance_speaker, not voice_name: the display path used
     # to read the archive-wide cluster majority and it contradicted the
     # per-meeting assignment on 10.7% of named lines. A name baked in here
     # reaches search, the agent's citations and every quote it prints, so it
     # has to be the same answer the transcript gives.
-    #
-    # Two names come back per row and they are not interchangeable.
-    # `speaker` is the canonical one - a board member's SURNAME - and it is
-    # what lands in passages.speaker, because that column is a KEY: the
-    # `speaker` facet on retrieve.search and /search filters on equality
-    # against it, and the facet list itself is built from utterance_speaker.
-    # `speaker_display` is what a reader should see, and it is what goes into
-    # the indexed TEXT, because the text is what gets embedded and posted.
     rows = con.execute(f"""
         SELECT u.video_id, u.idx, u.start, u."end", u.text, u.cluster,
                u.local_label, us.name AS speaker,
@@ -244,20 +194,7 @@ SUBJECT_WORDS = 30
 
 
 def subject(title, search_title, code, case_id):
-    """The compact subject a passage should be findable by.
-
-    Published titles are legal prose - "An Ordinance Amending The Pasco County
-    Comprehensive Plan; Providing For A Comprehensive Plan Text Amendment to
-    Subarea Policy FLU 7.1.34-Palmetto Ridge; And Providing For Additional Text
-    Amendments As Necessary For Internal Consistency; Providing For A Repealer,
-    Severability, And An Effective Date." Prepending that whole thing to every
-    passage in the item would drown the passage's own words in the embedding.
-
-    Truncating positionally is worse than useless here: the distinctive part
-    ("Palmetto Ridge") is in the SECOND clause, so keeping the first would
-    discard exactly what makes the item findable. Clauses are therefore dropped
-    on whether they carry any subject words at all, not on where they sit.
-    """
+    """The compact subject a passage should be findable by."""
     parts = []
     if code:
         parts.append(code)
@@ -280,17 +217,7 @@ def subject(title, search_title, code, case_id):
 
 
 def attach_items(con, passages):
-    """Give every passage its agenda item's subject, phase and case.
-
-    This is what makes a vote findable. The vote passage keeps its verbatim
-    text for display; the copy that gets indexed and embedded also carries the
-    subject of the item being voted on, which is the only thing a searcher
-    has to go on.
-
-    The subject now comes from the PUBLISHED agenda where one exists - official
-    title, item code, case number - and falls back to the transcript-derived
-    title for the procedural stretches that no agenda lists.
-    """
+    """Give every passage its agenda item's subject, phase and case."""
     by_video = {}
     for r in con.execute("""
             SELECT sp.video_id, sp.start_idx, sp.end_idx, ai.id, ai.phase,
@@ -330,20 +257,6 @@ def attach_items(con, passages):
 
 def refresh_video(con, video_id, device="cuda:1", verbose=True):
     """Bring one recording's passages back in step with the transcript.
-
-    The speaker's name is part of what gets embedded and indexed, on purpose:
-    "what did Starkey say about the trail" is a real question, and a passage
-    stripped of its speaker cannot answer it. That makes a wrong name an INDEX
-    defect rather than a display one - it pulls the passage toward the wrong
-    person in vector space and puts the wrong surname in the postings, so it is
-    retrieved for someone who never spoke and missed for the person who did.
-    Resolving names at read time cannot repair any of that.
-
-    So a correction has to reach the index, and reaching it has to be cheap or
-    it will not happen. A full rebuild is 146k passages, 5.6M postings and a
-    GPU pass; this touches only what actually changed, which for a typical
-    correction is a handful of passages and usually zero new embeddings,
-    because vec_cache is keyed on the exact string.
 
     Passage BOUNDARIES cannot move here: they are set by `local_label` and word
     counts, neither of which a name correction touches. That is asserted rather
@@ -407,20 +320,7 @@ def refresh_video(con, video_id, device="cuda:1", verbose=True):
 
 
 def rebuild_video(con, video_id, device="cuda:1", verbose=True):
-    """Rebuild one recording's passages when the BOUNDARIES may have moved.
-
-    `refresh_video` above is the cheap path and REFUSES if the ranges shift,
-    because for a name correction a shift means something upstream broke. A
-    redaction shifts them legitimately: taking an address out shortens the
-    line, and a passage that drops under the indexing floor stops existing.
-    Measured on the first real batch - 576 stored against 574 rebuilt, and
-    `refresh_video` correctly refused, which left the transcript redacted while
-    the passages still carried the address. That half-state is the reason this
-    exists.
-
-    Passage ids are reassigned. That is already true of every full rebuild and nothing outside the index stores one; the BM25 postings for
-    the old ids are dropped by passing them to bm25_refresh alongside the new.
-    """
+    """Rebuild one recording's passages when the BOUNDARIES may have moved."""
     fresh = build_passages(con, video_id)
     attach_items(con, fresh)
     fresh = indexable(fresh)

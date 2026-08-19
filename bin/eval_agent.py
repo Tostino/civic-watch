@@ -7,35 +7,9 @@ agent's CITED evidence contain the things an answer to it cannot be right
 without. Each entry in ANSWERS fails for a reason the others cannot see -
 otherwise it is not worth the run it costs.
 
-
-A vote is the shortest, least distinctive text in a meeting -
-
-    "All right, we have a motion to have a second. All in favor say aye.
-     Aye. Any opposed, nay."
-
-- and it is what "what was decided about X" questions are really asking for.
-It contains no topic words, so BM25 has nothing to match and its embedding
-sits beside every other vote in the archive. Before agenda segmentation this
-passage was unreachable at any depth, for any phrasing.
-
 The target is addressed by (meeting, timestamp), never by passage id: ids are
 reassigned on every index rebuild, so a hard-coded id silently starts pointing
-at a different passage as the archive grows.
-
-    bin/eval_agent.py            rank of each target under several phrasings
-    bin/eval_agent.py --agent    also run the agent that serves /ask, and check
-                                 what each answer actually reached
-
-`--agent` used to run `bin/ask.py`'s fixed pipeline, which D9 retired and which
-stopped serving `/ask` when slice 4 shipped. It was therefore green about a
-code path no reader could reach, while the agent that does serve them went
-unchecked. It runs `web/agent.py` now.
-
-Note the assertion got STRICTER with that change, on purpose. The old pipeline
-returned everything it retrieved; the agent returns only what it CITED, which
-is the honest question - an answer that had the vote in front of it and did not
-use it has not really found it.
-"""
+at a different passage as the archive grows."""
 import argparse
 import json
 import os
@@ -49,18 +23,10 @@ DEPTH = 200
 
 # --------------------------------------------------------------- the answers
 #
-# One question per entry, and what an answer to it must have REACHED. Every
-# assertion is about the evidence the agent CITED, never about its prose: a
-# structural check is stable, costs nothing to run, and cannot drift the way a
-# rubric or a judge does.
-#
 # Moments are addressed by (video, seconds) for the same reason the retrieval
 # targets below are - `bin/index_passages` reassigns every passage id on each
 # rebuild, so a literal id in this file silently starts pointing somewhere
 # else as the archive grows.
-#
-# Each entry names a way of failing that the others cannot see. Adding a
-# question is only worth it if it fails differently.
 ANSWERS = [
     {
         "q": "What was decided about the school zone speed cameras?",
@@ -80,13 +46,6 @@ ANSWERS = [
         #
         # ANY of these, not all: they are two ways of stating the same
         # load-bearing fact, and an answer is not wrong for choosing one.
-        #
-        # This started as "cited anything at all from that recording" and that
-        # was too weak to be a test - validated against the recorded runs, the
-        # BROKEN one passed it. It reached the hearing, cited two passages from
-        # the edges of it (1473s and 5279s), and still reported no substantive
-        # debate. Both good runs, from two different versions of the agent,
-        # cite the moment below; the broken one cites neither.
         "moments_any": [("aiVFfYBkZIk", 1566.0),
                         ("aiVFfYBkZIk", 1781.0)],
         "moments_any_what": "the reversal explained — staff on the reworked "
@@ -108,20 +67,6 @@ ANSWERS = [
         # Every other check here asserts something was FOUND, so an agent that
         # confidently invented an answer to an unanswerable question would
         # have scored full marks.
-        #
-        # It has to be a question that SOUNDS answerable, because the tools
-        # never come back empty: search_record loosens to match any of your
-        # words, and the dense arm always returns its nearest neighbours. Ask
-        # about a casino and you get 12 items and 5 passages, none of them
-        # about a casino. Judging that is the whole test.
-        #
-        # Verified absent rather than assumed: zero agenda items mention a
-        # casino anywhere in 2015-2026, and the only two transcript mentions
-        # are asides - a planning commissioner on "Game of Skill Places, which
-        # is code for casino". So the RECORD is what must stay empty; citing a
-        # passing mention while saying no decision exists is honest, and
-        # citing an agenda item would be presenting an unrelated matter as the
-        # answer.
         "q": "What did the county decide about building a casino in Pasco?",
         # It asserted "no agenda item may be cited" first, and that was wrong
         # about the AGENT rather than about the archive. The answer cited four
@@ -130,16 +75,6 @@ ANSWERS = [
         # sponsorship, a playground purchase - which is how an absence is
         # actually demonstrated. Citing nothing would have been the weaker
         # answer: "trust me, there is nothing."
-        #
-        # So the assertion is on the CLAIM, and it is the one place in this
-        # file that reads prose. Nothing structural separates a good answer
-        # here from a bad one: both cite the same kinds of near-miss. The
-        # difference is entirely whether the answer says the thing is absent,
-        # and a fabricated decision will not say it.
-        # Asked of the JUDGE, on meaning, not matched as a string. The string
-        # version failed a faultless answer that opened "The county has never
-        # MADE A DECISION about building a casino" because the list said
-        # "never decided".
         "must_say_what": "that this archive holds no such decision",
         "expect_stopped": None,
         "catches": "an agent that answers from the nearest thing the index "
@@ -151,9 +86,6 @@ ANSWERS = [
         # agent for reporting an EARLIER state of the record as the current
         # one, and it is the failure a resident would actually be harmed by.
         # A reader asking this is deciding whether to buy four hens.
-        #
-        # Established by hand before it was asserted. The whole matter is
-        # three case numbers, which is why it is here:
         #
         #   PDE-25-0469  [item:21646]  Planning Commission, 18 Sep 2025.
         #                NO recorded outcome, 102 transcript lines. What the
@@ -245,15 +177,6 @@ MAX_JARGON = 3
 
 # ------------------------------------------------------------------- judging
 #
-# Three things matter about an answer that no structural check can see: whether
-# a citation actually supports the sentence it is attached to, whether a claim
-# came from the archive at all, and whether a resident could read it. `check()`
-# proves an id was SEEN, which is a different question from whether it says
-# what the sentence claims.
-#
-# So a model reads the answer against its own evidence. Two rules keep that
-# from becoming a vibe:
-#
 #   IT IS NEVER ASKED WHETHER THE ANSWER IS GOOD. Only narrow, quotable
 #   questions with a right answer. "Rate this out of five" drifts with the
 #   weather; "does this passage support this sentence" does not.
@@ -329,14 +252,7 @@ FIXTURES = [
 
 
 def _judge(llm, answer, evidence, model, states=None):
-    """One judging call. Returns the parsed verdict, or None if it broke.
-
-    `states` asks one extra yes/no about meaning. It exists because the check
-    it replaced matched literal strings: the negative-case answer opened "The
-    county has never MADE A DECISION about building a casino", the list held
-    "never decided", and a faultless answer failed. Guessing every phrasing a
-    model might choose is not a test, it is a lottery - and there is already a
-    reader here that can be asked what a sentence means."""
+    """One judging call. Returns the parsed verdict, or None if it broke."""
     body = (f"THE ANSWER\n\n{answer}\n\nTHE EVIDENCE IT CITES\n\n{evidence}")
     if states:
         body += f"\n\nSTATES QUESTION: does the answer state, in any words, {states}?"
@@ -372,28 +288,7 @@ def calibrate(llm, model):
 
 
 def evidence_text(agent, r, limit=60):
-    """The answer's own citations, rendered EXACTLY as the writer saw them.
-
-    This built its own compact version first, and that made the judge lie. It
-    truncated an item line at 300 characters - the Evans title runs 426, so
-    "Located ... East of Lake Iola Road" was cut off - and it never rendered
-    `case_id` or the staff recommendation at all. The judge then reported that
-    "listed as PDE-25-7738", "off Blanton Road and Lake Iola Road" and "staff
-    recommended denial" were unsupported. All three were supported, by fields
-    the writer had and the judge had been denied.
-
-    A judge fed less than the writer saw does not check the writer; it checks
-    the harness, and it fails honest work. So there is one renderer, it is the
-    agent's, and this cannot drift from it again.
-
-    It drifted anyway, one level down, and did the same damage a second time.
-    Routing through `_passage_line` was right; taking its DEFAULT width was
-    not. That default is 420 characters, chosen for a list being skimmed, and
-    a quarter of all passages are longer. Measured on the backyard-chickens
-    answer: three "unsupported claim" findings, all three of them claims the
-    cited passage really does carry, past the cut. `agent.FULL` is the width
-    at which nothing is cut, and it is what the writer is given too.
-    """
+    """The answer's own citations, rendered EXACTLY as the writer saw them."""
     out = [agent._item_block(i, full=True)
            for i in (r.get("record") or [])[:limit]]
     out += [agent._passage_line(p, width=agent.FULL)

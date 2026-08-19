@@ -1,24 +1,12 @@
 """Catalog, work queue and search index for the meeting archive, on Postgres.
 
-One database now holds what used to be three stores: the SQLite catalog, an
-FTS5 index, and a 257 MB passages.npy that had to be read into RAM whole and
-scanned in full for every query. Vectors live next to the rows they describe,
-under an HNSW index.
-
-Two things here are deliberately not a straight transcription of the SQLite
-version:
-
   claim()  is a single UPDATE ... FROM (SELECT ... FOR UPDATE SKIP LOCKED).
            SQLite needed BEGIN IMMEDIATE and workers serialised behind the
            write lock; here they never block each other, and a worker that
            dies mid-claim releases its row when its transaction rolls back.
   Row      supports both r[0] and r["col"], the way sqlite3.Row did. psycopg's
            dict_row would have forced hundreds of unrelated edits across the
-           pipeline for no benefit.
-
-The connection string lives in ./env.local.sh, which is gitignored and never
-read from source. Nothing in this repository contains a password.
-"""
+           pipeline for no benefit."""
 import os
 from collections.abc import Mapping
 
@@ -124,9 +112,6 @@ FLAG = {"download": "downloaded", "diarize": "diarized", "asr": "transcribed"}
 def claim(con, stage, worker):
     """Atomically take the next video needing `stage`. Returns a row or None.
 
-    Newest first, so the index becomes useful early and recent meetings - the
-    ones most likely to be searched - land before the historical backlog.
-
     SKIP LOCKED is what lets the fleet scale: a worker looking for work steps
     over rows another worker is already claiming instead of queueing behind it.
     """
@@ -143,12 +128,6 @@ def claim(con, stage, worker):
 
 def reclaim(con, worker):
     """Release rows this worker name still holds from a previous life.
-
-    `claim` only ever considers `claimed_by IS NULL`, so a worker killed
-    mid-item leaves that video claimed by a process that no longer exists and
-    NOTHING will ever pick it up again - it is not an error, it is not pending,
-    it simply stops existing as far as the queue is concerned. A crash that
-    took down the fleet left three videos in exactly that state.
 
     Reclaiming by worker NAME rather than by age is what makes this safe: the
     names are fixed (dl-0, diar-1, asr-0) and run.sh refuses to start a second
@@ -221,16 +200,7 @@ def fail(con, video_id, message, max_attempts=MAX_ATTEMPTS):
 
 
 def rewind(con, video_id, stage, message, max_attempts=MAX_ATTEMPTS):
-    """Send a video back to an earlier stage because its inputs are missing.
-
-    A GPU worker that cannot find its audio or its diarization has not hit a
-    transient GPU fault - the upstream artefact is gone, and retrying the same
-    stage five times will fail five times. Clearing the upstream flag puts the
-    video back in front of the worker that can actually produce the file.
-
-    Attempts are still counted, so a video whose download keeps evaporating is
-    eventually retired instead of cycling between two stages forever.
-    """
+    """Send a video back to an earlier stage because its inputs are missing."""
     col = FLAG[stage]
     n = con.execute(
         "UPDATE videos SET attempts = attempts + 1 WHERE id = %s RETURNING attempts",
@@ -248,20 +218,7 @@ def rewind(con, video_id, stage, message, max_attempts=MAX_ATTEMPTS):
 
 
 def index_video(con, video_id, utterances):
-    """Replace all stored utterances for a video.
-
-    No FTS table to keep in step: utterances.tsv is a generated column, so the
-    keyword index cannot drift from the text the way an explicitly maintained
-    one could.
-
-    Both text columns are written here, with the same value, and this is the
-    ONLY place `text_raw` is ever written. It is the recogniser's output;
-    `text` is what the archive publishes, and after a redaction is applied the
-    two differ by the addresses that came out (bin/redact.py: republish). A
-    re-transcribe therefore resets both - which is correct, it is new ASR -
-    and `redaction.gone_from_transcript` in the audit is what catches any
-    applied redaction that a re-transcribe undid.
-    """
+    """Replace all stored utterances for a video."""
     with con.cursor() as cur:
         cur.execute("DELETE FROM utterances WHERE video_id = %s", (video_id,))
         with cur.copy('COPY utterances (video_id, idx, start, "end", speaker, '

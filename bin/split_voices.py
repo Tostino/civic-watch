@@ -146,19 +146,6 @@ def pairs(name, cent, weight, roster, name_min, total, seen):
         # about the microphone as much as the throat.
         # NO VERDICT. Four thresholds were tried here and each one had a clean
         # counterexample in this archive:
-        #
-        #   cosine          'Christopher Poole'/'Christopher Pohl' sit 0.896
-        #                   apart - further than two strangers - because he was
-        #                   on a different microphone that day.
-        #   co-occurrence   'Girardi'/'Gerardi', 'Rob Park'/'Robert Park' and
-        #                   'Diane Cobernic'/'Diane Cobernick' share meetings.
-        #                   One person on two mics in one room does that.
-        #   name ratio      'Dan Mcdonald'/'Leanne Mcdonald' scores 0.81 on a
-        #                   shared surname and is two people.
-        #   name parts      still admits 'Paul Thatcher'/'Paul Butcher'.
-        #
-        # So this reports the evidence and ranks by what a merge would fix. The
-        # judgement is the model's, with all four signals in front of it.
         ma, mb = seen.get(na, set()), seen.get(nb, set())
         band = "co-occurs" if ma & mb else (
             "one-off" if min(len(ma), len(mb)) <= LOPSIDED else "recurring")

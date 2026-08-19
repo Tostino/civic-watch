@@ -1,44 +1,4 @@
-"""Parse published minutes into an outcome for every agenda item.
-
-The minutes restate each item exactly as the agenda did, then add one line
-saying what the board actually did with it:
-
-    C29 Agreement for Sale and Purchase of Property - Blueberry Hills ...
-    File Number FAC26-0136
-    Comm. Dist. 4
-    Recommendation Approve
-    Approved Staff's recommendation with Commissioner Oakley absent from the vote.
-
-Most consent items never get a line of their own, because they are disposed of
-in bulk:
-
-    Approved the Consent Agenda with the exception of Agenda Items C29, C48,
-    C50, and C69 which were pulled for discussion or revision and Agenda Items
-    C27 and C72 which were withdrawn.
-
-Resolving that sentence is the whole job. A regex over outcome lines finds
-maybe a fifth of the items; the other four fifths are covered by exactly one
-sentence per meeting that has to be read as "everything in this section EXCEPT
-these, and here is what happened to those instead".
-
-`outcome` is the classification, and it is not the leading verb. "Approved to
-continue the item to the August 11 meeting" begins with "Approved" and is a
-CONTINUANCE - reading the first word would file a delay as a decision, which
-is the single most misleading thing this table could say.
-
-An item may carry SEVERAL motions, and most of them are not its outcome:
-
-    P83     Zoning Amendment (Regular) - Evans County Line 80 MPUD ...
-            Recommendation    Approval with Conditions
-
-    Approved to receive and file documents submitted by Mr. William Vermillion.
-    Approved Staff's recommendation.
-
-The first is evidentiary - the board accepting a member of the public's
-exhibits into the record - and the second is the decision. Keeping the first
-put "Approved" on 106 items, 88 of them public hearings, where what was
-approved was somebody's paperwork. See `choose()`.
-"""
+"""Parse published minutes into an outcome for every agenda item."""
 import argparse
 import re
 import sys
@@ -49,16 +9,6 @@ ITEM = re.compile(r"^([A-Z]{1,3})\s?-?\s?(\d{1,3})\s+\S")
 
 # A line that really BEGINS an item, as opposed to one that merely starts with
 # something shaped like a code. The difference is the next word:
-#
-#   C53 2017 Great American Cleanup ...   a heading
-#   C69 which were pulled ...             the tail of a wrapped exception list
-#   PC4 and PC5.                          likewise
-#   I-75 and Wesley Chapel Boulevard      a road, in the middle of a title
-#
-# so a following LOWERCASE word means this is prose continuing, not a new item.
-# Measured across every minutes document: 29,996 headings, 95 continuations,
-# and the 95 are all exception lists or road names. Using ITEM here instead
-# re-creates the exact bug the swallow rule exists to prevent - see parse().
 HEADING = re.compile(r"^[A-Z]{1,3}\s?-?\s?\d{1,3}\s+(?![a-z])")
 FIELD = re.compile(r"^(File\s*Number|Me\s?m\w*|Comm\.?\s*Dist\.?|Recommendation"
                    r"|Fiscal Impact|Contact)\b", re.I)
@@ -84,28 +34,6 @@ PAGE = re.compile(r"^\d{1,3}\s+of\s+\d{1,3}$")
 TAIL = re.compile(r"\s*\(\d{1,2}:\d{2}(?::\d{2})?\)\s*$")
 
 # Motions that are NOT an outcome for the item.
-#
-# Two kinds, both read from the minutes rather than imagined:
-#
-#   evidentiary  the board accepting a person's exhibits into the record -
-#                "Approved to receive and file documents submitted by Mr.
-#                Vermillion", "Approved to accept ex parte forms". 300-odd of
-#                these. The person's name is the tell: a bare "receive and
-#                file the report" IS an outcome, and Noted Items are
-#                recommended "Receive and File" as their whole substance.
-#   procedural   whether to take the item up at all - "Approved to hear the
-#                emergency", "to hear the walk-on", "Approved to reconsider
-#                the item". The board has decided to have the discussion, not
-#                decided the matter.
-#   the meeting  "Approved to adjourn the meeting." That is a motion about the
-#                MEETING and it lands on whichever item happened to be last.
-#                All 20 items carrying it are zoning amendments, ordinances and
-#                special exceptions - not one of them is an adjournment item.
-#                It only surfaced once `choose()` started taking the last
-#                motion, which is what a fix exposing the next defect looks
-#                like. ("recess" and "call to order" never reach an item; not
-#                matched here, because a pattern with no measured hits is a
-#                guess.)
 SUBSIDIARY = re.compile(
     # "filed" is the minutes' own typo for "file", and it is still the same
     # motion: "Approved to receive and filed documents submitted by
@@ -125,10 +53,6 @@ SUBSIDIARY = re.compile(
 # outcome_text` and `choose()` must agree, or the audit will bless exactly what
 # the parser broke. `tests/` would be better; a shared constant is what this
 # project has, and `bin/audit.py --only minutes` is how you check they agree.
-#
-# One apostrophe, because this is a REGEX and not a SQL literal. Doubling it
-# for a literal is the caller's job and audit.py does it at the one place it
-# inlines this; passed as a bind parameter, as it should be, nothing is doubled.
 SUBSIDIARY_SQL = (
     r"(receive\s+and\s+filed?.*((submitted|presented)\s+by|from\s+(mr|ms|mrs|dr|pastor)))"
     r"|((receive\s+and\s+filed?|accept)\s+(the\s+)?ex\s?parte'?\s+forms?)"
@@ -140,14 +64,6 @@ SUBSIDIARY_SQL = (
 
 def load_agenda(con, meeting_id):
     """The meeting's published items, addressed by ID. (items, by_code)
-
-    NOT {code: section}, which is what this used to be, because **code is not
-    unique within a meeting**. 39 (meeting_id, code) pairs in this archive
-    carry more than one row and 25 of them sit in DIFFERENT sections: meeting
-    27's C1 is both a Consent resolution and a Public Hearings rezoning, and a
-    Planning Commission agenda that lists "PC 01-09-2020 Final Approved Meeting
-    Minutes" under Consent yields the code PC1 a second time, for a document
-    about a previous meeting.
 
     Read into a dict keyed on code, with no ORDER BY, whichever row the query
     happened to yield last decided the whole meeting's map. Measured in the
@@ -177,17 +93,8 @@ def words(s):
 def title_agreement(heading, title):
     """How many leading words of an item's title the minutes restate.
 
-    The minutes reprint the agenda's own title under the code, wrapped, so the
-    heading line is a PREFIX of it. That is what tells two items with the same
-    code apart - meeting 657 has both
-
         P1     A RESOLUTION OF PASCO COUNTY, FLORIDA, ESTABLISHING AN
-        P1     AN ORDINANCE OF THE BOARD OF COUNTY COMMISSIONERS OF
-
-    and the first two words already separate them. Counting shared leading
-    words rather than comparing strings is what survives the line wrap and the
-    extractor's spacing ("09 -2020", "PC 05-07-20 20").
-    """
+        P1     AN ORDINANCE OF THE BOARD OF COUNTY COMMISSIONERS OF"""
     a, b = words(heading), words(title)
     n = 0
     while n < len(a) and n < len(b) and a[n] == b[n]:
@@ -202,15 +109,7 @@ def pick(by_code, code, section=None, heading=None):
     coded items - the whole point is to leave those alone and decide the 80
     rows, in 39 pairs, where `code` addresses more than one thing. Replayed
     over every minutes document in the archive, 22,055 of 22,087 items resolve
-    to exactly what they did before and 32 change.
-
-    Two signals, in order, because they fail in different places: the title the
-    minutes restate under the code (which separates two items in the SAME
-    section, as meeting 657's two P1s need), then the section a bulk sentence
-    names (which separates a Consent resolution from a Public Hearings rezoning
-    when the minutes give no title, as an exception list does). Neither
-    deciding is reported rather than hidden - see `n_ambiguous` in main().
-    """
+    to exactly what they did before and 32 change."""
     cand = by_code.get(code) or []
     if len(cand) <= 1:
         return (cand[0] if cand else None), False
@@ -233,50 +132,14 @@ def pick(by_code, code, section=None, heading=None):
 def choose(sentences, code=None, by_code=None):
     """Which of an item's recorded motions is its outcome?
 
-    Subsidiary motions are dropped, and of what is left the LAST is the answer:
-    the minutes are chronological, so the final action on an item is what became
-    of it. Read against ten items where the first and last disagree, last is
-    better or equal on eight - "Approved to hear the Resolution for Richard
-    Gehring" then "Approved to adopt the Resolution", "Approved to accept
-    exparte forms" then "Approved to continue to June 6".
-
-    **Except that a refusal is never overridden by what follows it.** Taking
-    the last motion unconditionally lost a denial or a withdrawal on 4 of the 6
-    items where it mattered, and that is the most damaging direction this table
-    can be wrong in:
-
-        Denied Staff's recommendation for approval.
-        Approved to authorize the Chairman to sign a letter ... expressing
-        their opposition ...
-
-        Denied the applicant the right to pave the road ...
-        Approved remainder of Staff's Recommendation.
-
-    An approval that follows a denial is a consequential action - write the
-    letter, approve what is left - not a reversal. The board said no.
-
     Returns None when EVERY motion is subsidiary. The minutes then record no
     outcome for this item, and saying so is the honest answer - it is
     already the designed state for the 24% of items the minutes do not dispose
     of in writing. Keeping the subsidiary motion instead would not be
     preserving information; it would be asserting something false, which is the
-    whole defect.
-
-    ~200 items still keep more than one substantive motion, and for most the
-    minutes genuinely record several unrelated actions under one heading -
-    Miscellaneous Business, where each commissioner's motion lands under the
-    same item. No positional rule is right there; `minutes.one_motion_per_item`
-    in bin/audit.py counts them so the ambiguity is visible rather than implied.
-    """
+    whole defect."""
     def about_another_item(s):
-        """"Approved to accept the withdrawal of N91." under item RS4.
-
-        A motion naming a DIFFERENT agenda code, and not this one, is that
-        item's outcome sitting in the wrong place - and it drags its
-        outcome with it, so RS4 was being recorded as `withdrawn`. Restricted
-        to codes that are really on this agenda, so a contract number or a road
-        name cannot disqualify a good sentence.
-        """
+        """"Approved to accept the withdrawal of N91." under item RS4."""
         if not code or not by_code:
             return False
         named = {c for c in codes_in(s) if c in by_code}
@@ -341,22 +204,7 @@ def codes_in(text):
 
 
 def parse(text):
-    """(occurrences, bulk) - the outcome sentences per ITEM OCCURRENCE.
-
-    Each occurrence is {code, heading, sentences}, in document order, and
-    carries a LIST of sentences because an item routinely records several
-    motions and only one of them is its outcome (see `choose()`). It used
-    to `setdefault` the first and discard the rest, which is how an evidentiary
-    motion became 106 items' recorded outcome.
-
-    Per OCCURRENCE and not per code, because a code can appear TWICE in one
-    document about two different things: meeting 657's minutes carry a P1 that
-    is a stormwater resolution and a P1 that is an animal ordinance. Collapsing
-    them into one list made `choose()` pick between motions belonging to
-    different items, and then stamped its answer on both. The heading - the
-    title the minutes restate under the code - is kept for the same reason: it
-    is what tells the two apart.
-    """
+    """(occurrences, bulk) - the outcome sentences per ITEM OCCURRENCE."""
     lines = [re.sub(r"\s{2,}", " ", l).strip() for l in (text or "").splitlines()]
     lines = [l for l in lines if l and not NOISE.match(l) and not PAGE.match(l)]
 
@@ -423,19 +271,7 @@ def parse(text):
 
 
 def resolve(occurrences, bulk, items, by_code):
-    """Fill in the items the bulk sentences cover. Keyed on agenda_items.id.
-
-    `items` is the meeting's published rows and `by_code` indexes them, which
-    is what makes "the Consent Agenda with the exception of ..." resolvable:
-    the exception list names the few, and the agenda names the many.
-
-    The key is the item's ID, not its code. Returning {code: ...} and then
-    updating `WHERE meeting_id=%s AND code=%s` wrote one minutes sentence onto
-    every row sharing the code - measured: 58 rows across 28 pairs, each
-    carrying an outcome parsed for a genuinely different item, with meeting
-    27's consent resolution and its rezoning both reading `approved` from the
-    same sentence.
-    """
+    """Fill in the items the bulk sentences cover. Keyed on agenda_items.id."""
     out, ambiguous = {}, 0
     for occ in occurrences:
         d = choose(occ["sentences"], occ["code"], by_code)
@@ -571,12 +407,6 @@ def main():
             # write leaves whatever an older run decided about any item this run
             # no longer resolves - which is exactly how an outcome the parser
             # has since learned to reject survives the fix that rejected it.
-            #
-            # The clear runs whenever this meeting's minutes were READ, not only
-            # when they yielded something. Guarding on `hits` looked safer and
-            # was the bug: a meeting whose only motions are subsidiary correctly
-            # resolves to nothing, and the guard then preserved precisely the
-            # subsidiary motions that decision had just rejected.
             cur.execute(
                 "UPDATE agenda_items SET outcome_text=NULL, outcome=NULL, "
                 "outcome_source=NULL WHERE meeting_id=%s AND code IS NOT NULL",

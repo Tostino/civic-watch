@@ -1,15 +1,4 @@
-"""Held-out evaluation: does anchor assignment beat blind clustering?
-
-Meetings are split into train and test. References are built ONLY from train
-meetings, then used to identify voices in test meetings the references have
-never seen. Scoring against the text-derived names on the test side keeps this
-honest - building references from all meetings and then scoring on them would
-just measure the text signal against itself.
-
-Reported per person on the test side:
-  coverage  - share of their true voices we assigned to them  (recall)
-  precision - share of voices we called theirs that really are (precision)
-"""
+"""Held-out evaluation: does anchor assignment beat blind clustering?"""
 import collections
 import glob
 import os

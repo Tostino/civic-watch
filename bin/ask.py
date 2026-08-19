@@ -1,31 +1,5 @@
 """The LLM client for this project: one chat call, with retries and accounting.
 
-Five modules import it - `segment.py`, `name_speakers.py`, `redact.py`,
-`web/agent.py` and `web/server.py` - and they all want the same four things:
-an API key read from the environment, a call that retries the failures worth
-retrying, a raw variant that hands back the whole reply so `tool_calls` is
-visible, and a running total of what the run has spent.
-
-**The fixed question-answering pipeline that used to live here is deleted.**
-It was PLAN -> RETRIEVE -> READ -> ANSWER: one call turned the question into
-several queries, hybrid search ran them, batches of passages went to the model
-in parallel to be kept or discarded, and a last call wrote the answer. D9
-replaced it, and the reason is worth keeping even though the code is not: the
-planner emitted its queries once and the rest executed them blindly. A vote
-passage contains no topic words, so the planner's own wording put the
-school-zone vote at rank 33-58 while READ only ever saw the top 30 - and
-`retrieve.decisions_in_play()` was a hard-coded patch over that single case.
-
-What replaced it decides what to look at next instead of being wired to:
-`web/tools.py` is the surface, `web/agent.py` is the loop, and slice 4 put it
-behind `/api/ask`. The agent reaches that same vote by choosing to call
-`get_item` once a search puts the item in play.
-
-The pipeline outlived its last real caller by a while. `bin/eval_agent.py
---agent` still ran it, which meant the project's pass/fail check for "can we
-find the moment the board decided" was measuring a code path no reader could
-reach. That eval runs `web/agent.py` now.
-
 TOKEN ACCOUNTING lives here rather than in the callers because it is the only
 place this project measures what it spends: `usage_report()` counts prompt
 tokens split by cache hit and miss, and completion tokens including the
@@ -110,11 +84,6 @@ def chat(messages, model=MODEL, temperature=0.2, as_json=False, retries=3,
 def chat_raw(messages, model=MODEL, temperature=0.2, as_json=False, retries=3,
              timeout=TIMEOUT, tools=None, tool_choice=None, effort=None):
     """The whole reply MESSAGE, so a caller can see `tool_calls`.
-
-    Added for the agent (web/agent.py): a tool-calling loop needs the message
-    back, not the string, because the interesting turns have no content at all.
-    `chat()` stays as it was - segment.py and name_speakers.py call it several
-    thousand times a run and neither wants a dict.
 
     `effort` is 'none' | 'low' | 'medium' | 'high', or None to send nothing and
     let the model do what it did before this argument existed. It is the only

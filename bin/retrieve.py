@@ -1,29 +1,4 @@
-"""Hybrid retrieval over the passage index, in Postgres.
-
-Three signals, fused with reciprocal rank fusion:
-
-  BM25    exact terms - proper nouns, case numbers, names. Beats every dense
-          model on meeting-transcript benchmarks, and is the only thing that
-          reliably finds "PDE-260022" or "Orange Belt Trail". Implemented in
-          SQL over materialised postings; see bin/bm25.sql for why not
-          ts_rank_cd.
-  DENSE   harrier-0.6b embeddings under an HNSW index - finds passages that
-          never use the query's words, which is most of what natural-language
-          questions need.
-  THREAD  curated topic/case/project keys - pulls a case's whole history even
-          when the wording drifts across years.
-
-Passages hang off `agenda_items`, so a result carries the county's own account
-of what it belongs to: item code, case number, section, staff recommendation,
-and the outcome recorded in the minutes. That is published fact rather than
-something inferred from audio, and `case=` turns "has this come up before"
-into a filter instead of a hope that the wording matched.
-
-Ranking by relevance alone is wrong for "how did this evolve" questions: the
-top hits pile into whichever meeting discussed it most and the earliest
-occurrence never surfaces. `spread` caps hits per meeting so the timeline is
-covered instead.
-"""
+"""Hybrid retrieval over the passage index, in Postgres."""
 import os
 import re
 
@@ -56,14 +31,6 @@ EF_SEARCH = 1000
 # the index dutifully hands back its 300 closest passages and the reader is
 # shown twelve results for a word that does not exist - which is worse than an
 # empty page, because it says the archive contains something it does not.
-#
-# So when NOTHING matched lexically - no BM25 hit, no thread key - cosine
-# similarity is the only evidence there is, and it has to clear a bar.
-# Measured over this corpus: nonsense queries top out at 0.52 ("zzzznothing")
-# and 0.50 ("qwertyuiop asdfgh"), while real queries lead at 0.62-0.65. The
-# floor sits between them. It applies ONLY in the no-lexical-match case, so a
-# genuine query's weaker tail - "Orange Belt Trail" runs down to 0.51 - is
-# untouched, because BM25 already vouched for that query.
 DENSE_FLOOR = 0.55
 
 _model = None
@@ -239,21 +206,7 @@ def search(query, limit=40, spread=None, speaker=None, kind=None,
 
 
 def decisions_in_play(con, passages, max_segments=8, per_segment=4):
-    """Fetch the decision moments of the agenda items already retrieved.
-
-    Ranking finds an item's *discussion* easily - it is long and dense with
-    topic words. The motion and the vote are neither, so they sit below the
-    cut even when their own item ranks first: measured, the school-zone vote
-    lands at rank 33-58 while the agent reads only the top 30 per query.
-
-    Segmentation makes this recoverable without a deeper, more expensive
-    sweep. Once an item is in play, its terse cross-speaker exchanges are
-    fetched directly rather than competed for. Ordered from the END of the
-    item, because that is where a board decides things.
-
-    Only items with more than one hit are expanded, so a single glancing match
-    does not drag a whole agenda item into the reader.
-    """
+    """Fetch the decision moments of the agenda items already retrieved."""
     hits = {}
     for p in passages:
         if p.get("agenda_item_id"):
@@ -325,20 +278,7 @@ ORDERS = {
 def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
                  case=None, since=None, until=None, offset=0, decided=None,
                  order="decided"):
-    """Search the PUBLISHED RECORD directly, independent of any transcript.
-
-    91% of the items the minutes dispose of were decided at a meeting this
-    archive holds no recording of. Retrieval that only ranks passages cannot
-    reach any of them, so a question about one of those matters returned
-    "nothing in the indexed meetings matches that" while the county's own
-    minutes recorded the decision.
-
-    Terminal outcomes rank above continuances: a case carries five
-    deferrals and one approval, and the approval is the answer.
-
-    Facets are applied in SQL rather than to the result page, so narrowing by
-    body or outcome deepens the search instead of thinning what came back. `total` is the honest count behind them.
-    """
+    """Search the PUBLISHED RECORD directly, independent of any transcript."""
     where = ["ai.source = 'agenda'"]
     args = {"q": query, "limit": limit, "offset": offset}
     tsq = "websearch_to_tsquery('english', %(q)s)"
@@ -431,20 +371,7 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
 
 
 def items_for(con, passages, limit=18):
-    """The OFFICIAL record behind the passages that were retrieved.
-
-    A transcript can only ever show a vote being taken - "all in favor say
-    aye" - and never its result, because nobody in the room says the result
-    out loud in a form ASR can attribute. The result is published, in the
-    minutes, and this project already parses it. Until now nothing downstream
-    read it: the agent inferred decisions from vote passages and routinely
-    concluded "the evidence does not say whether it passed" while the county's
-    own minutes recorded "Approved" for that item.
-
-    So the items are returned as their own kind of evidence, ranked by how much
-    of the retrieved discussion belongs to each. Published items come first:
-    a transcript-derived item has no official record to add.
-    """
+    """The OFFICIAL record behind the passages that were retrieved."""
     hits = {}
     for p in passages:
         if p.get("agenda_item_id"):

@@ -533,12 +533,6 @@ def _who(p):
 #              name.
 #   several    an exchange, the passage crosses speakers
 #   unknown    no name resolved
-#
-# Worst case over the passage's utterances, reduced in the database so every
-# surface reduces alike. Known and accepted: this marks fewer passages than the
-# threshold it replaced, because the scores have not been re-measured since the
-# roster work and a line drawn through them would assert an accuracy this
-# project cannot currently support.
 def _name_state(p):
     """SpeakerChip's state for this passage's speaker."""
     who = p.get("speaker")
@@ -628,20 +622,7 @@ def _item_block(i, full=False):
     return "\n".join(out)
 
 def _cover(con, item_id):
-    """Which passage each utterance of an item falls inside.
-
-    `get_item` returns utterance LINES, and the first version rendered them as
-    `[385] Yeager: so my motion is...` — an id-shaped token that is a line
-    index, not a passage id. The model did exactly what that invites: it wrote
-    "([item:31314] passages 2, 59-60)" in prose, so the motion and the vote it
-    had correctly found could not be cited at all, and the citation check
-    counted zero transcript citations for an answer built on them.
-
-    Lines are not citable and passages are, so a line is rendered with the id
-    of the passage CONTAINING it. That is the honest reference anyway: a
-    citation points at a moment in the recording, and a passage is exactly
-    that moment.
-    """
+    """Which passage each utterance of an item falls inside."""
     rows = con.execute("""
         SELECT p.id, p.video_id, p.start, p."end", p.speaker,
                -- The same person as the reader will see them, for the same
@@ -685,19 +666,6 @@ def _at(cover, video_id, idx):
     return None
 
 # --------------------------------------------------------- second sightings
-#
-# --------------------------------------------------------- second sightings
-#
-# A LIST that hands back something already in the conversation prints a reference
-# instead of printing it twice. Repeats are 1.3-13.2% of what a run renders, but
-# the real problem is that repetition is INVISIBLE: on one question the
-# researcher reworded the same search six times and got the same items back 58
-# times without being told they were the same.
-#
-# Only in lists that are SCANNED. Never in `get_item`, where the block is the
-# substance of what was asked for, and never in `brief()`, where the writer must
-# have the evidence itself. Honest only because `msgs` is append-only: trim the
-# history and "shown above" becomes a dangling reference.
 def _again(seen, kind, ident):
     """Times this was already rendered in full. Counts the sighting as it asks."""
     key = (kind, ident)
@@ -936,27 +904,7 @@ IDS = re.compile(r"\d{1,7}")
 
 def check(answer, seen):
     """Strike every citation this run did not actually see - and repair the
-    ones it did see and merely mislabelled.
-
-    A model asked to cite will cite. Whether the id exists is a separate
-    question, and to a reader a fabricated `[item:41203]` is indistinguishable
-    from a real one - which makes it worse than no citation at all. So the
-    answer is rewritten rather than annotated: an unverifiable citation is
-    removed from the prose and reported alongside it.
-
-    THE REPAIR is for a different animal, and telling them apart is the point.
-    Measured on a run of the license-plate question: `[39293]`, `[39294]` and
-    `[39327]` were struck - three ids the tools really did return, written in
-    the wrong bracket. They are agenda items, the writer had seen every one of
-    them, and it typed the transcript form. Striking them deleted the citation
-    and left the claim standing with nothing behind it, which is the shape of
-    failure this function exists to prevent, arriving by its own hand.
-
-    The test is unambiguous because the pools are disjoint in practice and the
-    right one is tried first: an id that is not a passage and IS a seen item
-    can only be the item, written wrongly. Anything that is in neither pool is
-    struck exactly as before.
-    """
+    ones it did see and merely mislabelled."""
     bad, fixed = [], []
 
     def keep(m):
@@ -994,37 +942,8 @@ def check(answer, seen):
     return cleaned.strip(), sorted(set(bad)), used, sorted(set(fixed))
 
 # ---------------------------------------------------------------- handover
-#
-# ---------------------------------------------------------------- handover
-#
-# Built from `seen` and NOT from the conversation, which is the point of there
-# being two halves. The writer never sees the rejected calls or the passages put
-# aside, and every id in front of it is one the tools really returned, so
-# fabrication has to survive a context with nothing to fabricate from. It also
-# costs no extra call: the researcher's last turn is a handover, and the budget
-# paths lose their closing call entirely.
 def _said(passages):
-    """Transcript passages by meeting, in spoken order, continuations marked.
-
-    They used to be listed in the order the searches happened to return them,
-    which scrambles a conversation into a pile of quotations and costs the
-    writer two things it cannot get back.
-
-    A passage is a TURN, and a turn's meaning is often in the turn before it.
-    Measured: [248469] "we're happy to work on a condition with staff ... on
-    any perimeter areas adjacent on the west or north" is the applicant
-    agreeing to a LIGHTING condition - the word does not appear because the
-    lighting is three turns up. The writer read it correctly and got marked
-    wrong, because a citation read alone had lost what it was about.
-
-    And one person at the podium is often several rows. [248433] "I'm amazed
-    ... I wanna congratulate staff" and [248434] "Also, as Ryan said, lights"
-    are both Nancy Hazelwood, consecutive, one trip to the microphone. Listed
-    apart, they read as two residents, and the answer said one neighbour
-    praised the plan "while others" worried about lighting. There were no
-    others. The evidence for that was already here - same speaker, adjacent
-    utterance indices - and nothing in the brief said so.
-    """
+    """Transcript passages by meeting, in spoken order, continuations marked."""
     rows, seen_vids = {}, []
     for p in passages:
         v = p.get("video_id") or "?"
@@ -1118,8 +1037,6 @@ def brief(question, seen, trace, notes):
 
 # ------------------------------------------------------- citations, checked
 #
-# ------------------------------------------------------- citations, checked
-#
 # A citation pointing at a real passage that does not contain the claim is the
 # failure this archive can least afford, and no structural test can see it: the
 # id was genuinely returned by a tool. TWO PROMPT ATTEMPTS FAILED at it, which is
@@ -1189,24 +1106,7 @@ def _sentence(text, at, upto):
     return start, end
 
 def _groups(answer, seen):
-    """Each SENTENCE of the answer with all of its citations and their text.
-
-    By sentence and not by citation, which is what this did first and which
-    was wrong in a way worth recording. Asking "does this passage support this
-    sentence" once per bracket sounds stricter and is simply unanswerable for
-    a sentence carrying five of them: each passage holds a fifth of it, every
-    one of them reads as unsupported alone, and the pass flagged all five.
-    Measured on one answer: 21 flags, 18 of them that shape. A sentence is
-    supported by its citations TOGETHER, so they have to be judged together.
-
-    The text comes from the same renderers the brief uses. Building a shorter
-    one here cost an answer its correctness: item 21129 (Board of County
-    Commissioners, 15 July) and item 20439 (Planning Commission, 3 April)
-    have near-identical titles, the ad-hoc text left out body and date, and
-    the checker - shown two things it could not tell apart - "fixed" the right
-    citation into the wrong one. Whatever the checker judges, it must see
-    everything the writer saw.
-    """
+    """Each SENTENCE of the answer with all of its citations and their text."""
     out, by_span = [], {}
     for m in CITE_TOKEN.finditer(answer):
         n, is_item = int(m.group(2)), bool(m.group(1))
@@ -1377,16 +1277,7 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
     t_start = time.monotonic()
 
     def meter(phase, t0, snap):
-        """Seconds AND tokens for one phase, tokens split the way the bill is.
-
-        Timing alone pointed at prompt size, which prefix caching mostly pays
-        for already: this conversation is append-only, so every round after
-        the first re-sends its history as a cache hit. What caching cannot
-        touch is generation, and on a reasoning model most of the generated
-        tokens are reasoning nobody ever sees. So the two numbers have to be
-        read together - a phase that is slow on a small prompt is thinking,
-        not reading.
-        """
+        """Seconds AND tokens for one phase, tokens split the way the bill is."""
         spend[phase] = round(spend.get(phase, 0.0) + time.monotonic() - t0, 2)
         now = dict(llm.USAGE)
         d = {k: now.get(k, 0) - snap.get(k, 0)

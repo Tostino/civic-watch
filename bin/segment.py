@@ -1,16 +1,5 @@
 """Phase and agenda-item segmentation for meeting transcripts.
 
-Why this exists: a vote reads "All in favor say aye. Aye. Any opposed, nay."
-It contains no topic words at all, so BM25 has nothing to match and its
-embedding sits beside every other vote in the archive rather than beside its
-subject. The moment the board actually DECIDES something is therefore
-unreachable by search - which is exactly what "what was decided about X"
-questions need. No amount of better reading fixes that; the reader never sees
-the passage.
-
-Segmentation fixes it structurally. Every utterance gets the agenda item it
-belongs to, and a vote inherits its item's subject.
-
 ONE CALL PER MEETING-DAY. Agenda structure is a global property, so the model
 is shown the whole day at once rather than a sliding window: the largest day in
 the archive renders to ~73k tokens of outline and the model accepts ~194k
@@ -18,43 +7,17 @@ the archive renders to ~73k tokens of outline and the model accepts ~194k
 matters - a model that cannot see the whole agenda has to be told what item it
 is in the middle of, and guesses at boundaries near the seam.
 
-The day, not the video, is the unit because roughly half of these meetings run
-as a morning and an afternoon session on one continuous agenda. The afternoon
-recording opens mid-item with no announcement of what the item is; only the
-morning says. Sessions are joined only when their order is unambiguous - see
-day_groups().
-
 THE PUBLISHED AGENDA IS PART OF THE PROMPT. It was not, for a long time, and
 the model was asked to recover "R-58" from ASR output of somebody saying "R
 fifty eight" while the exact string sat in `agenda_items` - landed before this
 stage runs. It now returns `code` alongside the title, checked against that
 day's real codes.
 
-The two fields answer different questions and are grounded differently:
-`title` is what was SAID and is verified against the transcript; `code` is
-which county item it WAS and is verified against the published list. Reading a
-code out of the title with a regex conflated them.
-
-Division of labour, the same one that makes name_speakers.py safe:
-
-  CODE  assembles the day, maps returned line numbers back to utterances,
-        forces spans to be monotonic and to cover the day, splits items across
-        the session break, VERIFIES that a title's words were actually spoken
-        inside the span it names, and VERIFIES that a returned code exists on
-        that day's agenda.
-  LLM   reads the agenda's shape and says where items begin, what they are,
-        and which published item each one is.
-
 Verification is load-bearing here in a way it is not elsewhere: titles are
 injected into the search index, so a single hallucinated subject would create
 false hits for that subject across the whole archive. Words that were never
 spoken are struck from the indexed form of the title - the display title stays
-natural, but nothing invented can enter the index.
-
-No regex vocabulary matching. It was tried: "commissioner reports" appears in
-1 of 187 meetings. These transcripts have no reliable announcement phrasing,
-and afternoon sessions have no announcement at all.
-"""
+natural, but nothing invented can enter the index."""
 import argparse
 import concurrent.futures as cf
 import itertools
@@ -183,21 +146,7 @@ AGENDA_TITLE_WORDS = 14   # a zoning title runs past 60 words of legal prose;
 
 
 def agenda_for(con, meeting_id):
-    """The county's published agenda for a day, as the model should see it.
-
-    This was the missing input. The model was asked to recover "R-58" from ASR
-    output of somebody saying "R fifty eight", when the exact string is on
-    disk. Measured before adding it: 15% of published items in recorded
-    meetings were located in the recording at all, and only 47% of segments in
-    meetings WITH an agenda carried a code that matched a real item - though
-    when a code was emitted it was right 94% of the time. The model was not
-    guessing badly, it was guessing at all.
-
-    Titles are clipped because they are legal prose - "An Ordinance By The
-    Pasco County Board Of County Commissioners Amending The Pasco County
-    Comprehensive Plan..." - and the identifying part is the front of it.
-    Sending 191 of those in full would cost more prompt than the transcript.
-    """
+    """The county's published agenda for a day, as the model should see it."""
     if meeting_id is None:
         return "", frozenset()
     rows = con.execute("""
@@ -227,15 +176,7 @@ def session_rank(title):
 
 
 def day_groups(vids):
-    """Split meetings into groups that can be read as one continuous agenda.
-
-    Only sessions whose order is certain get joined. A day may also carry a
-    workshop or a budget hearing, which are separate meetings that happen to
-    share a date, and occasionally two recordings claim the same session
-    because a stream dropped and restarted - in both cases the order is a
-    guess, and a wrong order would hand the model a scrambled agenda. Those
-    are segmented on their own instead.
-    """
+    """Split meetings into groups that can be read as one continuous agenda."""
     by_day = {}
     for v in vids:
         by_day.setdefault((v["upload_date"], v["kind"]), []).append(v)
@@ -365,17 +306,7 @@ def spoken(word, hay):
 
 
 def ground(title, span_text):
-    """Strike from the title any subject word that was not spoken in the span.
-
-    Returns (search_title, coverage). Editing the title in place rather than
-    rebuilding it from surviving tokens is what keeps "R-58" and "PDE 260033"
-    intact - a rebuild yields "58" and "260033", which BM25 cannot match and
-    threads.global_keys() cannot recognise as a case number.
-
-    A title may stay abstractive and still be safe to index: the words that
-    were never said are simply gone, so a hallucinated subject cannot become a
-    searchable claim about the archive.
-    """
+    """Strike from the title any subject word that was not spoken in the span."""
     if not (title or "").strip():
         return None, 0.0
     hay = re.sub(r"[^a-z0-9' ]+", " ", threads.normalize_numbers(span_text).lower())
@@ -472,18 +403,7 @@ def segment_day(sessions, rows, agenda="", valid_codes=frozenset()):
 
 
 def preflight(con):
-    """Prove the write path works before spending a single LLM call.
-
-    Segmentation had a syntax error in its INSERT - an unquoted `end` - and it
-    cost a whole run to notice. Nothing looked wrong: each day printed its
-    segment count and only then tried to store them, and because the raise
-    happened inside `with ThreadPoolExecutor`, Python sat waiting for all 133
-    outstanding calls to drain before surfacing it. An hour of API spend, a log
-    full of success lines, and an empty table.
-
-    So the statement is exercised against a real transaction that is then
-    rolled back. It costs one round trip and fails in the first second.
-    """
+    """Prove the write path works before spending a single LLM call."""
     # A real video id: `segments.video_id` is a foreign key, so a made-up one
     # would fail for a reason that has nothing to do with the statement.
     row = con.execute("SELECT id FROM videos LIMIT 1").fetchone()

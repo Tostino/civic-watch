@@ -1,22 +1,4 @@
-"""Did ASR silently drop speech?
-
-`videos.gap_seconds` counts audio with no transcript, but that number cannot
-tell you anything on its own: a county meeting genuinely contains long silence
-- recesses, waiting for a presenter, the room emptying for a shade meeting. A
-16-minute hole is alarming or unremarkable depending on whether anyone was
-talking, and the transcript is exactly the wrong thing to ask.
-
-So this asks diarization instead. Pyannote decides where SPEECH is without
-knowing what was said, which makes it an independent witness: if it found a
-turn and ASR produced no word inside it, that is a deletion, not a pause.
-This is the failure mode Parakeet has on long inputs, and it is invisible to
-sampling - you cannot find a missing sentence by reading the sentences that
-are there.
-
-    bin/audit_asr.py             every transcribed video, worst first
-    bin/audit_asr.py --limit 20  just the worst 20
-    bin/audit_asr.py --video ID  one video, with the individual holes
-"""
+"""Did ASR silently drop speech?"""
 import argparse
 import json
 import os

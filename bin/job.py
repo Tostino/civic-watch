@@ -6,29 +6,7 @@ the README and bin/refresh.sh define - never a new
 composition invented here. Order inside a job is the load-bearing order those
 files document (roster before speakers, land before minutes, affinity before
 index), and jobs that would spend money say so and are refused without an
-explicit paid_ok.
-
-Two rules the whole design hangs on:
-
-1. ONE job at a time, and never while the ingest fleet is working. The
-   stages contend for the GPUs and for the same derived tables; two chains
-   interleaved produce a state neither would have produced alone.
-2. A job's PREREQUISITE is measured from the database, not remembered from
-   history. "Run the fleet" is refused when nothing is pending ingest; "fold
-   into the archive" is refused when every transcribed video is already in;
-   the paid naming chain is refused when the server holds no inference key.
-   The refusal states the measurement, so the operator learns the pipeline's
-   shape from being told no.
-
-Status goes to logs/job.json (one file: one job at a time is the invariant),
-output to logs/job.log. bin/rederive.py keeps its own status - it carries a
-snapshot diff and a revert no other job has - and the runner treats a running
-rederive as holding the same lock.
-
-Every step carries a `say` line as well as its argv. The console shows the
-plan before the run and ticks the steps off during it, so "still working" and
-"stuck" look different from across the room - which, before, they did not.
-"""
+explicit paid_ok."""
 import argparse
 import datetime
 import json
@@ -77,13 +55,6 @@ JOBS = {
             # moves it: landing agendas changes which items a subject
             # matches, and parsing minutes changes every decided, continued,
             # refused and divided count inside it.
-            #
-            # Nothing else writes that table. Every other writer is a
-            # CURATION pass in bin/subjects.py, which is not on this path, so
-            # without this step the strip keeps yesterday's numbers after
-            # every sweep - rendering perfectly, contradicting nothing on
-            # screen, and quietly disagreeing with the archive underneath it.
-            # It is 12 seconds and it is a no-op where no vocabulary is kept.
             {"say": "Recount each subject's years for the front page",
              "cmd": [PY, "bin/subjects.py", "--rollup"]},
             {"say": "Check the archive for integrity",

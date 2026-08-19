@@ -7,21 +7,7 @@ and every one of them has to be re-indexed, because the address is in the
 passage text, the BM25 postings and the embedding as well as the utterance. At
 roughly four seconds a recording that is about twenty-five minutes of work, and
 a request that takes twenty-five minutes is a request that has already timed
-out somewhere between here and the browser.
-
-So this is the detached runner, in the shape `bin/rederive.py` established:
-status to logs/redact.json, output to logs/redact.log, and the pid in the
-status so a crash reads as "died" rather than as work still in progress.
-
-Progress is reported PER RECORDING rather than per redaction. That is the unit
-the time is actually spent in - one re-index covers however many addresses were
-removed from that recording - and a bar that moves in 370 steps tells the
-operator something true, where one that moves in 3,439 would stall visibly at
-each re-index for no reason a reader could see.
-
-    bin/redact_job.py --apply-all           every proposal
-    bin/redact_job.py --apply-all --ids 1 2 3   only these
-"""
+out somewhere between here and the browser."""
 import argparse
 import datetime
 import json

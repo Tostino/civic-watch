@@ -1,44 +1,5 @@
 #!/usr/bin/env python3
-"""Re-derive speaker identity from the human labels, and measure what changed.
-
-The console's "propagate my labels" job. Human labels are the verified
-reference set the anchor-based matcher and the affinity gate score against, so
-a batch of new labels is exactly when re-derivation pays: one label on a voice
-can rename that voice's whole cluster archive-wide, and pull misassigned
-voices off names they never earned.
-
-Runs the FREE, local part of bin/respeak.sh:
-
-    speaker_id --write -> chair_anchor --write -> affinity -> index_passages
-                       -> audit
-
-`name_speakers` is deliberately absent: it calls the paid model, and the
-console must not spend money on a button press. Run bin/respeak.sh for the
-full chain when there is credit. Order still matters: identity
-moves names between clusters, so affinity must re-measure after it, and the
-index bakes resolved names, so it runs last.
-
-`chair_anchor` was absent too, and that was a hole rather than a policy. It is
-free - the county's published roster plus the script the presiding officer
-reads, no model and no network - and it is the only stage that can contradict
-the archive-wide cluster majority about a commissioner. speaker_id no longer
-writes source = NULL over it, but nothing was putting it BACK
-after it had been erased, so production sat with three clusters - 69,596
-utterances - stored under a name the county's own roster contradicts, and a
-chain advertised as "re-derive identity" could not repair it. It runs before
-affinity for the reason refresh.sh gives: affinity scores each voice against
-the names that exist, so a reference set full of the wrong name teaches it the
-wrong thing.
-
-Everything it touches is a derived layer; the labels themselves outrank the
-result and survive it.
-
-Status goes to logs/rederive.json and output to logs/rederive.log, which is
-what /api/admin/rederive serves. The before/after snapshot goes through a
-gzip file rather than a table: bin/rebuild.sh requires its KEEP and DROP
-lists to cover the schema exactly, so a scratch table would stop every
-rebuild until somebody classified it.
-"""
+"""Re-derive speaker identity from the human labels, and measure what changed."""
 import argparse
 import datetime
 import gzip

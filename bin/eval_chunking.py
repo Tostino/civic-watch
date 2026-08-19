@@ -1,14 +1,4 @@
-"""Does respecting speaker boundaries improve retrieval?
-
-Strategy A groups consecutive utterances to a word budget and only breaks at a
-meeting boundary, so a passage can contain several speakers.
-Strategy B never lets a passage cross a speaker change; long single-speaker
-turns are split, short turns stand alone.
-
-B is what the product needs regardless - a retrieved passage has to be
-attributable to one person - but the point here is to find out what it costs
-or gains in raw retrieval quality.
-"""
+"""Does respecting speaker boundaries improve retrieval?"""
 import re
 import sys
 import time

@@ -1,22 +1,4 @@
-"""The data layer for the rebuilt UI.
-
-Separate from api.py on purpose. api.py grew around the five hand-written pages
-and its shapes are a stopgap; these endpoints are designed
-from what a surface actually renders, and the two coexist until the old pages
-are retired.
-
-Two things it fixes outright:
-
-* **One key per entity.** `/api/meeting/<id>` used to take a VIDEO id while
-  `/api/agenda/<id>` took a MEETING id - two different keys behind near-
-  identical names. Everything here is keyed on the meeting, and a recording is
-  addressed as a child of it.
-* **No display strings.** The old search returned `'Group ' || cluster` as a
-  speaker NAME, so a diarization id reached the page as though it were a
-  person. Speaker identity leaves here as structured fields and one component
-  decides how to render them, which is also the single place a future
-  redaction rule can act.
-"""
+"""The data layer for the rebuilt UI."""
 import re
 
 # The county's public portal. Every meeting and item should be able to point at
@@ -42,18 +24,7 @@ def _portal_url(event_id):
 # ------------------------------------------------------------------- index
 def meetings(con, body=None, year=None, has_recording=None, when="past",
              limit=200, offset=0, month=None):
-    """The archive as a list, newest first.
-
-    Carries each meeting's own coverage state so a reader can
-    tell what they will get before clicking. A site-wide disclaimer would train
-    them to ignore it.
-
-    `when` defaults to PAST because the portal publishes its forward calendar:
-    meetings are announced months ahead and land here as rows with no agenda,
-    no minutes and no recording, because they have not happened. Sorted newest
-    first they occupy the whole first screen and every one of them reads as a
-    hole in the archive. CivicClerk splits Past / Coming Up and is right to.
-    """
+    """The archive as a list, newest first."""
     where, args = ["TRUE"], []
     if when == "past":
         where.append("m.date <= to_char(now(), 'YYYY-MM-DD')")
@@ -96,24 +67,7 @@ def meetings(con, body=None, year=None, has_recording=None, when="past",
     return {"total": total, "meetings": [dict(r) for r in rows]}
 
 def overview(con, body=None):
-    """The collection as an object, and the shape of it over time.
-
-    Browse opened on a search box, which answers nothing about what is here.
-    This is what a reader needs before they can ask anything: how far back it
-    goes, how much of it there is, and - the part that matters most - how much
-    of it is actually covered. The three coverage fractions are not decoration:
-    the archive holds twelve years of the published record and only seven of
-    recordings, and a reader who assumes otherwise will conclude the video is
-    missing rather than that it never existed.
-
-    `months` is the histogram the time axis is drawn from: one row per calendar
-    month that has meetings in it, which is 145 of the 149 in the span.
-
-    Every count except `scheduled` is of meetings that have HAPPENED. The
-    county posts its calendar months ahead - 30 meetings are on the books for
-    September 2026 through January 2027 - and counting those as archive would
-    claim coverage of events nobody has attended yet.
-    """
+    """The collection as an object, and the shape of it over time."""
     past = "m.date <= to_char(now(), 'YYYY-MM-DD')"
     where, args = [past], []
     if body:
@@ -205,13 +159,6 @@ NAY_NAMES = re.compile(
 
 # ------------------------------------------------------- who said this, once
 #
-# ------------------------------------------------------- who said this, once
-#
-# THE ONE SHAPE. Every surface that names a speaker sends this object and
-# nothing else, because three of them grew their own spelling of the same four
-# facts (name/speaker, display_name/speaker_display, human/name_human,
-# basis/name_basis) and guessing wrong did not raise, it read as "no name".
-#
 # `(exchange)` NEVER CROSSES THIS BOUNDARY. It is an internal token for a
 # passage spanning several people and no reader may see it. It used to be
 # filtered in the browser, in two different files. An API that cannot emit it
@@ -228,12 +175,7 @@ def line(r):
     `case()` each ran LINES and shipped the pieces raw, so `Turn` destructured
     an undefined `who` and took BOTH routes down with a 500. That is two of the
     six public entity routes, and they are the ones every search hit and every
-    front-page dissent row links to.
-
-    Anything that reads LINES goes through here. A caller that only wants the
-    text still pays one dict build per line, which is cheaper than the next
-    surface forgetting.
-    """
+    front-page dissent row links to."""
     d = dict(r)
     d["who"] = who(d["name"], d["display_name"], d["basis"], d["human"],
                    d["contested"])
@@ -338,14 +280,7 @@ def _divided_record(con, limit):
     return rows[:limit]
 
 def _divided_room(con, limit, seen=()):
-    """Division the recording caught. Inferred, and marked so on the page.
-
-    `seen` is what the record lane is already showing. The two sources DO
-    corroborate - February 2026's P59 is "Commissioner Oakley voting nay" in
-    the minutes and "motion passes three to one" in the room - but with six
-    slots a side, spending one on a matter the page has already made is a poor
-    trade against the ones only the recording knows about.
-    """
+    """Division the recording caught. Inferred, and marked so on the page."""
     hits = {}
     for r in con.execute(ROOM_SQL, ROOM_ARGS):
         d = dict(r)
@@ -397,16 +332,7 @@ def _tighten(text, kind, want=240):
     return ("…" + out) if start == 0 and out[:1].islower() else out
 
 def highlights(con, limit=6, divided_limit=None):
-    """- curated entry points, so arriving does not require a question.
-
-    Three named queries over data already held, which is the test the design notes sets: none of this needs a new pipeline stage.
-
-    `divided_limit` is separate because the two lanes are read differently
-    from the lists beside them. "Cases the board continued again and again" is
-    a top-N and a reader wants the worst few; the dissent lanes are a HISTORY,
-    and six of them showed the last two months and offered no way back. The
-    lanes scroll, so they are sent deep and the page bounds them.
-    """
+    """- curated entry points, so arriving does not require a question."""
     record = _divided_record(con, divided_limit or limit)
     divided = {"record": record,
                "room": _divided_room(con, divided_limit or limit,
@@ -480,16 +406,6 @@ def highlights(con, limit=6, divided_limit=None):
 # not a field where somebody recorded what the argument was. Deriving it was
 # tried and returns the zoning code's vocabulary ("Planned Unit Development"),
 # not the county's. Three rules keep the curation honest:
-#
-#   1. Every NUMBER is derived. The list says what to look for; the archive says
-#      what it found, and an issue with no hits is dropped rather than drawn as
-#      a row of zeroes a reader would read as "never discussed".
-#   2. TWO patterns each. A published title is drafted prose matched by regex;
-#      speech is not, and is matched by tsquery, which also keeps this off a
-#      2.3s sequential scan.
-#   3. bin/threads.py holds a TOPICS list that looks like this one and is
-#      deliberately not shared. Those keys are written at INDEX time; these are
-#      matched at read time. One list serving both would be half stale.
 ISSUES = [
     {"slug": "rezoning",
      "label": "Rezoning and planned developments",
@@ -592,19 +508,7 @@ ISSUES = [
 ]
 
 def _issue_specs(con):
-    """The subjects to draw, and the SQL each one matches with.
-
-    Read from `subject`/`subject_term` through `subjects.patterns()`, which is
-    the ONE place a kept phrase becomes a regex and a tsquery. Importing it
-    rather than re-deriving here is the point: a second copy of that
-    translation is exactly the drift the tables were built to end, and it
-    would be silent - two patterns that disagree still both return rows.
-
-    Falls back to the `ISSUES` literal while the tables are empty, so a
-    database that has not had `bin/subjects.py` run against it serves the
-    section it served before rather than a blank space. `--status` says which
-    of the two is live.
-    """
+    """The subjects to draw, and the SQL each one matches with."""
     try:
         import subjects
         live = subjects.patterns(con)
@@ -638,14 +542,7 @@ def _issue_specs(con):
              "room": i["room"], "room_not": None} for i in ISSUES]
 
 def _issues_rolled(con, specs):
-    """The strip, read back out of `subject_year`.
-
-    Returns None when the table is empty, so a database that has never had a
-    rollup run against it computes the thing live rather than serving a blank
-    section. The shape is byte-for-byte what the live path returns - the page
-    cannot tell which one answered, and a check that compares them would be
-    comparing the same code to itself.
-    """
+    """The strip, read back out of `subject_year`."""
     rows = [dict(r) for r in con.execute("""
         SELECT slug, year, items, meetings, decided, continued, refused,
                divided, lines, heard, first, last
@@ -700,31 +597,13 @@ def _issues_rolled(con, specs):
 def issues(con, live=False):
     """Each issue's twelve years, in both sources and never merged.
 
-    Per YEAR rather than as one total, because the totals are the least
-    interesting thing about these: opioid money is a 2021 arrival, Moffitt a
-    2020 one, and the county has argued about impact fees since the first
-    meeting this archive holds. A count cannot say that and a strip of twelve
-    cells can.
-
-    The record lane counts published agenda items. The room lane counts lines
-    of speech - a line is a ~40-second block, so it counts blocks that mention
-    the issue, not sentences about it. Neither is a measure of importance and
-    the page does not present them as one.
-
     THE VOCABULARY IS DATA NOW, not the `ISSUES` literal below. `subject` and
     `subject_term` hold subjects a model proposed from a sample of real titles
     and phrases a person kept after seeing what each one actually matches here
     (`bin/subjects.py`). Both lanes are built from the SAME kept phrases, which
     the literal could not promise: it carried a regex for the record and a
     separate tsquery for the room, and nothing checked that the two described
-    the same subject.
-
-    Matching stays lexical and stays here. That is what keeps these counts on
-    the record side of section 2 - counting the county's own published titles
-    by phrase is exact and reproducible, where a per-item model label would
-    make every number on this surface an inference and oblige it to be drawn
-    as one.
-    """
+    the same subject."""
     specs = _issue_specs(con)
     if not specs:
         return {"span": [], "heard_from": None, "issues": []}
@@ -882,17 +761,7 @@ NOT_A_PERSON = frozenset({
 })
 
 def facets(con):
-    """The values a search rail may offer.
-
-    Derived, not written down. A hardcoded list of phases drifts the moment
-    the parser learns a new one, and a filter that returns nothing because the
-    vocabulary moved is worse than no filter - the reader reads it as "the
-    archive holds none of those".
-
-    Speakers are the ones with enough speech to be worth filtering by, which
-    is a judgement, so the count comes with them and the page can show it.
-    The one exception to "derived, not written down" is NOT_A_PERSON above.
-    """
+    """The values a search rail may offer."""
     return {
         "bodies": [dict(r) for r in con.execute("""
             SELECT m.body, COUNT(*) AS items
@@ -1038,24 +907,6 @@ def meeting(con, meeting_id):
     return out
 
 # -------------------------------------------------------------- transcript
-#
-# -------------------------------------------------------------- transcript
-#
-# Speaker identity leaves here as FIELDS, never as a rendered string.
-#
-#   name         the resolved name or null, never a diarization label. THE KEY,
-#                which a filter, an override or a dispute is written against.
-#   display_name what to SHOW: a board member's surname expanded to the full
-#                name on the county's roster. Sent beside `name`, never instead
-#                of it, so the page can render "Kathryn Starkey" while still
-#                addressing her as "Starkey".
-#   confidence   how the voice matched. Null when human-labelled.
-#   human        a person stated this. Outranks everything derived.
-#   voice        the cluster id, stable within a page and explicitly NOT a name
-#                (only ~2% survive a re-clustering run).
-#
-# The old endpoint collapsed all of that into COALESCE(name, 'Group '||cluster),
-# so the page could not tell an inference from a fact.
 LINES = """
     SELECT u.video_id, u.idx, u.start, u."end", u.text,
            u.cluster AS voice, u.local_label,
@@ -1113,23 +964,6 @@ MAX_ITEM_LINES = 2000
 MAX_CASE_LINES = 4000
 
 # --------------------------------------------------------------- appearances
-#
-# --------------------------------------------------------------- appearances
-#
-# THE definition of "a time the board took this item up", used by /meeting,
-# /item and /case so all three break the record in the same places.
-#
-# One discussion often arrives as several item_spans, because the binder cuts on
-# speaker turns. Merging the near-adjacent ones is not a smoothing choice: the
-# gaps fall into two clumps with nothing between them.
-#
-#     0s x6, 2s x2, 4s, 5s   |   64s, 65s, 67s, 74s, 86s, ... 207m
-#
-# Below the trough is one discussion cut in two; above it the board set the item
-# down and came back. Any threshold inside the trough gives the same answer, and
-# this one has 55 seconds of slack either side. If the trough ever fills in,
-# move this DOWN: getting it wrong that way shows a break the reader can see and
-# dismiss, rather than hiding that an item was returned to at all.
 ONE_APPEARANCE = 60
 
 def _runs(spans):
@@ -1163,20 +997,6 @@ def _runs(spans):
 # A NOTE ON WIDE SPANS, so nobody re-derives the wrong conclusion. 110 of 5,587
 # spans cover more than half their recording against a median of 3 minutes, and
 # that looks like the binder running to the tape. It is not:
-#
-#   - No wide segment is last in its video or the only one, and each ends within
-#     a second or two of where the next begins.
-#   - The affected meetings have a median of 8 published items, mostly Planning
-#     hearings or emergency sessions where one item genuinely IS the meeting.
-#   - Read at five points, the 4h55m span on 2025-02-06 is the same rezoning
-#     throughout.
-#   - An item ends with its vote, so a span that swallowed the next would have a
-#     vote in its middle. The last vote sits at 97% through a wide span and 96%
-#     through a normal one. Wide spans are, if anything, better bounded.
-#
-# So a long span is a long hearing. `share` and `loose` were computed here and
-# rendered as a warning telling readers a genuine five-hour rezoning was
-# probably mis-bounded. Removed.
 
 def item(con, item_id):
     """One agenda item: the published record, then what was said.
@@ -1290,14 +1110,7 @@ def item(con, item_id):
 
 # --------------------------------------------------------------------- case
 def case(con, case_id):
-    """One application, every meeting that took it up, in order.
-
-    The sleeper feature. A rezoning is heard by the Planning Commission,
-    transmitted by the Board and adopted months later; 1,377 cases span more
-    than one meeting and the longest in the archive ran to twelve appearances
-    across ten months and five continuances. Twelve unrelated events on the
-    county portal are one story here, and no flat search can show it.
-    """
+    """One application, every meeting that took it up, in order."""
     steps = [dict(r) for r in con.execute("""
         SELECT ai.id, ai.seq, ai.code, ai.section, ai.phase, ai.title,
                ai.department, ai.recommendation, ai.outcome_text, ai.outcome,

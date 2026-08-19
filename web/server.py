@@ -1,22 +1,4 @@
-"""Two front-ends over one archive, each specialised for its job.
-
-    /          research  - search, read transcripts, jump to the video
-    /speakers  workbench - inspect voice groups, name/split/merge them
-
-They are separate pages because they are separate tasks: reading wants a big
-player and continuous transcript, labelling wants dense lists, multi-select and
-keyboard flow. Bolting the second onto the first produced a tool that could
-neither list existing speakers nor split a mixed group.
-
-A third surface arrived with the tool server: /mcp serves the same five tools
-the agent calls to a model somebody else is driving (web/mcp_server.py). It is
-mounted inside the reading app rather than proxied to, which is the reason
-this file is ASGI at all - the previous BaseHTTPRequestHandler could not hold
-an ASGI app without a loopback hop between the two.
-
-    bin/serve.sh                 # and see that script for why, not this
-    python3 web/server.py [--port 8765]
-"""
+"""Two front-ends over one archive, each specialised for its job."""
 import argparse
 import asyncio
 import contextlib
@@ -62,13 +44,7 @@ def search(con, q, kind=None, speaker=None, limit=50, offset=0):
 
     websearch_to_tsquery accepts what people actually type - quoted phrases,
     OR, a leading minus to exclude - and never raises on malformed input, so
-    the FTS5 escape/retry dance this replaced is simply gone.
-
-    Ranking here is ts_rank_cd, not the BM25 used for agent retrieval. This is
-    a browse-by-keyword tab where the query is usually a phrase the reader
-    already has in mind; BM25's document-frequency weighting is what matters
-    for the retrieval path, and that lives in bin/bm25.sql.
-    """
+    the FTS5 escape/retry dance this replaced is simply gone."""
     if not (q or "").strip():
         return {"total": 0, "results": []}
     return _search(con, q, kind, speaker, limit, offset)
@@ -218,22 +194,11 @@ GZIP_OVER = 4096
 # at 30s, nginx at 60s, plus whatever a tunnel or CDN adds. Raising each is
 # necessary and not sufficient, since the next hop somebody adds has its own
 # default and the failure is silent.
-#
-# So the stream stops being quiet. A line beginning with ':' is an SSE comment,
-# invisible to EventSource, and it resets every idle timer in the chain at once.
-# It is also what let ASK_DEADLINE go to seven minutes.
 HEARTBEAT = 10
 
 # ------------------------------------------------------------------ replies
 def _json(request, body, code=200, headers=None):
-    """A JSON response, gzipped over `GZIP_OVER` if the caller can take it.
-
-    Hand-rolled rather than GZipMiddleware, and deliberately. The middleware
-    compresses everything it is given, including the event stream - and a
-    gzip encoder buffers until it has a block, which is the exact failure
-    /api/ask spent a week on (see the note on Cache-Control below). This
-    touches one response at a time and cannot reach the streaming one.
-    """
+    """A JSON response, gzipped over `GZIP_OVER` if the caller can take it."""
     if isinstance(body, (dict, list)):
         body = json.dumps(body, default=jsonable).encode()
     elif isinstance(body, str):
@@ -263,26 +228,7 @@ def reads(fn):
     it began refusing new ones with "sorry, too many clients already". Every
     one of them had the same last query - the passage projection from
     retrieve.search - because /api/find is a GET and the search page is what a
-    reader uses most.
-
-    A missed close does not break the request that missed it; it breaks some
-    other request, minutes later, on a different endpoint, once the server as
-    a whole runs out - and by then the leaking path is the only one that looks
-    innocent. So no endpoint opens its own: this decorator is the only place
-    a read connection comes from, which is what makes forgetting impossible
-    rather than merely unlikely.
-
-    Refcounting is not the backstop it appears to be. A psycopg connection and
-    its cursors reference each other, so a dropped connection is a CYCLE: it
-    is freed by the cyclic collector on its own schedule rather than the
-    moment the frame goes, which is exactly how this leaked slowly enough to
-    look like something else. Closing it here is deterministic and costs
-    nothing.
-
-    Endpoints stay `def`, not `async def`, on purpose. Starlette runs a sync
-    endpoint on a worker thread, so psycopg keeps blocking exactly as it did
-    under the threaded server and no query has to be rewritten.
-    """
+    reader uses most."""
     @functools.wraps(fn)
     def endpoint(request):
         con = None
@@ -300,15 +246,7 @@ def reads(fn):
 
 def _one(request):
     """`?k=v` reader with a default. Query values are strings; tools.call and
-    the endpoints do the coercion, exactly as they did off parse_qs.
-
-    FIRST value, not last, where a caller repeats a parameter. That is what
-    `parse_qs(...)[k][0]` did here for years, and Starlette's mapping returns
-    the last - so `?q=a&q=b` would quietly start searching for something else
-    after this rewrite. Nobody writes that URL on purpose; a form or a proxy
-    that appends rather than replaces writes it by accident, which is exactly
-    the case where the answer should not depend on which version is running.
-    """
+    the endpoints do the coercion, exactly as they did off parse_qs."""
     def one(k, d=None):
         got = request.query_params.getlist(k)
         return got[0] if got else d
@@ -521,19 +459,7 @@ def _event(name, payload):
 
 def api_ask(request):
     """Bound what a public, unauthenticated, PAID endpoint can be made to
-    spend, before it spends any of it.
-
-    Two ways to say no, because the two callers cannot both be served by one.
-    A browser reaches this through EventSource, which exposes neither the
-    status code nor the body of a failed response to the page - all it gets is
-    a bare `error`, so a 429 would show a reader "something went wrong" and
-    never the sentence telling them to come back in four minutes. Anything
-    else (curl, a script, a monitor, a WAF counting 429s) wants the real
-    status. EventSource always sends `Accept: text/event-stream`, which is a
-    clean way to tell them apart.
-
-    Either way no model is called and nothing is paid for.
-    """
+    spend, before it spends any of it."""
     question = request.query_params.get("q", "")
     try:
         release = limits.reserve(limits.client_ip(request), question)
@@ -557,23 +483,7 @@ def api_ask(request):
 
 def _ask_stream(question, release):
     """Server-sent events: the agent takes minutes on a hard question, so what
-    it is DOING is streamed rather than leaving the page on a bare spinner.
-
-    What streams is the agent's actual tool calls, not four fixed captions.
-    The stages are whatever it decides to do - that is the point of D9 - and a
-    reader watching "search_record: school zone speed cameras -> 0 items"
-    learns something a progress bar cannot tell them.
-
-    ONE WRITER, which the threaded version could not manage. There, the run
-    and the heartbeat were two threads writing the same socket under a lock,
-    because a comment spliced into the middle of an event corrupts the framing
-    of both. Here the run is the only producer, it produces into a queue, and
-    the heartbeat is what this generator emits when that queue has said
-    nothing for HEARTBEAT seconds. The lock is gone because the hazard is.
-
-    Starlette iterates a sync generator on a worker thread, so `q.get` blocks
-    the way it always did without holding the event loop.
-    """
+    it is DOING is streamed rather than leaving the page on a bare spinner."""
     q = queue.Queue()
     # Set when the reader is gone. `on_event` raises on it, which unwinds
     # agent.ask from inside whatever call it is in - the same effect the old
@@ -650,9 +560,6 @@ def _ask_stream(question, release):
 # refused, it is not served: there is nothing there to reach. It 404s like
 # any other unknown path, which is the point. The public surface should not
 # admit that an admin API exists.
-#
-# The loopback check below stays as depth. It is free, and it still rules out
-# anyone reaching the admin port directly across a network.
 def guard(fn):
     """Loopback, then a session. Every admin route but login and state."""
     @functools.wraps(fn)
@@ -848,10 +755,6 @@ def admin_job_stop(request, body, con):
 # by impact, shows the evidence beside the write, canonicalises a name to the
 # surname and re-indexes the passages per write. None of that was true here.
 # Two write paths onto human judgement was one too many.
-#
-# /api/agenda/* and /api/speakers/* reads are gone with web/api.py and the
-# workbench page they fed. The rebuilt UI never called either of them -
-# checked before deleting.
 
 EXCEPTION_HANDLERS = {404: _not_found, 405: _not_allowed}
 

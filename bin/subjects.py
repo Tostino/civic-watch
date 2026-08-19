@@ -61,14 +61,7 @@ import db                                                      # noqa: E402
 
 
 def _llm():
-    """The chat client, imported only when a pass actually needs it.
-
-    `web/archive.py` imports this module for `patterns()` alone - it is the
-    one place a phrase becomes SQL, and a second copy over there would drift
-    from this one, which is the failure the whole table exists to end. It has
-    no business loading the model client to do that, and the reader API should
-    not fail to start because an inference key is absent.
-    """
+    """The chat client, imported only when a pass actually needs it."""
     import ask
     return ask
 
@@ -319,23 +312,7 @@ def theme(con, n=THEME_COUNT):
 
 
 def patterns(con, slug=None):
-    """The kept vocabulary as SQL, for every subject in the tree.
-
-    Two kinds of row come out of here and the difference matters:
-
-      a SUBJECT has phrases. A person kept them after seeing what each one
-      matched, and its pattern is those phrases.
-
-      a THEME has none, because nobody files an item about "public safety".
-      Its pattern is the UNION of everything beneath it, so its count needs no
-      curation, cannot disagree with its children, and contains them by
-      construction rather than by a constraint somebody has to remember.
-
-    Depth is not limited. Eight themes over twenty-seven subjects over twelve
-    sub-subjects is three levels, and the union walks as far down as the tree
-    goes. What IS enforced is that a leaf must have phrases: an empty branch
-    would render as a row of nothing.
-    """
+    """The kept vocabulary as SQL, for every subject in the tree."""
     rows = con.execute("""
         SELECT s.slug, s.label, s.q, s.sort, s.parent, t.phrase, t.negative
           FROM subject s LEFT JOIN subject_term t
@@ -439,15 +416,7 @@ def split(con, slug=None):
 
     The model reads titles THIS SUBJECT ACTUALLY MATCHED rather than the
     archive at large, so the sub-subjects it proposes are a decomposition of
-    what is there and not a guess at what might be.
-
-    It is allowed to decline, and the prompt says so in as many words. Not
-    every large subject decomposes: community development district oversight
-    is 2,109 items and two phrases that mean the same thing, because it really
-    is one kind of business with 2,109 parties. Forcing a split there would
-    manufacture a distinction the record does not have, which is the same
-    failure as inventing a subject.
-    """
+    what is there and not a guess at what might be."""
     live = patterns(con)
     targets = []
     for s, d in live.items():
@@ -655,18 +624,6 @@ def review(con):
 def triage(con):
     """Keep the phrases that ground cleanly; leave the rest for a person.
 
-    The design says a person decides every phrase, and 27 subjects at ~16
-    phrases each is 430 decisions, most of which are not decisions: a phrase
-    that names between one item and a twentieth of the archive, with a sample
-    title that contains it, is doing exactly what it claimed. Reviewing those
-    one by one is how a review queue stops being read.
-
-    So this keeps that majority and leaves exactly the two classes the audit
-    invariants name - a phrase that finds NOTHING, and a phrase broad enough
-    to name most of the archive - sitting at 'proposed' for `--review`. They
-    are the two that were ever going to be wrong, and they are few enough to
-    read.
-
     Nothing is auto-DROPPED. A dead phrase might be a real programme this
     county spells differently, and deleting it silently would lose the one
     signal that says so.
@@ -694,19 +651,7 @@ def triage(con):
 
 
 def rollup(con):
-    """Recompute `subject_year`, which is what the front page actually reads.
-
-    The expensive join happens HERE, once, at curation time. Measured on the
-    live archive: 18 hand-written regexes answered in 0.5s, 27 derived
-    subjects in 3.7s, and 27 plus 12 sub-subjects in 163 seconds - because a
-    child is counted inside its parent, so it evaluates its own alternation
-    and its parent's against every published title, and `~*` takes no index.
-
-    Called at the end of every pass that can change what a subject matches.
-    Forgetting to call it would leave the strip showing yesterday's
-    vocabulary, which is worse than slow, so it is not a separate step anyone
-    has to remember.
-    """
+    """Recompute `subject_year`, which is what the front page actually reads."""
     sys.path.insert(0, os.path.join(ROOT, "web"))
     import archive
     # The one definition of "the minutes named a nay vote", borrowed rather
@@ -720,12 +665,6 @@ def rollup(con):
         return
 
     # MEMBERSHIP FIRST, COUNTS SECOND, and that ordering is the whole fix.
-    #
-    # Matching each subject with one big regex meant a theme - whose pattern is
-    # the union of its entire subtree - ran an alternation of every phrase
-    # beneath it against all 23,123 titles, and a sub-subject ran its own
-    # alternation AND its parent's. Measured at 163s before themes existed and
-    # unbounded after.
     #
     # So the regexes run ONCE EACH, only for the subjects that actually have
     # phrases, into a set of (subject, item). Containment becomes a set

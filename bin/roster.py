@@ -1,24 +1,4 @@
-"""Extract who sat on the board, and in what office, from published agendas.
-
-Every agenda opens with a roster block:
-
-    County Commissioners  Honorable Ronald E. Oakley, District 1
-                          Honorable Vice Chairman Seth Weightman, District 2
-                          Honorable Kathryn Starkey, District 3
-                          Honorable Second Vice Chairman Lisa Yeager, District 4
-                          Honorable Chairman Jack Mariano, District 5
-
-That block is the answer to two questions the transcript cannot answer:
-WHO was on the board on a given date, and WHICH of them was chairing. Both
-change - seats turn over, and the chair rotates annually.
-
-Why this matters more than it sounds: speaker_id.py matched voices against a
-hardcoded list of the five CURRENT commissioners and applied it to the whole
-archive. Checked against these rosters, 23% of commissioner voice assignments
-were to someone who was not seated that day, including 14,148 utterances
-credited to a commissioner who had not yet taken office. Per-meeting
-assignment is only sound if the candidate list is per-meeting too.
-"""
+"""Extract who sat on the board, and in what office, from published agendas."""
 import argparse
 import collections
 import re

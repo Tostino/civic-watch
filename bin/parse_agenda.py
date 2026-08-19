@@ -1,22 +1,4 @@
-"""Parse a published agenda into structured items.
-
-The layout is regular enough to parse without a model, which is the point of
-using the published document rather than inferring from audio:
-
-    Development Services - Planning and Economic Growth   <- department
-    R77 Confidential Project Wonka Economic Incentive ...  <- code + title
-    File Number CA26-5027                                  <- case / file no.
-    Comm. Dist. All                                        <- districts affected
-    Recommendation Approve                                 <- staff recommendation
-
-Titles wrap across lines and are interrupted by page furniture ("BCC Agenda",
-"Page 3 of 32"), so a title is accumulated until a labelled field or the next
-item code, with furniture dropped.
-
-This is deliberately a parser, not an LLM pass. The document is machine-made
-and consistent; anything here that needs judgement is a sign the layout
-changed, and it should fail visibly rather than be smoothed over.
-"""
+"""Parse a published agenda into structured items."""
 import re
 
 # Section headings. Pre-2020 agendas set these in caps ("CONSENT"), later ones
@@ -134,14 +116,7 @@ def parse(text):
 
 
 def normalise_case(file_number):
-    """PDE26-0033, 'Memorandum PDD15-587' and 'PDE-260033' are the same shape.
-
-    The agenda writes prefix + 2-digit year + sequence. Which label carries it
-    changed in 2020 and the transcript runs the digits together; all of them
-    normalise to PREFIX-YY-SEQ so they can join. The sequence is NOT zero-padded
-    to a fixed width, because the county does not pad it consistently either -
-    PDD15-587 and PDE26-0033 are both real.
-    """
+    """PDE26-0033, 'Memorandum PDD15-587' and 'PDE-260033' are the same shape."""
     if not file_number:
         return None
     m = CASE_ID.match(file_number.strip().upper())

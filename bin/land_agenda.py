@@ -1,23 +1,5 @@
 """Land the published agendas into the domain tables, and bind the transcript.
 
-Three passes, each idempotent:
-
-  MEETINGS      A meeting is the real-world event. It comes from the portal,
-                which knows the body and the date; recordings attach to it,
-                one per session. Recordings whose meeting has no portal entry
-                still get a meeting row, because the archive predates and
-                outlives the portal's coverage of any single body.
-
-  ITEMS         Parsed agenda items become agenda_items, with the case number
-                promoted into `cases` so a rezoning can be followed across
-                bodies and years.
-
-  SPANS         The transcript's LLM-derived segments are matched to published
-                items by agenda code and become item_spans. Segments that
-                match nothing are not discarded - a recess or a call to order
-                is real, it is just not an agenda item - so they are kept as
-                agenda_items with source='transcript' and no code.
-
 The binding is deliberately conservative: a code must appear in the segment
 title AND exist on that meeting's published agenda. A near-miss is left
 unbound rather than guessed, because a wrong bind silently attributes one
@@ -159,13 +141,6 @@ def upsert_meetings(con):
     # the engine behind the stranded transcript items : the video
     # moves, bind_spans no longer finds the item under the new meeting_id, and
     # creates another.
-    #
-    # So: only link a video that has no meeting, or whose meeting no longer
-    # matches its own date and body. A video already sitting on a valid sibling
-    # is left where it is. The tie-break for a genuinely new link is the
-    # sibling holding the most published items - the one the county's agenda
-    # actually landed on - and then the lowest id, so it never depends on plan
-    # order.
     con.execute("""
         WITH candidate AS (
             SELECT v.id AS video_id, m.id AS meeting_id,

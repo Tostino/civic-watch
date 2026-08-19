@@ -1,10 +1,5 @@
 """The archive's tool surface, served over MCP at /mcp.
 
-Same five tools the agent calls and the search page runs, reached by a model
-somebody else is driving. Nothing here is a sixth code path: `tools.call` is
-the single entry point, it already validates and clamps every argument, and
-this file adds a protocol, a budget and a set of prompts on top of it.
-
 WHAT IT IS FOR. A reader with an MCP client can ask questions of this archive
 in their own words and get the passages and published items behind the answer,
 without going through /ask - which is a paid, bounded endpoint with a model
@@ -295,14 +290,7 @@ async def _list_prompts(ctx, params):
 
 
 async def _get_prompt(ctx, params):
-    """A bad prompt request is a bad REQUEST, not a server fault.
-
-    MCPError rather than ValueError, and the difference is visible from
-    outside: the SDK turns anything else into "modern request handler raised"
-    with a full traceback in the log. On a public endpoint that means any
-    caller can fill the operator's console with stack traces by asking for a
-    prompt and leaving out its argument.
-    """
+    """A bad prompt request is a bad REQUEST, not a server fault."""
     p = BY_NAME.get(params.name)
     if not p:
         raise MCPError(mt.INVALID_PARAMS, f"no such prompt: {params.name}")
@@ -323,14 +311,7 @@ def build():
     Returns `(session_manager, asgi_app)`. The caller mounts the app and MUST
     enter `session_manager.run()` for the life of the process: it owns the
     task group every request runs inside, and without it the first call hangs
-    rather than failing.
-
-    STATELESS, and JSON rather than SSE. Nothing here pushes: a tool call is a
-    request and a response, so a session to hold open would only be state to
-    lose on restart and affinity to arrange at the edge. Answering POSTs with
-    `application/json` also sidesteps the whole class of proxy buffering bugs
-    that /api/ask spent a week on, because there is no stream to buffer.
-    """
+    rather than failing."""
     # Measured at startup. The MCP handshake takes `instructions` as a plain
     # string on the Server object, so unlike the tool list this one cannot be
     # re-read per request - it is as fresh as the process. That is a real
@@ -364,17 +345,6 @@ def build():
 class _PostOnly:
     """Refuse GET, and say why.
 
-    A GET on this path asks the transport to open a standalone SSE stream and
-    hold it for server-initiated messages. This server initiates nothing: it
-    is stateless, it answers a tool call and stops. Measured before this was
-    added: `curl http://.../mcp` never returned, because there was a stream at
-    the other end waiting for a message that was never going to come.
-
-    On a public endpoint that is a way to pin a connection for free, and it is
-    not covered by the tool-call budget, which meters work rather than
-    sockets. The spec allows a server with nothing to push to answer 405, so
-    that is what this does. POST and DELETE go through untouched.
-
     A CLASS, not a closure, and that is load-bearing. Starlette's `Route`
     decides what it was handed with `inspect.isfunction`: a plain function is
     wrapped as a request handler and called with one `Request`, so the first
@@ -403,21 +373,7 @@ class _PostOnly:
 
 
 def _security():
-    """Host and Origin checking for the mounted endpoint.
-
-    The SDK turns DNS-rebinding protection on by itself when it is told to
-    bind loopback, and this server IS bound to loopback in the container -
-    behind Next, behind nginx, answering for a public hostname. Left to
-    default, every forwarded request would be rejected for having the wrong
-    Host.
-
-    Off by default, therefore, and that is defensible for what this is: the
-    protection exists to stop a web page in a victim's browser reaching a
-    server that trusts its own locality. This one grants no authority to
-    anybody, holds no secret, and serves a document the county publishes. Set
-    MCP_ALLOWED_HOSTS and MCP_ALLOWED_ORIGINS (comma separated, `*` suffixes
-    allowed) to turn it back on where the deployment does want it.
-    """
+    """Host and Origin checking for the mounted endpoint."""
     hosts = [h for h in (os.environ.get("MCP_ALLOWED_HOSTS") or "").split(",")
              if h.strip()]
     origins = [o for o in

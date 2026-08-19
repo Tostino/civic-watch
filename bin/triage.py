@@ -3,17 +3,7 @@
 Roughly a quarter of the corpus is four words or fewer and under two seconds -
 "okay.", "yeah.", "thank you." Those cannot be attributed by ear or by
 embedding, they pollute the samples a human judges a voice by, and a diarization
-speaker made only of them is not identifiable at all.
-
-But length alone is the wrong test. "aye.", "second.", "here." are among the
-SHORTEST lines in the archive and the most consequential - they are the votes.
-Discarding them as noise would delete exactly the evidence vote attribution
-needs. So procedural words are exempt: never treated as noise, even when they
-are one word long.
-
-Nothing here removes anything from the transcript or from search. It only
-governs what is used to IDENTIFY a speaker.
-"""
+speaker made only of them is not identifiable at all."""
 import re
 
 TRIVIAL_WORDS = 4

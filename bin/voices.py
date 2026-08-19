@@ -104,20 +104,6 @@ def groups_for(con, name):
 
 
 # No name-mining from the text here, deliberately.
-#
-# The obvious idea is to read a self-introduction out of the group's speech -
-# people are required to give their name at the podium. It was tried with a
-# regex and measured against twelve real introductions: it caught TWO. The
-# misses were "My name is Marcus Coe", "My name is Andrew Kelly", "my name is
-# uh JP Lyons, Jimmy Lyons" - capitalisation, filler words, initials, and past
-# those, hyphenated names, titles, nicknames and whatever the ASR did to an
-# unfamiliar surname. It is an unbounded natural-language surface on noisy
-# text, which is the worst possible fit for a pattern.
-#
-# It is also already solved: bin/name_speakers.py extracts names from
-# transcript text with verbatim-quote verification, and it is in the pipeline.
-# This tool does the part the embeddings do well - separating the voices
-# deterministically - and hands the rest to a person or to that pass.
 
 
 def describe(con, g):
@@ -146,15 +132,7 @@ def describe(con, g):
 
 
 def _claim_label(con, members, name):
-    """A human label, recorded once as evidence rather than twice as data.
-
-    This wrote `speaker_label` AND mirrored the name into `speaker_identity`
-    at confidence 1.0, so one human statement existed as both a human fact and
-    a derived one, and utterance_speaker read it from both. A `label` claim is
-    the single place that statement belongs - and it is append-only on
-    purpose, because an operator changing their mind is an event and the
-    resolver breaks ties on recency.
-    """
+    """A human label, recorded once as evidence rather than twice as data."""
     try:
         import speaker_claims
     except ImportError:

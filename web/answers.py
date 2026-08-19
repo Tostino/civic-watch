@@ -1,52 +1,5 @@
 """Kept answers, so that a run of the agent has a URL.
 
-`/ask?q=...` looks like a link to an answer and is not one. It is an
-instruction to spend money: sending it to somebody makes them sit through a
-fresh run - minutes, at ASK_DEADLINE, and one out of the daily cap in
-web/limits.py - for an answer that is not the one being shown to them, but a
-different model sample over an archive that has gained meetings since. What a
-person wants to send is *this* answer.
-
-So every completed run is written here, keyed by an opaque id, and `/ask/<id>`
-serves it back. The link costs nothing and arrives in one round trip.
-
-**What is kept is the answer and what it CITED, never the words it quoted.**
-The evidence is read back out of the archive when the page renders. That is
-the whole design and it is worth being explicit about what it buys:
-
-    a redaction applied since  is already in `passages.text`
-    a corrected speaker name   is already on the row
-    a re-parsed outcome        is already on the item
-
-None of it needs anything to go back and find old copies, because there are no
-old copies. The archive is the record; a saved answer is a reading of it, and a
-reading that froze the words would slowly start disagreeing with the thing it
-claims to be quoting.
-
-Three decisions worth the words:
-
-  the server writes it, not the page
-      The alternative is a POST that takes the answer from the browser, and
-      that is a public endpoint which mints a permanent URL on this domain
-      from attacker-supplied content. There is no version of that which is
-      not a defacement vector. The row is written in the same process that
-      produced the answer, from the object it produced, and the id comes back
-      to the page in the stream's `answer` event.
-
-  the id is random, not a hash of the question
-      A hash would make two askers share one row, which is a cache of
-      questions rather than a link to an answer: the second reader would be
-      shown, with no way to tell, what the archive said to somebody else last
-      spring. Two runs of one question are two answers and get two links.
-
-  a passage is named by its RANGE, not by its id
-      `index_passages.rebuild_video` reassigns passage ids on every rebuild and
-      states that nothing outside the index stores one. `(video_id, start_idx,
-      end_idx)` is the natural key, unique across all 166,998 passages, and it
-      survives every rebuild that does not move boundaries. Boundaries move for
-      one reason - a redaction shortened a line - and then the citation is
-      genuinely gone, which the page says rather than papering over.
-
 The one thing that cannot be read back is the prose. It is generated text that
 quotes the transcript, so it is the only copied text here and the only
 redaction surface left. Nothing deletes it: bin/redact.py replaces the span
@@ -73,10 +26,6 @@ ID_BYTES = 9
 # about four kilobytes a run, measured, since what is stored is a question, a
 # paragraph and a list of keys. At ASK_DAILY_MAX that is a megabyte a day with
 # the endpoint saturated every day, and it will not be.
-#
-# The other thing that used to delete rows was bin/redact.py, and it does not
-# any more either: it scrubs the address out of the prose and leaves the answer
-# standing.
 
 
 def save(con, result):

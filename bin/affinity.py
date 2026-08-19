@@ -1,36 +1,5 @@
 #!/usr/bin/env python3
-"""Does this voice actually sound like the person its cluster is named after?
-
-Most speakers get a name only because their voice landed in a cluster that
-someone else in it was named. That is a structural assumption - cluster
-membership means same person - and clustering on this corpus is known not to
-hold it: per-recording centroids are dominated by mic, seat and room, which is
-the whole reason anchors replaced blind clustering (see bin/anchors.py).
-
-So the assumption is measured instead of trusted. For every voice that could
-inherit a name from its cluster, this scores it against the voices in that
-cluster that carry the name, and stores the number.
-
-Measured over all 1,836 such voices, the result is as sharply bimodal as the
-human-labelled ground truth:
-
-    below 0.20   416      the flat "different person" floor
-    0.20-0.35     60
-    0.35-0.70     10      the entire ambiguous zone
-    0.70-0.85    130
-    above 0.85  1220
-
-486 of 1,836 (26.5%) fall below the floor, and 476 of those sit in the range
-where no same-person pair has ever been observed. The fallback is not slightly
-noisy; it is confidently wrong about a quarter of the voices it names, and the
-transcripts say so out loud - one voice labelled "Development Review Director"
-at similarity -0.069 opens with "Christina Cordon, Assistant Director of Parks,
-Recreation".
-
-    bin/affinity.py            # compute for every video
-    bin/affinity.py --video X  # one recording
-    bin/affinity.py --report   # the distribution, without writing
-"""
+"""Does this voice actually sound like the person its cluster is named after?"""
 import argparse
 import collections
 import os

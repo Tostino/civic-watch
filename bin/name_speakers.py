@@ -1,24 +1,4 @@
-"""Second-pass speaker naming with an LLM, over evidence the patterns missed.
-
-The pattern-based pass only recognises a name when it appears in a form it was
-coded for ("Commissioner Starkey?", "my name is ..."). It cannot read
-    "the county administrator would like to say something real quick"
-or infer that a voice presenting three public hearings across 36 meetings is
-planning staff. That is judgement over context, which is what an LLM is for.
-
-Division of labour, deliberately strict:
-
-  CODE  picks which voices are worth the call, assembles the evidence, and
-        VERIFIES the result - the supporting quote must appear verbatim in the
-        evidence given, the name must be consistent across meetings, and the
-        confidence must clear a threshold.
-  LLM   only proposes an identity and says why.
-
-The verification is the point. Without it the model will happily supply a
-plausible county administrator's name from world knowledge, which would be
-indistinguishable from evidence at a glance and wrong in the archive forever.
-Anything that fails verification goes to the human queue instead.
-"""
+"""Second-pass speaker naming with an LLM, over evidence the patterns missed."""
 import argparse
 import concurrent.futures as cf
 import json
@@ -157,13 +137,6 @@ def verify(p):
 
 def _claim(con, p):
     """Record the proposal as evidence, WITH the quote that justified it.
-
-    The verbatim check above is the whole reason to trust this pass - it is
-    what separates reading the evidence from recalling who the county
-    administrator is - and until there was a `speaker_claim` table there was
-    nowhere to put the quote it verified. `speaker_identity` has a name, a
-    confidence and a source, and the sentence that earned them was dropped on
-    the floor.
 
     Per CONTIGUOUS RUN of each voice in the cluster, not per cluster: a claim
     covers a span, and a voice's utterances are interleaved with everybody

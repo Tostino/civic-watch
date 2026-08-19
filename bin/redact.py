@@ -1,69 +1,13 @@
 #!/usr/bin/env python3
 """Propose, apply and revert redactions of members of the public's addresses.
 
-Every speaker at a Pasco County podium states a name and a home address
-before they say anything - it is the convention, and the clerk reads the
-address out of emailed comments too. Those addresses are on the public record
-and always were. What this archive changed is that they became SEARCHABLE:
-"obscure but public" and "findable by name in two seconds" are not the same
-fact about a person's home, and the archive is what closed the distance.
-
-So the transcript this archive DERIVED is redacted, and the county's own
-published agendas and minutes are not.
-
-Three categories, and only the first is redacted:
-
-    a residence        "Dana Halloran, 3877 Alder Creek Loop, Odessa"
-    the matter         "access to the site is from Clinton Avenue"
-    a business         "Keswick and Keswick PA, 109 Wexford Street" - an
-                       attorney appearing for an applicant. Which firm
-                       appeared on which application is part of the record.
-
-Two guards, because the failure modes are not symmetric. A missed address is
-the exact harm this exists to prevent; a wrongly removed one damages a public
-record. So:
-
 1. ADDRESSES THE COUNTY PUBLISHED ARE PROTECTED BY CONSTRUCTION. Anything
    appearing in an agenda item title or a segment title is the matter under
    discussion - 1,411 item titles carry one - and the detector may not touch
    it, whatever the model thinks.
 2. NOTHING IS REDACTED WITHOUT A PERSON ACCEPTING IT. The pass writes
    proposals. A detector that altered the transcript of a public meeting on
-   its own judgement is not a thing this archive should own.
-
-The model returns the span VERBATIM or nothing, and a span that is not found
-in the utterance character-for-character is discarded rather than guessed at
-(the rule name_speakers.py already runs on). It cannot invent a redaction.
-
-Applying rewrites `utterances.text` in place and re-runs the index for that
-recording. That is deliberate, and it is what makes this safe: `tsv` is a
-GENERATED column so the full-text vector follows the text by itself, and
-index_passages.refresh_video rebuilds the passages, the embeddings and the
-BM25 postings from what the utterance now says. Every reader - the transcript,
-search, an item page, and the /ask agent, which reads `passages` and would
-otherwise quote an address straight into an answer - is covered because the
-text it reads from was already redacted. Filtering at each read path instead
-would mean one forgotten path is a leak.
-
-A saved answer (web/answers.py) is covered by the same argument and only just:
-it stores what it cited rather than the words, and reads its quotes back out of
-`passages` when the page renders, so the re-index reaches it like everything
-else. Its PROSE is the exception - generated sentences that quote what they
-cite, which nothing can reconstruct and which sit at a public URL. Applying
-replaces the span there with MARKER, in place, exactly as it does in the
-transcript: nothing is deleted, the reading survives, the address does not.
-`redaction.gone_from_answers` in bin/audit.py is the check that says so, and
-`redaction.answers_quoting_a_redacted_line` lists for a person the one case a
-string search cannot settle - an answer that cited the line and paraphrased.
-
-    bin/redact.py --propose              # scan, adjudicate, write proposals
-    bin/redact.py --propose --limit 50   # a cheap first pass
-    bin/redact.py --sections --passes 2  # the section pass, union of 2 runs
-    bin/redact.py --list                 # what is waiting for review
-    bin/redact.py --apply ID [ID ...]    # accept, rewrite, re-index
-    bin/redact.py --apply-all            # accept every proposal
-    bin/redact.py --revert ID            # put the original back, re-index
-"""
+   its own judgement is not a thing this archive should own."""
 import argparse
 import json
 import os
@@ -196,19 +140,7 @@ SECTION_PHASES = ("public_hearing", "public_comment")
 
 
 def sections(con, phases=SECTION_PHASES, limit=None, video=None):
-    """Every public-hearing and public-comment section, with its lines.
-
-    This is the other half of the detector, and the important half. The
-    pattern pass can only adjudicate what a regex hands it, so its recall is
-    a property of the regex - and the regex missed 40% of the problem because
-    the ASR spells house numbers out. A section pass has no such gate: the
-    model reads every line in the places where members of the public speak,
-    which is where 87% of the addresses are.
-
-    It also has the context the line-by-line pass structurally cannot: who
-    introduced themselves as an engineer, and which address was named as the
-    property under application.
-    """
+    """Every public-hearing and public-comment section, with its lines."""
     sql = """
         SELECT s.id, s.video_id, s.phase, s.start_idx, s.end_idx, s.title
           FROM segments s
@@ -278,15 +210,7 @@ def adjudicate_section(lines, model=None):
 
 
 def verify(found, lines):
-    """Keep only spans that are really in the line they were attributed to.
-
-    A model reading 3,000 tokens can attach the right span to the wrong line
-    number, which is a different failure from inventing one - so a span that
-    misses its own line is looked for in the rest of the section, and taken
-    only if exactly one line holds it. Anything else is dropped and counted,
-    because a redaction applied to the wrong line cuts text that was never an
-    address.
-    """
+    """Keep only spans that are really in the line they were attributed to."""
     by_idx = {ln["idx"]: ln["text"] for ln in lines}
     kept, moved, dropped = [], 0, 0
     for idx, span in found:
@@ -473,37 +397,11 @@ def propose_sections(con, limit=None, video=None, write=False, model=None,
     touched before and after, on this thread - one connection shared across
     threads is not a thing psycopg promises to survive.
 
-    PASSES > 1 runs each section that many times and keeps the union. The
-    model is not deterministic even at temperature 0, and the disagreement
-    does not average out - it is nearly all one-directional, because a pass
-    that spots an address is right and a pass that skips it is wrong.
-
-    Measured against eval/truth_6680.json, the hand-labelled ground truth for
-    the hardest section in the archive - a clerk reads a 13-name roster, the
-    mic fails, and he reads the whole roster again with different ASR, so
-    every household must be caught twice:
-
-        passes   proposals   addresses fully removed
-          1         38            28/32
-          2         44            32/32
-          3         44            32/32
-          4         46            32/32
-
     IT SATURATES AT TWO. Six more proposals for a person to read buys the
     last four addresses; a third pass adds nothing and a fourth adds only
     review. That trade is the right way round here and only here: NOTHING IS
     APPLIED WITHOUT A PERSON ACCEPTING IT, so a miss is the harm this exists
-    to prevent while a wrong span costs one glance.
-
-    Do not read `found N` as "N addresses". It counts distinct span STRINGS,
-    and the passes disagree about boundaries - "4651 Ellerby Drive" and "4651
-    Ellerby Drive, New Port Richey, Florida" are two strings covering one
-    address. That is why the count can fall between 2 and 3 passes while
-    coverage does not move. Score coverage, never string counts.
-
-    `store()` already dedupes on (video_id, idx, span), so the union needs no
-    extra machinery - only the calls.
-    """
+    to prevent while a wrong span costs one glance."""
     import concurrent.futures as cf
 
     passes = max(1, passes)
@@ -586,14 +484,7 @@ def store(con, video_id, idx, span, author="redact.py", kind="residence",
 
 
 def cross_check(con, write=False):
-    """Where the two detectors disagree, inside the sections both can see.
-
-    This is the recall measurement, and it costs nothing extra: the pattern
-    pass is lexical, the section pass is contextual, and a line one flags and
-    the other does not is either a miss or a judgement worth a person's time.
-    Neither detector can audit itself - a spot-check of what a detector FOUND
-    cannot measure what it MISSED - but each can audit the other.
-    """
+    """Where the two detectors disagree, inside the sections both can see."""
     rows = con.execute("""
         SELECT u.video_id, u.idx, left(u.text, 160) AS text, s.phase
           FROM utterances u
@@ -616,31 +507,7 @@ def cross_check(con, write=False):
 
 
 def republish(con, pairs):
-    """Recompute the PUBLISHED text of each (video_id, idx) from the ASR.
-
-    This is the whole design in one function. `utterances.text_raw` is what the
-    recogniser produced and nothing but ingest ever writes it; `utterances.text`
-    is what the archive publishes, and it is a pure function of `text_raw` and
-    whichever redactions are currently applied. Applying and reverting both just
-    change which redactions those are and call this.
-
-    Two things fall out of that, and both were wrong before:
-
-      * A revert no longer depends on `before_text` being correct. The original
-        is in `text_raw`, so restoring is recomputing rather than trusting a
-        copy taken at apply time. `before_text` is now a record of what a
-        decision changed, not the only way back from it.
-      * Redactions compose. Two addresses on one line used to require applying
-        and reverting in a particular order to end up with the right text; now
-        the answer does not depend on order at all.
-
-    Derived text is deliberately NOT overlaid at read time. `utterances.tsv` is
-    a GENERATED column with a GIN index over it, and passages carry their own
-    copy of the words plus a BM25 posting list and an embedding. None of those
-    can be filtered after the fact - a vector computed from a string containing
-    an address encodes it for ever. So the published column is what everything
-    derives from, and the raw column is never indexed.
-    """
+    """Recompute the PUBLISHED text of each (video_id, idx) from the ASR."""
     for video_id, idx in sorted(set(pairs)):
         raw = con.execute(
             "SELECT text_raw FROM utterances WHERE video_id = %s AND idx = %s",
@@ -667,52 +534,13 @@ def republish(con, pairs):
 # The length arm is for the addresses the recogniser SPELLED OUT: 'Sixty three,
 # twenty seven Grand Boulevard' has no digit in it and is a home address. No
 # fragment in this archive is that long.
-#
-# This exists because a real answer was deleted by the word 'Florida', which is
-# an applied span and which appeared in the sentence "Florida Statute
-# 163.31801(6) caps annual impact-fee increases". Length alone cannot fix that:
-# '9641 Jerome' is eleven characters and is somebody's house.
-#
-# bin/audit.py carries the same predicate for `redaction.gone_from_answers`.
-# Grep LOCATING to find both; they have to agree or the check and the fix are
-# describing different things.
 LOCATING = ("((%(span)s ~ '[0-9]' AND %(span)s ~ '[A-Za-z]{3}')"
             " OR length(%(span)s) >= 20)")
 
 
 def scrub_answers(con, pairs):
     """Take these (video_id, span) out of saved answers' prose. Returns how
-    many rows changed.
-
-    Nothing is deleted here, and that is the point. A saved answer
-    (web/answers.py) stores what it cited and not the words: its quotes are
-    read back out of `passages` when the page renders, so they are redacted by
-    the same republish() and re-index as every other reader.
-
-    Its prose is the exception - the agent's own sentences, quoting what they
-    cite, which nothing can reconstruct. So it gets the same treatment the
-    transcript gets: the span is replaced by MARKER, in place, leaving the
-    reading intact and the address gone. An answer at a URL somebody circulated
-    keeps working and keeps saying what it found; the one string that should
-    not be published stops being published.
-
-    An earlier version DELETED the whole row. That was the wrong instrument
-    twice over. It destroyed a public link over one string, and because the
-    applied set is full of fragments it destroyed correct answers: a real one
-    went for the word 'Florida', inside "Florida Statute 163.31801(6)".
-    Replacing rather than removing makes the blast radius the address itself,
-    which is the only thing anybody objected to.
-
-    Only spans that LOCATE a home, for the same reason: 'Florida' and 'Hudson'
-    are applied spans, and scrubbing those would blank ordinary words out of
-    correct sentences.
-
-    What this cannot reach is a PARAPHRASE - an answer that cited the line and
-    wrote the address in its own wording. No string search finds that;
-    `redaction.answers_quoting_a_redacted_line` in bin/audit.py lists those for
-    a person, which is this file's rule (nothing is decided by a detector)
-    applied to the one case a detector cannot settle.
-    """
+    many rows changed."""
     n = 0
     for video_id, span in {(v, s) for v, s in pairs if v and s}:
         # Containment rather than expanding the array per row, for two reasons.

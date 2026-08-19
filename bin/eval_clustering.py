@@ -1,15 +1,4 @@
-"""Does voice clustering actually improve as meetings accumulate?
-
-Re-clusters at increasing corpus sizes and scores each run against the
-per-meeting name assignments, which are derived from text handoffs and so are
-independent of the voice embeddings being tested.
-
-Two failure modes matter and they pull in opposite directions:
-  FRAGMENTATION - one person split across many clusters (threshold too tight)
-  CHAINING      - two people merged via an intermediate voice, which
-                  agglomerative average-linkage does more of as density grows
-Improvement means fragmentation falls WITHOUT purity falling.
-"""
+"""Does voice clustering actually improve as meetings accumulate?"""
 import collections
 import glob
 import os

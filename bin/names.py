@@ -1,13 +1,4 @@
-"""Local proper-noun corrections applied after ASR.
-
-Context biasing (phrases.txt) steers decoding toward these names, but it only
-helps where the model was already close. Confident mis-mappings like
-"Pascoe"/"Newport Richie" survive biasing and are fixed here instead.
-
-Only unambiguous Pasco County names verified in context belong in this list -
-a wrong entry forces a wrong spelling rather than fixing one. Order matters:
-longer forms are rewritten before their substrings.
-"""
+"""Local proper-noun corrections applied after ASR."""
 import re
 
 CORRECTIONS = [

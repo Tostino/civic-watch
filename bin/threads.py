@@ -1,17 +1,4 @@
-"""Cross-meeting topic threading.
-
-A rezoning or a policy fight spans years of meetings, so the archive needs join
-keys that survive across them. Three kinds, in descending reliability:
-
-  case IDs   PDE 267934, R57, PC-6   - stable across continuances
-  projects   "Denton MPUD"           - proper names, survive ASR better
-  topics     ALPR / Flock cameras    - curated aliases for policy threads
-
-The catch: ASR writes numbers as words about two thirds of the time ("item P
-eighty two", "R fifty seven"), so "R57" in one meeting will not join to "R
-fifty seven" in the next unless spoken numbers are normalised first. That
-normalisation is what makes the whole join work.
-"""
+"""Cross-meeting topic threading."""
 import re
 
 UNITS = {"zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,

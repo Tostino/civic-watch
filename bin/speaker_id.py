@@ -1,16 +1,5 @@
 """Give speakers names instead of per-meeting cluster numbers.
 
-Two independent signals, because each covers the other's failure mode:
-
-  VOICE  - pyannote centroid embeddings cluster the same person across
-           meetings. This gives identity ("the same voice in 40 meetings")
-           but never a name.
-  TEXT   - the chair recognises people by name ("Commissioner Starkey?") and
-           the clerk calls the roll, so the utterance immediately BEFORE a
-           speaker's turn very often names them. Aggregated over hundreds of
-           handoffs this is a strong name signal, and it is what turns an
-           anonymous voice cluster into "Kathryn Starkey".
-
 Disagreement between the two is reported rather than silently resolved.
 """
 import argparse
@@ -42,14 +31,7 @@ COMMISSIONERS = {"oakley", "weightman", "starkey", "yeager", "mariano"}
 
 
 def load_rosters(con):
-    """{video_id: {surname_lower, ...}} - who could possibly be speaking.
-
-    A published roster is used where one exists. Otherwise the seats are
-    inferred from board terms - but only terms belonging to THIS meeting's
-    body. A meeting whose body we hold no terms for gets an empty set, and an
-    empty set means no board member may be named: not knowing who was in the
-    room is a reason to stay silent, not to reach for the nearest board.
-    """
+    """{video_id: {surname_lower, ...}} - who could possibly be speaking."""
     rosters = collections.defaultdict(set)
     for r in con.execute("""
             SELECT v.id vid, lower(p.surname) sn
@@ -61,13 +43,6 @@ def load_rosters(con):
     # BOARD MEMBERS, and it has to say so. This set is "who could ever have
     # been seated": it whitelists name voting, restricts the voice anchor, and
     # decides whether a heard name is a commissioner at all.
-    #
-    # `people` is everybody named in the archive now,
-    # so "in the people table" stopped meaning "on the board" - 1,288 members
-    # of the public would have walked into this whitelist and been eligible to
-    # be assigned to any voice in any meeting. Presence in a table was never
-    # what this meant; it only looked that way while the table held nothing
-    # else.
     everyone = {r[0] for r in con.execute(
         "SELECT lower(surname) FROM people "
         "WHERE kind = 'board' AND surname IS NOT NULL")}
@@ -137,13 +112,6 @@ ROLLCALL = re.compile(
 # announcement is a QUEUE: "Elaine Lance, followed by Anthony Sikhenes.
 # Followed by Nancy Hazelwood." names three people in the order they will
 # speak, and only the FIRST of them is about to talk.
-#
-# Matching `followed by X` alone - which is what this did - reads that queue
-# one position late. Every commenter wore the NEXT one's name, and the one the
-# announcement did name correctly went unattributed, because "And Nancy
-# Hazelwood." has no "followed by" in front of it and matched nothing at all.
-# Measured: 244 of 302 announcements carried a lead name the pattern never saw.
-# `speaker.queue_announcement_offset` in the audit is the standing check.
 QUEUE_SPLIT = re.compile(r"\bfollowed by\b|\band then\b", re.I)
 # Internal capitals are part of the surname: McBride, DeSantis, O'Neil.
 QUEUE_NAME = re.compile(r"[A-Z][a-z']+(?:[A-Z][a-z']+)*"
@@ -182,14 +150,6 @@ def queue_names(text):
             # Before the first "followed by", the one about to speak is the
             # LAST name in the segment - everything earlier is lead-in ("Thank
             # you.", "Mr. Chairman Mariano.", "All right,").
-            #
-            # Two tokens minimum HERE and nowhere else. The lead is picked from
-            # anywhere in a whole utterance, so a single capitalised word at
-            # the end of a long sentence wins by position alone: "state your
-            # Name and address for the record" produced a commenter called
-            # "Name", and "Good" came from the same shape. A commenter is
-            # announced by their full name; after the split, "Followed by
-            # Garth." legitimately is not.
             cands = [c for c in cands if len(c.split()) >= 2]
             if cands:
                 out.append(cands[-1])
@@ -555,22 +515,6 @@ def main():
               f"{spread[chair_cluster]} meetings)")
 
     # The text signal, corroborated by voice before it is believed.
-    #
-    # "...and next we'll hear from Justin Grant, Director of Public
-    # Infrastructure" names whoever speaks NEXT - which is right at a podium
-    # and wrong for anyone whose name is simply said aloud a lot. Applied
-    # per-meeting with nothing checking it, a frequently-named staffer or
-    # attorney collects a different voice in every meeting they are mentioned
-    # in: Barbara Wilhite had 664 voices across 294 meetings in 316 distinct
-    # clusters - a brand-new voice EVERY meeting, which is precisely what
-    # "these are not the same person" looks like. Justin Grant, 318 voices in
-    # 100 clusters, had a planning consultant's testimony filed under his name.
-    #
-    # A real recurring speaker consolidates: the commissioners run 0.06-0.13
-    # clusters per meeting. So a name that spans meetings must be carried by a
-    # VOICE, not by having been mentioned. A voice heard in only one meeting
-    # has no cross-meeting evidence available and keeps the text signal, which
-    # is the case this was built for - one-off speakers at the podium.
     local_names = {k: v for k, v in selfid.items() if v}
     for k, v in announced.items():
         if k not in local_names and v:
@@ -672,21 +616,6 @@ def main():
         # voiceprints archive-wide, so it reintroduces exactly what the matcher
         # excluded. Measured before this guard: 457 (meeting, member) pairs
         # carried two or more voices.
-        #
-        # This is not a cosmetic duplicate. In 1OmEmpL-7qY "Starkey" sat on two
-        # voices, and one of them was the CLERK - the voice that calls the roll
-        # ("District three, Commissioner Starkey. Here."), queues public
-        # speakers and says "Mr. Chair, that's all that I have signed up". A
-        # county employee appeared on the page as an elected official, in her
-        # own words, at 0.978 confidence.
-        #
-        # Which voice keeps the name is decided by INDEPENDENT evidence, in
-        # order: a human said so; the per-meeting matcher chose it; the
-        # transcript addressed that voice by that name. Voice confidence is
-        # last and never decides alone - it is the signal that was wrong, and
-        # in that meeting it preferred the clerk (0.978) over the commissioner
-        # (0.921). Everything else in the meeting keeps its name; only the
-        # losing voices go back to unidentified, which is honest.
         seats = collections.defaultdict(list)
         for i, (vid, lab, c, name, conf) in enumerate(rows):
             if name and name.lower() in everyone:
@@ -723,19 +652,6 @@ def main():
             # the ONLY writer of that column - so one bare `refresh.sh
             # speakers` silently reverted both of them.
             #
-            # Measured on production before this change: 11,141 rows with
-            # source NULL, 58 'llm', and ZERO 'chair'. The chair anchor had
-            # been erased outright, leaving three clusters covering 69,596
-            # utterances holding a name chair_anchor contradicts. Reproduced in
-            # the sandbox: chair_anchor wrote source='chair' on 258 rows and a
-            # single following speaker_id run took that to 0.
-            #
-            # `cluster` is still refreshed on every row, because re-clustering
-            # is the one thing only this stage can do and the later stages key
-            # on the result. Gated on "source IS NOT NULL" rather than on the
-            # literal 'chair', so the day a third stage writes a third value it
-            # is protected already, instead of on the day somebody notices.
-            #
             # ONE EXCEPTION, and leaving it out is a regression this fix would
             # otherwise have introduced: a HUMAN LABEL. chair_anchor refuses to
             # touch a voice that already carries one, but a label written AFTER
@@ -763,20 +679,6 @@ def main():
                 "     ELSE speaker_identity.source END", rows)
 
             # AND THE SAME NAMES AS EVIDENCE, WITH THE REASON ATTACHED.
-            #
-            # This stage distinguishes four signals and then writes all of
-            # them into one column with source NULL, so the reason is known
-            # here and nowhere afterwards. A backfill reading speaker_identity
-            # can only guess `voice`, and bin/speaker_claims.extract() ends up
-            # re-deriving self-introductions from the raw transcript - work
-            # this function has already done.
-            #
-            # `selfid` is the speaker naming themselves; `announced` is the
-            # clerk reading the queue, which is somebody else naming them in
-            # the room. Everything else is the voice signal. Failure here is
-            # never allowed to fail the assignment above: the claims are a
-            # shadow and this stage's own table is what the archive still
-            # reads.
             try:
                 import speaker_claims
                 spans = speaker_claims.runs_by_voice(con)
@@ -803,19 +705,6 @@ def main():
                       f"the assignments above are unaffected")
 
             # RETRACT. Until now this stage only ever added and updated.
-            #
-            # `skip` holds voices OUT of clustering - triage's "too little
-            # identifiable speech", plus the human speaker_ignore rows that say
-            # "this is not a person". Those voices never reach `rows`, so they
-            # kept whatever the previous run decided, for ever: a voice that
-            # LEAVES the input set was frozen rather than withdrawn.
-            #
-            # Measured on production: 287 voices held out, 108 of them still
-            # carrying a name and 463 utterances still displayed under one -
-            # including the single human veto, still stored as Oakley at
-            # confidence 0.954 and shown on 17 lines. That is the precedence rule inverted:
-            # a person wrote "not a person" and the archive answered with a
-            # sitting County Commissioner.
             #
             # A voice a human has LABELLED is never retracted. speaker_ignore
             # and speaker_label do not overlap today (measured: 0 voices carry
@@ -868,11 +757,6 @@ def main():
                 # held-out voice is how 463 utterances went on displaying a
                 # name after the voice was withdrawn - the stamp only ever
                 # wrote `if c is not None` and never cleared.
-                #
-                # `local_label` is deliberately kept. It is diarization's own
-                # account of which lines are one voice: a fact about the audio,
-                # not a claim about who, and it is what a reader needs in order
-                # to select the range and correct it.
                 cur.executemany("UPDATE utterances SET cluster=NULL "
                                 "WHERE video_id=%s AND idx=%s", clr)
             n_utt += len(upd)

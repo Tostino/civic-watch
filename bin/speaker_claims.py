@@ -86,10 +86,6 @@ SWORN = re.compile(r"\b(?:i have been sworn|been duly sworn|i was sworn)\b", re.
 # name is Hunter" - one utterance, two people - and the commissioner is named
 # Hunter. 24 of 1,668 self-ID utterances have this shape, and like read-aloud
 # it puts a member of the public's name on a commissioner's voice.
-#
-# No claim is made at all. The utterance really does contain two speakers and
-# nothing here can split it, so the archive keeps what it had. The commenter
-# usually introduces themselves again in their own run anyway.
 PROMPTED = re.compile(
     r"(?:say|state|give|need|with|proceed with)\s+(?:us\s+)?(?:your|the)\s+name"
     r"|name\s+and\s+address"
@@ -111,10 +107,6 @@ PROMPTED = re.compile(
 # letter in the middle of their own remarks. Without the ordinal both matched,
 # and each took the following 14 to 16 utterances of the speaker's own words
 # with it - a commissioner's speech filed under an organisation's name.
-#
-# `X and Y` is one item read once: "Next um email Is from Michael and Diane
-# Jones" is a letter from a couple, and capturing `Michael` alone names one of
-# them and gets the surname of neither.
 READ_FROM = re.compile(
     r"(?i:\b(?:next|last|first|second|third|fourth|fifth|final|another|following)\s+"
     r"(?:\w+\s+){0,2}?(?:e-?mails?|letters?|correspondence|comment cards?)\b"
@@ -194,12 +186,7 @@ def claim(cur, video_id, lo, hi, name, method, quote=None, corroborated=False,
     million duplicate rows a run. The conflict target is the claim's identity -
     same span, same method, same name - and what it refreshes is the SUPPORTING
     DETAIL, because a later run may have a better quote or may have found the
-    name corroborated where the first did not.
-
-    `created_at` is deliberately not touched: it is when this claim was first
-    observed, which is a different and more useful fact than when it was last
-    re-confirmed.
-    """
+    name corroborated where the first did not."""
     if method in EVENTS:
         cur.execute("""INSERT INTO speaker_claim
                          (video_id, start_idx, end_idx, local_label, name_text,
@@ -287,18 +274,6 @@ def backfill(con, video_id=None, commit=True):
     # names the live path refuses. Measured: 144 utterances in ten meetings
     # gained a cluster name this way before the vetoes were restored, which is
     # a shadow build being LESS safe than what it replaces.
-    #
-    #   voice_affinity   bin/affinity.py measured whether this voice actually
-    #                    sounds like the person its cluster is named after.
-    #                    486 of 1,836 inheritable voices fail, 476 of them
-    #                    under 0.35 where no same-person pair has ever been
-    #                    observed.
-    #   one seat, one voice
-    #                    the name is already held in this meeting by a voice
-    #                    that earned it per-meeting.
-    #
-    # Keyed per local_label rather than per cluster, because that is what both
-    # vetoes are about.
     for r in con.execute(f"""
             SELECT DISTINCT u.video_id, u.local_label, vn.name
               FROM utterances u
@@ -341,12 +316,7 @@ def _letters(by_run):
     family..." is one line holding the clerk's label and the opening of the
     letter. Given to the author it mislabels one short clause; given to the
     reader it hands a paragraph of somebody's letter to the person reading it,
-    which is the defect this exists to fix.
-
-    A letter ends where the next one is announced, or where the voice's own
-    contiguous run ends - never past it, because past it somebody else is
-    talking.
-    """
+    which is the defect this exists to fix."""
     out = []
     for key, utts in by_run.items():
         vid = key[0]
@@ -443,21 +413,6 @@ def extract(con, video_id=None, commit=True):
         # Reading somebody else's words: the name belongs to the author and
         # the claim covers only this utterance, so the reader keeps her own
         # name either side of it.
-        #
-        # The test is the RUN, not the line. Somebody reading correspondence
-        # into the record reads SEVERAL letters in one go - "Next email is
-        # from Michael Killian", "Next letter is from Joanne Killian" - and
-        # the self-introduction inside one of them sits several utterances
-        # away from any word that says a letter is being read. Testing only
-        # the line, one letter-author's name spread over the whole run and
-        # landed on a commissioner: measured, SPEAKER_27 in BTQQU-4nOq8 became
-        # "Daniel Honeywell Jun" across letters by three different people,
-        # over a voice the archive calls Starkey. That is a known failure arriving
-        # through a new door.
-        #
-        # 18 of 1,682 self claims sit in a run like this. Small, and the
-        # worst thing on the list: it puts a private citizen's name on a
-        # commissioner's voice.
         reading_run = con.execute("""
             SELECT EXISTS (SELECT 1 FROM utterances u
                             WHERE u.video_id = %s
@@ -506,10 +461,6 @@ def extract(con, video_id=None, commit=True):
         # SPEAKER_22 says "Richard, we need your name and address, please."
         # That voice is the chair. Twelve distinct names arrived this way,
         # every one of them a member of the public landing on a commissioner.
-        #
-        # Deliberately narrow: it fires only when the standing name is a board
-        # member's AND the new name differs. A commissioner who does say their
-        # own name agrees with the archive and never reaches this.
         held = con.execute("""
             SELECT si.name FROM speaker_identity si
              WHERE si.video_id = %s AND si.local_label = %s
@@ -550,21 +501,7 @@ def extract(con, video_id=None, commit=True):
 
 # ---------------------------------------------------------------------- link
 def link(con, video_id=None, commit=True):
-    """Claims about one voice in one meeting are claims about one person.
-
-    This is what closes the only disagreement the sandbox ever surfaced. A man
-    introduces himself at utterance 382 and again at 384 - same SPEAKER_11,
-    same cluster, two utterances apart - and ASR writes "Jeffrey Montcallian"
-    then "Jeffrey Moncani". They are not two people and it takes no fuzzy
-    matching to know that: they are the same voice in the same room a few
-    seconds apart.
-
-    So the renderings become aliases of one person, and the display name is
-    CHOSEN once rather than fought over per utterance: corroborated first -
-    a name the room said back is better evidence than one only ASR heard -
-    then the most frequent, then the longest, which is the tie-break that
-    survives "Tom" against "Tom Bogolino".
-    """
+    """Claims about one voice in one meeting are claims about one person."""
     cur = con.cursor()
     # Re-runnable: let go of the people this step created before removing
     # them, or the foreign key from the claims refuses. Board members are
@@ -601,9 +538,6 @@ def link(con, video_id=None, commit=True):
     # should win rather than the better-ranked METHOD. Without this, `self`
     # outranking `voice` turned "Skip Geiger" into "Ski Geiger" and "Ali
     # Atefi" into "Alia Tefi": the right person, spelled worse, 55 of them.
-    #
-    # Near-identical only. A genuinely different name is a different question
-    # and is left to the precedence table.
     import difflib
     for r in con.execute(f"""SELECT video_id, local_label, name FROM speaker_identity
                              WHERE name IS NOT NULL {only}""", arg):
@@ -664,10 +598,6 @@ def link(con, video_id=None, commit=True):
             # A surname is kept for everybody - it is in the transcript and
             # it is part of the record. It is an attribute here, not a key:
             # 228 people already share one.
-            #
-            # ON CONFLICT because the SCOPED path (refresh_video) does not
-            # clear public people the way an archive-wide run does, so without
-            # it a second pass over one recording mints a second Henry. It did.
             pid = cur.execute(
                 "INSERT INTO people (surname, full_name, kind) "
                 "VALUES (%s, %s, 'public') "
@@ -794,16 +724,7 @@ def refresh_video(con, video_id, commit=True):
     reader the moment it is written, because utterance_speaker is a view that
     reads speaker_override directly. The moment resolution is materialised
     that stops being true: the correction lands in the table it always landed
-    in, and the page keeps showing the old name until something recomputes.
-
-    web/admin.py calls this before it re-renders and re-embeds the passages of
-    that video, so the whole chain - correction,
-    resolution, index - stays synchronous and a reader sees the fix on the
-    next page load, exactly as they do now.
-
-    Scoped to one recording throughout, which is what makes it affordable:
-    the archive-wide run is 50s + 3s + 48s, and this is well under a second.
-    """
+    in, and the page keeps showing the old name until something recomputes."""
     backfill(con, video_id, commit=commit)
     extract(con, video_id, commit=commit)
     link(con, video_id, commit=commit)

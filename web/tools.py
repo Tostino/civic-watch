@@ -1,30 +1,4 @@
-"""The retrieval surface, as callable tools.
-
-`bin/ask.py` runs a fixed pipeline - `plan() → retrieve() → read() → answer()`.
-The planner emits its queries once and the pipeline executes them blindly, so
-nothing downstream can notice a bad result and try again. This corpus punishes
-that specifically: a vote passage contains no topic words, so the wording that
-finds an item's *discussion* puts its *decision* at rank 33-58, below any depth
-worth reading. `retrieve.decisions_in_play()` is a hard-coded patch over that
-one case, and there are others.
-
-The general fix is a caller that can look, notice it found nothing useful, and
-search again with different words or a different tool. That requires the
-retrieval surface to be a set of named, described, schema'd operations rather
-than a sequence, which is what this module is.
-
-**One surface, two callers.** The `/search` page and the agent call exactly
-these tools with exactly these arguments. That is deliberate: it is the only
-way to be sure that what a reader can find by hand, the agent can also find -
-and when a search behaves oddly on the page, the same call reproduces it.
-
-Schemas are JSON Schema, so the manifest below can be handed to a model as
-tool definitions unchanged.
-
-Nothing here decides how a result LOOKS. Tools return the archive's own
-structure - ids, codes, outcomes, offsets - and one component decides how to
-render each kind (and the same rule as web/archive.py).
-"""
+"""The retrieval surface, as callable tools."""
 import re
 import sys
 import textwrap
@@ -117,18 +91,7 @@ def _clean(d):
 
 
 def canonical_speaker(con, name):
-    """Fold a board member's full name back to the surname the index holds.
-
-    `passages.speaker` is keyed by surname and the filter is an equality test,
-    so "Kathryn Starkey" matches nothing at all - it returns zero hits and
-    looks exactly like "she never said that", which is the worst failure this
-    archive can produce. The agent now READS full names in every passage line
-    it is shown, so it will reach for one here; so will a reader who types the
-    name they just saw on a chip.
-
-    The inverse of display_name, and deliberately not its mirror image: this
-    accepts either form, because both are now in circulation.
-    """
+    """Fold a board member's full name back to the surname the index holds."""
     if not name:
         return name
     r = con.execute(
@@ -206,20 +169,6 @@ PASSAGE_HIT = """
 
 def speaker_sure(con, rows):
     """Fill in HOW WELL each passage's speaker name is known, in place.
-
-    `passages.speaker` is baked at index time and arrives looking equally
-    certain whether a person confirmed it or a voice model guessed. It is not:
-    of 234,000 named utterances, 2,786 were stated by a person, 208,495 were
-    matched to a voice at that meeting, and 22,682 carry nothing but the name
-    their voice goes by across the whole archive. An answer that says
-    "Commissioner Oakley moved" off the last of those has invented a person's
-    vote, which is the worst thing this archive can do to somebody - and until
-    this existed, every surface printed all three identically.
-
-    The reduction from utterances to a passage lives in the database
-    (bin/schema.sql, `passage_speaker`), so the page and the agent cannot come
-    to different views of the same row. Two fields come back, and they are
-    the two SpeakerChip draws: `name_human` and `name_basis`.
 
     SEPARATE FROM PASSAGE_HIT ON PURPOSE, and this is the whole reason it is a
     function rather than two more columns. `utterance_speaker` resolves a name
@@ -302,19 +251,7 @@ def _plain(con, ranked, limit, spread=None, **f):
 # since is already in `passages.text`, a corrected speaker name is already on
 # the row, and neither needs anything to go back and find old copies.
 def passages_at(con, ranges):
-    """Passages by the utterance range each covers, keyed by that range.
-
-    Keyed on `(video_id, start_idx, end_idx)` rather than on the passage id
-    because `index_passages.rebuild_video` reassigns ids on every rebuild and
-    says so in as many words: *nothing outside the index stores one*. The range
-    is the passage's natural key - unique across all 166,998 of them - and it
-    survives every rebuild that does not move boundaries.
-
-    A range that no longer resolves is not an error. Boundaries move for
-    exactly one reason: a redaction shortened a line and the passage fell under
-    the indexing floor. The citation is then genuinely gone, and the caller
-    says so rather than showing text from before it went.
-    """
+    """Passages by the utterance range each covers, keyed by that range."""
     if not ranges:
         return {}
     vids, starts, ends = zip(*ranges)
@@ -340,14 +277,7 @@ def passages_at(con, ranges):
 
 
 def items_at(con, ids):
-    """Published items by id, keyed by id.
-
-    Agenda item ids ARE durable - `/item/<id>` is a public URL and the archive
-    already depends on it - so unlike a passage there is nothing cleverer to
-    key on. The columns are `retrieve.search_items`' minus its ranking score;
-    if that projection gains a field a reader needs, this is the other place
-    to add it.
-    """
+    """Published items by id, keyed by id."""
     if not ids:
         return {}
     rows = con.execute("""
@@ -386,24 +316,6 @@ def search_record(con, query, limit=12, offset=0, body=None, outcome=None,
 # searched the wrong source and concluded the archive holds nothing.
 # ------------------------------------------------------------------- facts
 # THE NUMBERS IN THESE DESCRIPTIONS ARE MEASURED, NEVER TYPED.
-#
-# They were typed once. By the time anyone looked again "23,122 agenda items"
-# was 23,130, "1,377 cases" was 1,378, and "recordings start in 2018" was 2017
-# - that last one went stale the same afternoon a parser fix attached a 2017
-# workshop to its meeting. A model reads every one of these as a fact about the
-# archive and has no way to tell a stale one from a true one, so a number here
-# is either measured or it is not stated.
-#
-# One query, cached for an hour. The tool list goes out on every MCP handshake
-# and none of these move more than once a day.
-#
-# Each definition is the one that reproduces what the sentence around it
-# CLAIMS, which is not always the obvious query. `pct_transcript` is decided
-# items with a span BOUND to them, not items whose meeting was filmed - 9%
-# against 65%, and the sentence means the first: whether the model can actually
-# reach that item's discussion. `pct_no_name` counts '(exchange)' passages as
-# nameless alongside NULL, because a cross-speaker exchange carries no single
-# speaker to filter on, and those are two thirds of the archive on their own.
 FACTS_TTL = 3600
 
 _FACTS = None
@@ -490,18 +402,7 @@ _STRUCTURED = re.compile(r"^\s*(?:[-*\u2022]\s|\d+[.)]\s)|:\s*$")
 
 
 def reflow(text, width=79):
-    """Rewrap prose paragraphs after substitution.
-
-    A template is wrapped for the SOURCE file, and once `{first_rec_year}`
-    becomes `2017` those line breaks are in the wrong places - the paragraph
-    renders a third short and reads as ragged. Hand-wrapping the template
-    cannot fix it, because a placeholder is four times the width of its value.
-
-    Only genuine prose is touched. A paragraph containing a bullet, a numbered
-    step or a heading is passed through exactly as written, because in these
-    prompts that layout is meaning, not formatting. Blank lines and each
-    paragraph's own indent survive.
-    """
+    """Rewrap prose paragraphs after substitution."""
     out = []
     for para in text.split("\n\n"):
         lines = para.split("\n")
@@ -519,15 +420,7 @@ def reflow(text, width=79):
 
 
 def fill(node, f):
-    """Substitute measured facts into every template string in `node`.
-
-    Recursive because the numbers are not only in tool descriptions - the
-    `speaker` argument's own description is where the 67% lives, and that is
-    the number that should stop a model reaching for the filter.
-
-    Only strings that actually carry a placeholder are formatted, so a literal
-    brace anywhere else in the surface cannot raise.
-    """
+    """Substitute measured facts into every template string in `node`."""
     if isinstance(node, str):
         return node.format(**f) if "{" in node else node
     if isinstance(node, dict):
@@ -785,17 +678,7 @@ def call(con, name, args):
 
 # --------------------------------------------------------------- the page
 def search(con, query, limit=25, offset=0, **facets):
-    """Both sources at once, for /search.
-
-    Two tool calls, not a third code path. The page runs the same surface the
-    agent does - which is the point of D9 and the only way the two stay honest
-    about each other.
-
-    The record is not paginated together with the transcript: they are
-    different objects with different totals, and interleaving them into one
-    ranked list would force a comparison between "this was approved" and
-    "somebody said this", which are not comparable.
-    """
+    """Both sources at once, for /search."""
     query = (query or "").strip()
     if not query:
         return {"query": "", "record": {"total": 0, "items": []},

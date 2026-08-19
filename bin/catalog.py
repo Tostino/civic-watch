@@ -32,12 +32,6 @@ KINDS = [
 # Legislative Workshop (8.24.23)", "Board of County Commissioners Emergency
 # Mtg 09-24-2024", "Pasco County BCC Workshop, October 17, 2017". Every one
 # of those read as undated.
-#
-# `upload_date` is the ONLY thing land_agenda.py joins a recording to its
-# meeting on, so a title this misses is not a cosmetic loss - it is a
-# recording that belongs to no meeting, permanently. Those 17 are 39 hours,
-# indexed and searchable, with no meeting page and no agenda behind them
-#.
 DATE_RE = re.compile(
     r"(?<!\d)(\d{1,2})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{2,4})(?!\d)")
 MONTHS = ("january", "february", "march", "april", "may", "june", "july",
@@ -60,14 +54,7 @@ def _ymd(mo, day, yr):
 
 
 def parse_date(title):
-    """The meeting date a title carries, or None.
-
-    Scanned from every position rather than taken from the first regex match,
-    because the first thing that LOOKS like a date is not always one. One
-    title reads "0.7.08.2021": the leading run parses as 0/7/08, which is not
-    a month, and the real date starts one character later. Taking the first
-    VALID match rather than the first match is what reads it as 2021-07-08.
-    """
+    """The meeting date a title carries, or None."""
     for i in range(len(title)):
         m = DATE_RE.match(title, i)
         if m:
@@ -113,12 +100,7 @@ def redate(con):
     The insert in main() is ON CONFLICT DO NOTHING, so a better parser reaches
     nothing already in the table - which is how 17 recordings stayed undated
     across every re-run. This closes that: the parser and the rows it already
-    wrote stay in step.
-
-    Only rows with NO date are touched. Re-parsing a title that already
-    yielded one could only move a recording that is already where it belongs,
-    and land_agenda.py relinks on upload_date.
-    """
+    wrote stay in step."""
     todo = [(r["id"], r["title"]) for r in con.execute(
         "SELECT id, title FROM videos WHERE upload_date IS NULL").fetchall()]
     fixed = [(parse_date(t), v) for v, t in todo]

@@ -4,29 +4,7 @@ Everything here exists to close one loop: the review checks in bin/audit.py
 report misattributions, and until now they reported into a void - an unordered
 list, no queue, nowhere to act. This module serves the queues ORDERED BY
 IMPACT (utterances a decision fixes, ), the evidence to decide with, and
-the writes at both grains the model supports:
-
-    whole voice   -> speaker_label / speaker_ignore   (video_id, local_label)
-    a range       -> speaker_override                 (video_id, idx range)
-
-Every write that changes a resolved name is followed by
-index_passages.refresh_video, because the name lives inside the embedding and
-the BM25 postings: a correction that stops at the transcript
-leaves search answering with the old name.
-
-Auth is D1, the Jupyter model, with one deviation demanded by the operating
-rules: the startup token is never printed and never logged. It is written to
-a mode-600 gitignored file next to env.local.sh, and only the PATH is
-announced. POSTing it to /api/admin/login exchanges it for an httpOnly
-SameSite=Lax session cookie, so the secret is never in a URL, a referrer or
-browser history. Sessions live in this process; a restart invalidates them
-along with the token.
-
-Admin routes refuse non-loopback clients outright. This server has no TLS,
-and D1 forbids a bearer token over plain HTTP on a network - so rather than
-gate on "without TLS", the condition that cannot occur here, loopback is the
-only interface admin will ever answer on.
-"""
+the writes at both grains the model supports:"""
 import datetime
 import hmac
 import os
@@ -66,22 +44,6 @@ def init(root):
     return _token_path
 
 # WHICH PORT ANSWERED IS THE SECURITY MODEL. See web/server.py --admin-port.
-#
-# This was two conditions: the peer must be loopback, AND the request must carry
-# no forwarding header. The first is necessary and not sufficient, since any
-# reverse proxy puts itself in the peer slot. The second stopped working when
-# Next 16 began setting x-forwarded-for on EVERY request, including the
-# operator's own, so the rule meant to keep the public out locked the console
-# out of its own front end.
-#
-# Trusting the header's VALUE is not sound either: Next fills it in only when
-# absent, so a remote client sending `x-forwarded-for: 127.0.0.1` has it
-# forwarded untouched and the check asserts what the attacker supplied.
-#
-# So the boundary is something no header can forge. Curation binds its own
-# loopback listener, the public one 404s every /api/admin path, and the UI only
-# rewrites to that port when ADMIN_API is set, which the production image does
-# not. The peer check below stays as depth.
 def loopback(request):
     """Is this request from this machine? Asked of a port the edge cannot reach.
 
@@ -253,16 +215,7 @@ SUBSTANTIVE = """
 
 # ---------------------------------------------------------------- evidence
 def review(con, video_id, name=None, label=None):
-    """The evidence pack for one recording's contested voices.
-
-    The transcript itself comes from /api/transcript/<id>, which already
-    carries local_label, basis and contested per line; this returns what that
-    cannot: the voices as objects, why the pipeline proposed each name
-    (speaker_identity source + confidence = `basis` at display), whether the
-    measurement agrees (voice_affinity), and what the same cluster sounds
-    like in OTHER meetings - which is the strongest cheap evidence for
-    "is this really the same person".
-    """
+    """The evidence pack for one recording's contested voices."""
     v = con.execute("""
         SELECT v.id, v.title, v.upload_date, v.kind, v.duration, v.meeting_id,
                m.date, m.body
@@ -345,17 +298,7 @@ class AdminError(Exception):
     pass
 
 def canonical_name(con, video_id, name):
-    """Board members are stored by SURNAME, and every guard keys on it.
-
-    "Mike Wells" does not join people.surname = 'Wells', so a full-name label
-    bypasses the roster guard AND the split-voice review check, and search
-    holds two speakers where there is one. Observed in practice: an operator
-    picked "Mike Wells" from the named-in-this-meeting candidates. If a
-    supplied name exactly matches the full name of someone seated at THIS
-    meeting, store the surname and say so - the one case this gets wrong is a
-    member of the public sharing a seated member's exact full name, which the
-    returned message makes visible and undo makes cheap.
-    """
+    """Board members are stored by SURNAME, and every guard keys on it."""
     if not name:
         return name, None
     r = con.execute("""
@@ -390,13 +333,7 @@ def _refresh(con, video_id):
     recomputes. So the resolution for this recording is refreshed FIRST, and
     only then are its passages re-rendered and re-embedded - because the index
     is built from the resolution and would otherwise bake in the name the
-    correction just replaced.
-
-    It runs today, while nothing reads the shadow tables, which is deliberate:
-    it keeps them accurate as corrections happen, so the cutover is a rename
-    rather than a rebuild. About 3 seconds against a re-embed that is already
-    the slow part.
-    """
+    correction just replaced."""
     out = {}
     try:
         import speaker_claims
@@ -553,15 +490,7 @@ def _ignore_voices(con, members, reason, undo):
             "restored": len(members) if undo else 0}
 
 def _claim_label(con, members, name):
-    """A human label, recorded once as evidence rather than twice as data.
-
-    This wrote `speaker_label` AND mirrored the name into `speaker_identity`
-    at confidence 1.0, so one human statement existed as both a human fact and
-    a derived one, and utterance_speaker read it from both. A `label` claim is
-    the single place that statement belongs - and it is append-only on
-    purpose, because an operator changing their mind is an event and the
-    resolver breaks ties on recency.
-    """
+    """A human label, recorded once as evidence rather than twice as data."""
     try:
         import speaker_claims
     except ImportError:
@@ -667,11 +596,6 @@ def rederive_revert():
 # Every pipeline job the UI can run, plus the ingest fleet. Prerequisites are
 # MEASURED from the database and enforced HERE, not only greyed out in the page:
 # a gate that lives in the client is one a stale tab walks straight through.
-#
-# The console also has to answer "is it stuck?", which a running pid does not:
-# a wedged download holds one for hours. Three measurements do, and all three
-# are computed here rather than guessed at in the page, where the clock is not
-# even the same one.
 FLEET_PATTERN = "download_worker.py|diarize_worker.py|asr_worker.py"
 WORKER_KINDS = (("download_worker.py", "download"),
                 ("diarize_worker.py", "diarize"),
@@ -971,19 +895,6 @@ def job_start(con, name, paid_ok=False):
     return {"started": name}
 
 # --------------------------------------------------------------- redaction
-#
-# --------------------------------------------------------------- redaction
-#
-# The queue for members of the public's home addresses. redact.py proposes and
-# applies them; what it could not do was let a person LOOK before thousands of
-# edits land on the public record.
-#
-# The two ways it can be wrong are not symmetrical and neither shows up in a
-# count. Redacting too little exposes somebody's home. Redacting too much
-# deletes the substance of a land-use hearing, where "access to the site is from
-# Clinton Avenue" is the matter under discussion, and that damage is silent
-# because a reader cannot miss what is no longer there. So the queue shows the
-# whole line with the span marked inside it, and the line before.
 
 def redactions(con, status="proposed", limit=50, offset=0, video=None):
     """One page of the queue, with enough around each span to judge it."""

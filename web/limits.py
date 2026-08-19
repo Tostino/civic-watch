@@ -1,33 +1,4 @@
-"""Cost and abuse control for the one endpoint that spends money.
-
-`/api/ask` is public, unauthenticated, and one call is up to `MAX_STEPS` turns
-of a paid model plus every tool call it decides to make. Measured: a normal
-question is 5 model turns and 11 tool calls over 38 seconds. Nothing stopped
-anyone from running that in a loop, which on a public URL is not a threat
-model, it is a Tuesday.
-
-Four bounds, cheapest checked first:
-
-    question length   a long question inflates every prompt in the run
-    per IP            a reader asks a few questions; a script asks thousands
-    per day, global   the money ceiling. Set it from your cost per run.
-    concurrency       runs hold a thread and a paid call for their whole life,
-                      which ASK_DEADLINE now puts at up to seven minutes
-
-The daily cap is the one that actually protects the account, because the
-per-IP window bounds one client and a botnet is many clients. It is global
-and deliberately blunt: when it trips, Ask is closed until the window rolls,
-and the archive still reads and searches normally without it.
-
-Everything here is in-process and forgotten on restart, like the admin
-sessions. That is the right trade for a single-server archive: no dependency
-to run, no state to migrate, and the failure mode of a restart is that one
-window resets - not that the endpoint opens up.
-
-Counting only ACCEPTED runs is deliberate. If refusals counted too, a script
-that keeps knocking would extend its own lockout for ever and the message it
-is shown ("try again in 4 minutes") would be a lie.
-"""
+"""Cost and abuse control for the one endpoint that spends money."""
 import os
 import threading
 import time
@@ -71,13 +42,6 @@ class Throttled(Exception):
 
 def client_ip(request):
     """The address to hold responsible.
-
-    Behind a reverse proxy every peer is 127.0.0.1, so the limit would apply
-    to the proxy rather than to anyone. X-Forwarded-For fixes that and is
-    forgeable, so it is read ONLY from a loopback peer and ONLY when the
-    operator has said a proxy is there - and then the LAST hop is taken, not
-    the first: our proxy appends the address it actually saw, and everything
-    to its left was supplied by the client and can say anything.
 
     `request` is a Starlette Request. `request.client` is None for a scope
     with no peer at all, which ASGI permits and a test client produces; an
@@ -177,16 +141,6 @@ def reserve(ip, question):
 
 # ------------------------------------------------------------- MCP tools
 # A different bill, so a different budget.
-#
-# An MCP tool call spends no model tokens at all. It is one indexed query,
-# and for search_transcript one pass of the 0.6B query encoder on the CPU.
-# Metering it out of ASK_DAILY_MAX would let an MCP client close the endpoint
-# a reader pays for, and letting it through the door unmetered would hand
-# anyone a way to make this server encode queries all day.
-#
-# So: a rate and a concurrency ceiling, and deliberately NO daily cap. The
-# daily one exists over there because model calls cost money that runs out.
-# Nothing here does. What it protects is the CPU and the connection pool.
 MCP_WINDOW = int(os.environ.get("MCP_WINDOW") or 60)          # seconds
 MCP_PER_IP = int(os.environ.get("MCP_PER_IP") or 60)          # calls per window
 # search_transcript gets its own, lower ceiling. It is the expensive tool -
@@ -207,16 +161,7 @@ _mcp_running = 0
 
 
 def _window(book, ip, now, limit, one, many):
-    """One sliding window. Caller holds `_mcp_lock`.
-
-    Appends nothing: the caller commits only once every window has passed,
-    so a call refused by the second limit does not count against the first.
-
-    `one` and `many` are the noun, both ways. A limit of 1 is a real setting -
-    it is how an operator throttles the expensive tool down to almost nothing
-    without closing it - and "1 transcript searches" is the sentence a reader
-    would then be shown.
-    """
+    """One sliding window. Caller holds `_mcp_lock`."""
     seen = book.setdefault(ip, deque())
     while seen and now - seen[0] > MCP_WINDOW:
         seen.popleft()
@@ -314,14 +259,7 @@ def state():
 
 
 def mcp_public():
-    """The MCP ceilings, for the page that tells a reader how to connect.
-
-    The CEILINGS only, not the counters. What is currently running is an
-    operator's number; what a reader needs before pointing a client at this
-    archive is what it will refuse. Served rather than written into the copy
-    so the sentence on /about cannot drift from the setting behind it, which
-    is the one way a stated number goes quietly wrong.
-    """
+    """The MCP ceilings, for the page that tells a reader how to connect."""
     return {"per_ip": MCP_PER_IP, "heavy_per_ip": MCP_SEARCH_PER_IP,
             "window": MCP_WINDOW, "heavy": sorted(MCP_HEAVY)}
 
