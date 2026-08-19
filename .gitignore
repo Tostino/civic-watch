@@ -19,3 +19,12 @@ data/
 logs/
 *-venv/
 __pycache__/
+
+# Working notes from the build, not reader documentation. They date fast and
+# they name people the published copy is careful about.
+STATE.md
+PIPELINE_PLAN.md
+PRIOR_ART.md
+SPEAKER_PLAN.md
+UI_PLAN.md
+UI_REQUIREMENTS.md
