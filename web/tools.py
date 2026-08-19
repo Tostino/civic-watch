@@ -119,7 +119,7 @@ def search_transcript(con, query, limit=12, spread=None, speaker=None,
     # Here rather than in either arm's projection, so both arms describe a
     # speaker the same way and neither pays for the 575 candidates it threw
     # out. This is the one place a hit becomes a hit.
-    return {"query": query, "hits": speaker_sure(con, hits), "count": len(hits),
+    return {"query": query, "hits": turns(con, speaker_sure(con, hits)), "count": len(hits),
             "degraded": degraded or _dense_error}
 
 
@@ -196,6 +196,97 @@ def speaker_sure(con, rows):
     return rows
 
 
+
+EXCHANGE = "(exchange)"
+
+
+def turns(con, rows):
+    """Break each multi-speaker passage into who actually said what, in place.
+
+    95,196 passages - 57% of the corpus - carry `(exchange)` where a name goes,
+    and `passages.text` renders them as one string with inline labels:
+    "Weightman: That's it. He didn't budge. That was a Oakley: budge." A reader
+    cannot reliably say where one turn stops, and a model quoting from it
+    attributes words to whoever it guessed, which is the one error this archive
+    treats as unforgivable.
+
+    `(exchange)` IS TWO DIFFERENT FACTS, and only one of them is an exchange.
+    bin/index_passages emits it for a run of short turns - motions, seconds,
+    votes, crosstalk - and ALSO for a single speaker's run that fell under the
+    word floor and was kept as context. 29,253 of them genuinely cross
+    speakers; the other 65,943 are one person whose name the label is hiding.
+    So this does not only disambiguate a blob: for two thirds of them it hands
+    back an attributable name that `passages.speaker` threw away.
+
+    Nothing is re-derived. `utterances` already holds the turns one row each,
+    with the resolved name and its basis; the blob is a lossy rendering of data
+    the database has properly. So this is a join, and like speaker_sure it runs
+    on the hits that SURVIVED rather than on 600 candidates: measured, 10 ms for
+    25 passages.
+
+    THE PARENT PASSAGE ID TRAVELS ON EVERY TURN, and there is no such thing as
+    a turn-level citation. web/agent.py's `check()` verifies `[N]` against the
+    passage ids a run really saw and strikes everything else, so a token like
+    `[512#2]` would be deleted from the answer as a fabrication. A turn is how
+    a model knows WHO to attribute and WHERE to seek; `[passage_id]` is how it
+    cites, exactly as before.
+    """
+    for r in rows:
+        r["turns"] = None
+    want = [r for r in rows
+            if r.get("speaker") == EXCHANGE and r.get("video_id")
+            and r.get("start_idx") is not None
+            and r.get("end_idx") is not None]
+    if not want:
+        return rows
+    keys = {(r["video_id"], r["start_idx"], r["end_idx"]) for r in want}
+    vids, starts, ends = zip(*keys)
+    got = {}
+    for u in con.execute("""
+        SELECT k.v AS video_id, k.s AS start_idx, k.e AS end_idx,
+               u.idx, u.start, u."end", u.text,
+               us.name, us.display_name, us.human, us.basis
+          FROM unnest(%s::text[], %s::int[], %s::int[]) AS k(v, s, e)
+          JOIN utterances u
+            ON u.video_id = k.v AND u.idx BETWEEN k.s AND k.e
+          JOIN utterance_speaker us
+            ON us.video_id = u.video_id AND us.idx = u.idx
+         ORDER BY k.v, k.s, u.idx""",
+            (list(vids), list(starts), list(ends))):
+        got.setdefault((u["video_id"], u["start_idx"], u["end_idx"]),
+                       []).append(u)
+
+    for r in want:
+        rows_ = got.get((r["video_id"], r["start_idx"], r["end_idx"]))
+        if not rows_:
+            continue
+        out = []
+        for u in rows_:
+            # A turn is a contiguous run by ONE speaker, so consecutive
+            # utterances resolving to the same name are one turn. Splitting on
+            # every utterance would hand back the ASR's breath pauses as if
+            # they were somebody else talking.
+            if out and out[-1]["speaker"] == u["name"]:
+                t = out[-1]
+                t["end_idx"], t["end"] = u["idx"], u["end"]
+                t["text"] = f"{t['text']} {u['text']}".strip()
+                continue
+            out.append({
+                "n": len(out) + 1,
+                "passage_id": r.get("id"),
+                "video_id": r["video_id"],
+                "speaker": u["name"],
+                "speaker_display": u["display_name"],
+                "who": archive.who(u["name"], u["display_name"],
+                                   u["basis"], u["human"]),
+                "start_idx": u["idx"], "end_idx": u["idx"],
+                "start": u["start"], "end": u["end"],
+                "text": u["text"],
+            })
+        r["turns"] = out
+    return rows
+
+
 def _plain(con, ranked, limit, spread=None, **f):
     """Keyword-only fallback. Same shape as retrieve.search, no `score`."""
     if not ranked:
@@ -254,7 +345,7 @@ def passages_at(con, ranges):
     # hit's, so it has to carry the same fields or the two pages would make
     # different claims about one passage. Cheap here: this is a handful of
     # cited passages, not 600 candidates.
-    speaker_sure(con, list(out.values()))
+    turns(con, speaker_sure(con, list(out.values())))
     return out
 
 

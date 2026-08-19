@@ -553,6 +553,39 @@ export interface RecordHit extends ItemLike {
   score: number;
 }
 
+/**
+ * One speaker's contiguous run inside a multi-speaker passage.
+ *
+ * `passages.speaker` says `(exchange)` for 57% of the corpus, and the passage
+ * text renders those as one string with the names buried in it. These are the
+ * same words split back into who actually said them, resolved from
+ * `utterances`, where they have always been one row per speaker.
+ *
+ * THERE IS NO TURN-LEVEL CITATION. `passage_id` is the citable unit and the
+ * only one web/agent.py's check() will verify; a turn says who and where, not
+ * what to cite. `start` is seconds into `video_id`, for seeking.
+ */
+export interface Turn {
+  /** Position within the passage, from 1. */
+  n: number;
+  /** The passage this turn belongs to, and the id any citation must use. */
+  passage_id: number | null;
+  video_id: string;
+  /** The key the `speaker` facet filters on. A board member's surname. */
+  speaker: string | null;
+  /** What to print. See Line.display_name. */
+  speaker_display: string | null;
+  /** The same shape every other surface draws a speaker from. */
+  who: Speaker;
+  /** Utterance range, the durable key within the recording. */
+  start_idx: number;
+  end_idx: number;
+  /** Seconds into the recording. */
+  start: number;
+  end: number;
+  text: string;
+}
+
 export interface TranscriptHit {
   id: number;
   video_id: string;
@@ -562,6 +595,12 @@ export interface TranscriptHit {
   speaker: string | null;
   /** What to print. See Line.display_name. */
   speaker_display: string | null;
+  /**
+   * Who said what, when this passage crosses speakers. Null when it does not,
+   * because a single-speaker passage already answers the question in
+   * `speaker`. Never renders a citation of its own - see Turn.
+   */
+  turns: Turn[] | null;
   /**
    * The utterances this passage covers: its NATURAL key - `id` is reassigned
    * by every rebuild - and the range a correction is raised against, which is

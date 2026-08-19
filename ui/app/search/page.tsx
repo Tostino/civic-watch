@@ -180,21 +180,88 @@ export default async function SearchPage({ searchParams }: Props) {
 }
 
 /**
+ * Twenty examples, four at a time, drawn fresh on every request. One fixed
+ * five taught the duality but also taught that the archive is five things;
+ * a reader who comes back sees a different four and learns it is not.
+ *
+ * ONE PER KIND, never two. Four subjects in a row reads as a list of topics
+ * and hides the half of the box that takes identifiers, which is the thing
+ * the examples exist to teach. The draw takes one from each pool and then
+ * shuffles: pool order alone pinned the case number to the third line on
+ * every load, which looks broken to anyone who refreshes twice.
+ *
+ * Every query here was checked against the API and returns hits in both
+ * sources. The note says what KIND of thing the query is, and carries no
+ * counts and no dates: those go stale silently, and browse already counts.
+ */
+const EXAMPLES: [string, string][][] = [
+  [
+    ["impact fees", "a subject"],
+    ["affordable housing", "a subject"],
+    ["short term rentals", "a subject"],
+    ["stormwater", "a subject"],
+    ["sinkhole", "a subject"],
+    ["Penny for Pasco", "a local name for the sales tax"],
+    ["license plate cameras", "argued long after it was decided"],
+    ["ex parte communication", "a disclosure before a land-use vote"],
+    ["impact fee credits", "the other side of impact fees"],
+    ["gopher tortoise relocation", "a permit condition"],
+    ["eminent domain", "the county taking land"],
+    ["code enforcement lien", "where a code case ends"],
+    // Whole questions. They ride in this pool rather than getting a fifth
+    // line of their own, because four examples is the shape and a question
+    // is still words rather than an identifier. Each was read, not counted:
+    // a sentence always loosens the record side, so what matters is whether
+    // the top of both lists answers the question, and for these it does.
+    ["what is the county doing about flooding in my neighborhood", "a whole question"],
+    ["does the county allow backyard chickens", "a whole question"],
+    ["what happens if I do not mow my lot", "a whole question"],
+    ["is the county buying the water system", "a whole question"],
+    ["is the county raising the stormwater rate", "a whole question"],
+  ],
+  [
+    ["Orange Belt Trail", "a trail"],
+    ["Ridge Road extension", "a road project"],
+    ["Suncoast Parkway", "a highway"],
+    ["Starkey Ranch", "a development"],
+    ["Dade City", "a city"],
+  ],
+  [
+    ["PDE-25-7738", "a case number"],
+    ["PDD-18-7277", "a case number"],
+    ["PDD-17-7213", "a case number"],
+    ["PDE-25-7831", "a case number"],
+  ],
+  [
+    ["R-58", "an item code"],
+    ["P58", "an item code"],
+    ["R-12", "an item code"],
+    ["P2", "an item code"],
+  ],
+];
+
+const oneOf = <T,>(pool: readonly T[]): T => pool[Math.floor(Math.random() * pool.length)];
+
+/** Fisher-Yates, in place, on a copy the caller owns. */
+function shuffled<T>(xs: readonly T[]): T[] {
+  const a = [...xs];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
  * Arriving with no query. Not a blank page: the design says the box must teach the
  * duality, and an example somebody can click teaches it better than a
  * placeholder they have to read.
  */
 function Empty() {
-  const tries: [string, string][] = [
-    ["impact fees", "a subject, across twelve years"],
-    ["Orange Belt Trail", "a place"],
-    ["PDE-25-7738", "a case, heard twelve times"],
-    ["R-58", "an item code"],
-    ["license plate cameras", "argued in August 2026, decided in 2024"],
-  ];
+  const tries = shuffled(EXAMPLES.map(oneOf));
   return (
     <div className={s.empty}>
-      <h1 className={s.emptyHead}>Search the record and the transcript</h1>
+      <h1 className={s.emptyHead}>What you can search</h1>
       <p className={s.emptyWhy}>
         <b>What the county recorded</b> is every agenda item and the outcome its
         approved minutes recorded, whether or not a camera was running.{" "}

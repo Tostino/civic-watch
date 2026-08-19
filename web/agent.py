@@ -568,6 +568,17 @@ def _passage_line(p, width=420):
         # searched the record six times and spent its whole budget.
         ident = f"item:{p['agenda_item_id']}" if p.get("agenda_item_id") else "?"
         head += f"\n  under [{ident}]: {_clip(under, 90)}"
+    # A multi-speaker passage as TURNS, not as a string with names buried in
+    # it. `tools.turns` resolves them from `utterances`, where they have always
+    # been one row per speaker, so the writer stops having to guess where
+    # "That was a Oakley: budge" divides. The citation does not change: every
+    # turn belongs to this passage and `[id]` above is what check() verifies.
+    ts = p.get("turns")
+    if ts:
+        body = "\n".join(
+            f"    {t.get('speaker_display') or t.get('speaker') or '(unidentified)'}:"
+            f" {_clip(t.get('text'), 200)}" for t in ts)
+        return f"{head}\n{body}"
     return f"{head}\n  {_clip(p.get('text'), width)}"
 
 def _item_block(i, full=False):
