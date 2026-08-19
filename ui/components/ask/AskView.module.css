@@ -148,14 +148,6 @@
   cursor: pointer;
 }
 
-.examplesWhy {
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  color: var(--ink-2);
-  max-width: 66ch;
-  text-wrap: pretty;
-}
-
 /*
  *  The other way in. Beside the form and always on screen, where it used to be
  * a sentence under the examples that vanished the moment anyone asked

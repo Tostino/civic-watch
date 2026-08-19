@@ -33,17 +33,16 @@
  * line, and it is also the only affordance that gets a reader to the second
  * source without scrolling past the first.
  *
- * Ruled underneath, the way browse rules `.listHead`: it is the same object
- * on both pages - what you asked for, how much of it there is - and here it
- * was a sentence floating above the results with nothing to say it governed
- * them. The rule is what makes it a head rather than a first line. */
+ * NOT RULED, though browse rules its `.listHead` and the argument for doing
+ * the same here is a good one. It was ruled for about ten minutes: the
+ * section head below it carries a 2px rule of its own, so the page grew two
+ * horizontal lines 54px apart with one line of text between them. This one
+ * leads the results, the ruled head governs a list. */
 .summary {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.3rem 0.8rem;
-  padding-block-end: var(--sp-2);
-  border-block-end: 1px solid var(--rule);
   font-size: var(--text-sm);
   color: var(--ink-2);
 }
