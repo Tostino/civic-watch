@@ -27,17 +27,10 @@ import s from "./ItemView.module.css";
  * `/item/:id`. The **Verify** surface: the place a claim bottoms out in
  * something the county wrote or something a microphone caught.
  *
- * The order of this page is an argument, not a layout preference. The record
- * leads — code, official title, staff recommendation, and the minutes
- * outcome verbatim — because it is authoritative and because for 91% of
- * decided items in this archive it is *all there is*. Then the county's own
- * PDF. Then the case thread, because an item is rarely the whole story. Only
- * then what was said, marked as the weaker source it is.
- *
  * Nothing here merges the two. A transcript can show a vote being taken and can
  * never show its result; the minutes record the result and never the argument.
  * A page that blended them would be more readable and would be lying.
- */
+*/
 export function ItemView({
   data,
   facts,
@@ -447,12 +440,7 @@ function activeIdx(lines: Line[], seconds: number): number {
 
 /**
  * The seam between one appearance and the next.
- *
- * Drawn rather than implied. Without it, an item argued at 18:05, set down and
- * taken up again at 3:38:04 renders as one continuous exchange with three and
- * a half hours of unrelated county business deleted from the middle of it —
- * which reads as speech nobody made.
- */
+*/
 function ResumedAt({ run, videos }: { run: ItemRun; videos: Video[] }) {
   const v = videos.find((x) => x.id === run.video_id) ?? null;
   const where = videos.length > 1 ? `${sessionLabel(v?.session_seq ?? null, videos.length)}, ` : "";

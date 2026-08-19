@@ -11,11 +11,7 @@ import s from "./status.module.css";
  * and only one of them is about us: the county may never have published it,
  * or we may not hold it. Absence is information (COPY.md), and a 404 that
  * says only "not found" throws that information away.
- *
- * Next's `global-not-found.js` would also cover URLs matching no route at
- * all, but it is experimental in this version and needs a config flag; not a
- * thing to switch on the evening of a release.
- */
+*/
 export default function NotFound() {
   return (
     <div className={s.wrap}>

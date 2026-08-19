@@ -131,11 +131,7 @@ export interface MeetingDetail {
  * speaker naming themselves, `chair` is somebody else naming them in the room,
  * `read_aloud` means the words belong to a person who was never there.
  * SpeakerChip maps these to how sure the page looks, in one place.
- *
- * The four old values are kept because the archive still serves them until the
- * resolver is switched on, and because `override` and `human` remain exactly
- * what they were.
- */
+*/
 /**
  * WHO SAID THIS. One object, sent by every surface that names a speaker, built
  * once by web/archive.py's `who()`. Three shapes used to spell these four
@@ -491,11 +487,7 @@ export interface IssueYear {
   /**
    * Of `decided`, how many the board did not simply pass — continued, denied,
    * no action, or an outcome naming a nay vote.
-   *
-   * From the approved minutes, so it covers all twelve years whether or not a
-   * camera ran. That is what makes it worth drawing beside two lanes that are
-   * both shaped by coverage.
-   */
+  */
   pushed: number;
   /** Lines of speech that mention it. A line is a ~40-second block. */
   lines: number;
@@ -511,12 +503,7 @@ export interface Issue {
   q: string;
   /**
    * The `slug` of the subject this one narrows, or null for a top-level one.
-   *
-   * A parent still counts everything its own vocabulary matches, its children
-   * included — the strip shows the whole subject and then what it is made of,
-   * which only reads if the top row really is the whole. So a parent and its
-   * children are NOT a set of disjoint rows, and nothing sums them.
-   */
+  */
   parent: string | null;
   items: number;
   meetings: number;
@@ -580,13 +567,7 @@ export interface TranscriptHit {
    * The utterances this passage covers: its NATURAL key - `id` is reassigned
    * by every rebuild - and the range a correction is raised against, which is
    * what lets a hit reach the review screen at all.
-   *
-   * Nullable because the column was added by an ALTER and older rows could
-   * predate it. None do: 0 of 166,998 passages, measured 2026-08-14. The UI
-   * still checks, because a null here means "this row cannot say which
-   * utterances it is", and offering a correction against a guess is worse than
-   * offering none.
-   */
+  */
   start_idx: number | null;
   end_idx: number | null;
   /**
@@ -725,25 +706,10 @@ export interface Body {
 
 /**
  * The machine surface, as /api/tools describes it.
- *
- * `mcp` carries the ceilings rather than the counters: /about tells a reader
- * what the tool endpoint will refuse before they point a client at it, and
- * the number comes from the server so the sentence cannot drift from the
- * setting behind it.
- */
+*/
 /**
  * The archive measured, for copy that would otherwise quote a number.
- *
- * Every field is a formatted STRING, not a number: these land in sentences,
- * and "23,130" is what belongs there. `/api/facts` serves the same values the
- * tool descriptions and the two system prompts are built from, so a page and a
- * model cannot disagree about how much archive there is.
- *
- * This exists because seven counts were typed into JSX and four had gone
- * wrong: 23,122 items were 23,130, 283 recorded meetings were 290, and
- * "beginning in 2018" became 2017 the afternoon a parser fix attached a 2017
- * workshop to its meeting.
- */
+*/
 export interface Facts {
   /** Hours of transcribed recording, ALL of it - including the recordings
    *  that belong to no meeting, because search reaches those too. */

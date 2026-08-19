@@ -7,14 +7,10 @@ import s from "./CopyButton.module.css";
 /**
  * Puts one string on the clipboard and says so.
  *
- * The same shape as <Citation>, deliberately: try, swallow the rejection,
- * flip a label for a moment. A blocked clipboard is not an error the reader
- * can act on, and the string it would have copied is on `title` either way.
- *
  * `value` is never rendered. That is the point on /ask, where the address is
  * not on screen: what a reader wants there is the string in the other
  * program, not the string in front of them.
- */
+*/
 export function CopyButton({
   value,
   label,

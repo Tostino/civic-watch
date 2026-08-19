@@ -9,21 +9,7 @@ import s from "./OpsScreen.module.css";
 
 /**
  * Every pipeline operation, as the flow it actually is (bin/job.py):
- *
- *   discover -> ingest -> fold in -> identity
- *
- * Each stage's prerequisite is measured from the database and shown beside
- * its button, and the SERVER refuses an out-of-order run with the same
- * measurement - the page greys things out to be kind, not to be the guard.
- * One job at a time; paid jobs are marked and require a second, explicit
- * click that says what it costs.
- *
- * The page's other job is to answer "is it stuck?", which a spinner cannot.
- * A run shows four things a pid does not: which step of how many is running,
- * how long that step has run, how long since anything was written to the log,
- * and - inside a step that runs for half an hour - which stage it announced
- * last. When the answer is yes, Stop is here rather than in a terminal.
- */
+*/
 /** How long "Starting…" may stand before the runner has to have said so. */
 const STARTING_MS = 12_000;
 

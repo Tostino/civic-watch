@@ -12,18 +12,11 @@ import s from "./ItemCard.module.css";
  * search results, the agent's evidence. One component, four contexts - which
  * is most of what cohesion actually is.
  *
- * Two densities. `row` is the spine: an item every 1.6rem, scannable at 200
- * items, doubling as a chapter track. `card` is the item standing on its own,
- * where the official title gets a serif and a readable measure.
- *
  * The anatomy is Councilmatic's and it is the right one: **identifier and
  * outcome first**, then the plain-language title, then metadata. A reader
  * scanning for "what happened to C36" should never have to read a 60-word
  * legal title to find out.
- *
- * `href` is optional on purpose. /item and /case arrive in slice 2; until they
- * do, an identifier renders as an identifier rather than as a link to a 404.
- */
+*/
 export function ItemCard({
   item,
   density = "card",

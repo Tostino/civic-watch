@@ -11,11 +11,7 @@ import s from "./Entryways.module.css";
  * question. A search box alone assumes the reader knows what to ask, and most
  * of them do not; the design notes found Councilmatic's "Divided Votes" to be the
  * strongest story surface in any of the archives reviewed.
- *
- * All of these are saved queries with names, and every row links to a real
- * object, so none of it is a dead end. When /search lands it should
- * absorb them as named filters rather than reimplement them.
- */
+*/
 export function Entryways({ h }: { h: Highlights }) {
   return (
     <>
@@ -171,11 +167,7 @@ function DividedSection({ d }: { d: Divided }) {
  * July 2026; listing eight of them showed an arbitrary sample, chosen by
  * sequence number, under a heading that implied a summary - and eight rows
  * repeating one date and one body said nothing eight times.
- *
- * A day says how much business was done, what shape it had, and names the
- * part that was not routine. The routine remainder is one click away on the
- * meeting's own spine, which is the view built for reading 113 items.
- */
+*/
 function DecidedCard({ days }: { days: DecidedDay[] }) {
   const peak = Math.max(1, ...days.map((d) => d.decided));
   return (

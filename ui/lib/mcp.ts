@@ -2,24 +2,12 @@
  * Where the tool endpoint can be added, and the exact thing each client wants
  * to be given.
  *
- * The address is one string, and no two of these take it the same way. Two are
- * a command in a terminal, two are a settings pane and a paste, and the last is
- * whatever config file the program keeps. So this is a list of instructions
- * rather than a list of buttons: the earlier version of this page carried a
- * VS Code and a Cursor deeplink, which install in one click and are the wrong
- * two programs for the people who read a county meeting archive.
- *
  * ORIGIN IS PASSED IN, never read here. `siteUrl()` reads a server-only
  * environment variable and one of the two callers is a client component; a
  * helper that reached for it directly would render the deployed host on the
  * server and localhost in the browser, which is a hydration mismatch that
  * presents as a copy button handing over the wrong address.
- *
- * NOTHING HERE IS A SCREENSHOT OF A SETTINGS PANE. Every step is written as
- * the words on the control, so it survives the pane being rearranged: a
- * sentence that is one release out of date is still followable, and an image
- * is not.
- */
+*/
 
 /** The name the server answers to (web/mcp_server.py `NAME`). A client lists
  *  its servers under this, so it should match what the handshake says rather

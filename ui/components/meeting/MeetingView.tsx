@@ -16,17 +16,7 @@ import s from "./MeetingView.module.css";
 /**
  * `/meeting/:id` - the page the old UI most conspicuously lacked, and the one
  * a reader most wants.
- *
- * The layout is driven by what this particular meeting actually has, because coverage here is uneven per object and a layout that
- * assumes a recording is wrong for 91% of decided items:
- *
- *   agenda + recording   spine navigates, transcript reads, player docks
- *   agenda, no recording spine navigates, the RECORD reads. No empty player.
- *   recording, no agenda spine is transcript-derived and marked as inferred
- *
- * The main column shows one of the two sources at a time and says which. That
- * toggle is not a convenience - it is the two-sources distinction made operable.
- */
+*/
 
 /** Where the reader is, restored from the URL. */
 export interface MeetingLocation {
@@ -214,10 +204,7 @@ export function MeetingView({
    * touch or key inside the panes, or the moment audio starts. Nothing is
    * lost - the coverage, the roster and the county's documents are all on
    * screen when the page opens, and one click brings them back.
-   *
-   * Nothing else has to know: --pane-h is measured from the split's top, and
-   * the observer below already watches the masthead's own height.
-   */
+  */
   const [brief, setBrief] = useState(false);
 
   /* How tall the panes may be, MEASURED rather than guessed. Two constants
@@ -279,14 +266,10 @@ export function MeetingView({
     };
   }, [brief]);
 
-  /* Pressing play is the same statement, made from the dock rather than the
+  /*
+   *  Pressing play is the same statement, made from the dock rather than the
    * page: what the reader wants now is the recording and the words under it.
-   *
-   * Adjusted during render rather than in an effect, which is the documented
-   * shape for "state that follows from a change in something else" - and the
-   * EDGE, not the level. Folding whenever `playing` is true would re-fold the
-   * masthead the instant a reader opened it again during playback, which is
-   * an argument with the reader rather than an answer to them. */
+  */
   const [wasPlaying, setWasPlaying] = useState(false);
   if (playhead.playing !== wasPlaying) {
     setWasPlaying(playhead.playing);

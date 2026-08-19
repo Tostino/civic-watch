@@ -28,12 +28,7 @@ const COPY: Record<Provenance, { label: string; why: string }> = {
  * must never be blurred - is only real if it is visible. This marks which one
  * a block came from, without interaction: a filled square for the
  * published record, a hollow one for anything inferred.
- *
- * The mark is a reinforcement, not the mechanism. The primary signal is
- * typographic and set in tokens.css: the record is a serif on warm ground,
- * derived content is a sans on cool ground. That survives colour-blindness,
- * high-contrast mode and print, none of which a badge does.
- */
+*/
 export function ProvenanceMark({
   kind,
   compact = false,

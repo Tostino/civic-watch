@@ -15,18 +15,7 @@ import s from "./AskView.module.css";
  * traversal of the same graph the rest of the site walks, which is why its two
  * citation types are the two sources and its evidence renders with the same
  * components.
- *
- * What streams is the agent's ACTUAL tool calls. Four fixed captions
- * would have been easier and would have been a lie: under D9 there is no fixed
- * pipeline to caption. "search_record: school zone speed cameras → 0 items"
- * tells a reader something a progress bar cannot — that the archive was asked,
- * and did not have it.
- *
- * One state object, not five. The reset when a new question is asked has to be
- * atomic, and the page is mounted with `key={q}` so arriving at a different
- * question remounts rather than reconciling — which is what keeps the effect
- * below free of any synchronous setState.
- */
+*/
 type Run = {
   stages: AskStage[];
   result: AskResult | null;
@@ -78,24 +67,19 @@ export function AskView({ q, origin }: { q: string; origin: string }) {
     return () => src.close();
   }, [q, open]);
 
-  /* The answer has a URL of its own, so go and be at it: the address bar then
+  /*
+   *  The answer has a URL of its own, so go and be at it: the address bar then
    * holds the thing a reader would send somebody, which is the whole feature —
    * no button to find, no second way to get the link, nothing to explain.
    *
    * REPLACE, never push. `?q=` behind the Back button makes Back a paid agent
    * run against the daily cap, which is not what Back is for.
    *
-   * Deliberately its OWN effect rather than a line in the `answer` handler.
-   * Doing it there put `router` in `open`'s dependency list, and `open` is a
-   * dependency of the effect above — so any render that changed the router's
-   * identity would tear down the stream and open a new one, spending another
-   * paid run. Reacting to the id instead keeps that list empty, and re-running
-   * this is free.
-   *
    * The answer stays rendered below while the navigation is in flight, and
    * stays for good if `id` is absent: a save that failed costs the reader a
    * permalink and must not also cost them the answer they waited out a run
-   * for. */
+   * for.
+  */
   const answerId = run.result?.id;
   useEffect(() => {
     if (answerId) router.replace(`/ask/${answerId}`);
@@ -222,29 +206,14 @@ function currently(x: AskStage | undefined): string {
   }
 }
 
-/* The other way in, and it must not be conditional on the page being idle.
+/*
+ *  The other way in, and it must not be conditional on the page being idle.
  * This was one sentence at the foot of <Examples>, which renders only before
  * the first question - so the reader most likely to want it never saw it. A
  * reader who has just watched an answer take minutes, or been told to come
  * back in ten, is exactly who should be told the archive is also a tool
  * endpoint, and by then the sentence had been replaced by a trace.
- *
- * WHY THERE ARE CONTROLS HERE AND NOT A LINK. It said "how to connect one"
- * and sent the reader to /about#connect, on the reasoning that the address is
- * a string to paste into another program and whoever wants it wants the
- * instructions with it. That reasoning holds for the two clients where the
- * work is a settings pane, and those two are the link. It does not hold for
- * the two where the whole of it is one line in a terminal: there is nothing
- * to read, so the line itself belongs here.
- *
- * THE ADDRESS IS STILL NOT ON SCREEN. It is on a button, which is the same
- * judgement as before and survives the change: a reader who can act on a bare
- * URL has somewhere to paste it, and one who cannot should be reading
- * /about#connect rather than a URL beside a search box.
- *
- * Small enough not to compete with the question: one sentence, and controls
- * at the size of the hint under the form. It carries no tool list and no
- * limits, and no third way of saying what MCP is. Those are on /about, once. */
+*/
 function Connect({ origin }: { origin: string }) {
   const commands = clients(origin).filter((c) => c.snippet?.lang === "shell");
   return (

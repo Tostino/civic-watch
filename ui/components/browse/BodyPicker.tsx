@@ -7,23 +7,7 @@ import s from "./BodyPicker.module.css";
 
 /**
  * Which board the whole page is about.
- *
- * This was seven pills wrapping onto two rows - "All meetings", "Planning
- * Commission 240", up to "Village of Pasadena Hills Planning and Policy 59" -
- * which is a lot of furniture for a control where exactly one value is ever
- * active. Chips are right when several can be on at once and a reader is
- * assembling a set. Here they were a radio group drawn as a toolbar, 66px of
- * it, above the thing they filter.
- *
- * A select says the same thing in one line, and says it in the shape a reader
- * already knows means "pick one of these".
- *
- * It stays a FORM. Without script the reader picks and presses the button;
- * with script the change navigates and the button is not rendered, so nothing
- * on screen is dead. `useRouter` rather than a link so the page transitions
- * rather than reloading - the same standard the calendar and the subject strip
- * are now held to.
- */
+*/
 export function BodyPicker({ bodies, body }: { bodies: Body[]; body?: string }) {
   const router = useRouter();
 

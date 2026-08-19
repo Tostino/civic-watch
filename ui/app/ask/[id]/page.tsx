@@ -9,22 +9,9 @@ import type { AskResult } from "@/lib/types";
 import page from "../ask.module.css";
 import s from "./saved.module.css";
 
-/* `/ask/<id>` — an answer somebody was sent.
- *
- * `/ask?q=…` is not a link to an answer. It is an instruction to run the agent
- * again: minutes of waiting at ASK_DEADLINE, a paid run against the daily cap
- * in web/limits.py, and — because the model is sampled and the archive gains
- * meetings — a different answer than the one the sender is talking about. Every
- * completed run is kept (web/answers.py) and this reads the row.
- *
- * So this page is a server component with no stream, no effect and no client
- * state: the answer is a row, and a reader who was sent one should have it
- * rendered on arrival rather than watch it be re-derived.
- *
- * The page is deliberately NOT indexed. It is a machine-written reading of the
- * archive, and the archive's own pages — the meeting, the item, the case — are
- * what a search engine should be sending people to. Nothing here is secret;
- * it simply is not the record, and the record is what this site is for. */
+/*
+ *  `/ask/<id>` — an answer somebody was sent.
+*/
 
 type Props = { params: Promise<{ id: string }> };
 

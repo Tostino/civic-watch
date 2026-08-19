@@ -59,17 +59,15 @@
   white-space: pre-wrap;
 }
 
-/* A CITATION IS A NUMBER. Every chip this file has drawn put more
+/*
+ *  A CITATION IS A NUMBER. Every chip this file has drawn put more
  * of the archive's furniture in the way of the sentence: four orange pills in
  * a row, then one pill holding a row of clocks, then a pill naming the
  * recording, then the item's own title. The thing a citation points at is
  * already on the page under two headings, with the recording named, the
  * speaker, the time, the quote and the outcome — so the prose carries the
  * smallest pointer that can be followed and the lists carry the answer.
- *
- * Still two kinds and still distinct: the record's colour reveals
- * the item, the player's colour seeks the recording. No background: a marker
- * is punctuation, not a token. */
+*/
 .mark {
   font-family: var(--font-mono);
   font-size: 0.78em;

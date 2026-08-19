@@ -1,23 +1,10 @@
-/* Design tokens. One source of truth, two themes.
+/*
+ *  Design tokens. One source of truth, two themes.
  *
  * Custom properties rather than a theme object: they survive server rendering,
  * they are readable in devtools, and they do not tie the look to whatever
  * renders it. The old pages re-declared their theme five times and drifted.
- *
- * The important tokens here are not the greys. They are `--record-*` and
- * `--derived-*`. This archive has two kinds of truth - the county's published
- * record, and everything inferred from the recording (R2) - and that
- * distinction is only real if it is visible without interaction. So it is a
- * token, not a per-component decision:
- *
- *   the record   serif, warm paper, a solid left rule    authoritative
- *   derived      sans,  cool ground, a dashed left rule  plausibly wrong
- *
- * Anything that reads as a document is set in --font-record. Anything a
- * machine inferred is set in --font-ui. That single choice does more work
- * than any badge, and it degrades gracefully: it still reads correctly in
- * high contrast, in print, and with colour removed.
- */
+*/
 
 :root {
   /* ---------------------------------------------------------- type */
@@ -62,15 +49,13 @@
   --measure: 42rem;       /* readable line length for the record     */
   --header: 3.25rem;
 
-  /* The player dock is the one piece of furniture whose size is not ours to
+  /*
+   *  The player dock is the one piece of furniture whose size is not ours to
    * declare: it is 16:9, the reader can resize it, and it moves. So it
    * measures itself and publishes two tokens on :root, which are 0px until a
    * recording is open. The constant that used to stand here said 4.5rem for a
    * dock that measures 289px.
-   *
-   *   --dock-lane  the column reserved beside the page (globals.css)
-   *   --dock-h     the strip covered at the foot of the window, for panes
-   *                that fill it (TranscriptView, MeetingView) */
+  */
 
   /* --------------------------------------------------------- motion */
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
@@ -79,20 +64,9 @@
   --slow: 380ms;
 }
 
-/* ------------------------------------------------------------- palette
- *
- * Light is warm paper - this is a document archive and should feel like one.
- * Dark is cool ink.
- *
- * Every colour is declared ONCE, as light-dark(light, dark). The first draft
- * of this file wrote the dark palette out twice - an explicit [data-theme] rule
- * and a prefers-color-scheme block - and the two had drifted apart within an
- * hour of being written, which is precisely the failure the comment at the top
- * of this file complains about in the old pages. One declaration cannot drift.
- *
- * The system preference decides via `color-scheme: light dark`; the toggle
- * stamps data-theme on <html> and pins it.
- */
+/*
+ *  ------------------------------------------------------------- palette
+*/
 :root {
   color-scheme: light dark;
 

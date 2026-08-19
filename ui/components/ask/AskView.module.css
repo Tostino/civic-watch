@@ -165,14 +165,11 @@
   gap: var(--sp-2);
 }
 
-/* The other way in. Beside the form and always on screen, where it used to be
+/*
+ *  The other way in. Beside the form and always on screen, where it used to be
  * a sentence under the examples that vanished the moment anyone asked
  * anything.
- *
- * Quiet on purpose. It is not what a reader came here for, so it reads as a
- * marginal note rather than a call to action: accent ground at the softest
- * step, one rule down the left in the accent line, and body text at --ink-3.
- * The tag carries the only word that matters at a glance. */
+*/
 .connect {
   display: flex;
   flex-direction: column;

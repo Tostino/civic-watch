@@ -9,21 +9,7 @@ import s from "./DisputePassage.module.css";
 
 /**
  * "That name is wrong", raised from a search result or a citation.
- *
- * A reading surface offers this on the speaker's own chip, because it holds
- * the LINE and everything claimed about it - the basis, the confidence,
- * whether someone has already disputed it. A hit holds a PASSAGE: one
- * summarising `speaker` over a run of utterances, literally `(exchange)` when
- * several people speak, and no basis, no confidence, nothing contested.
- *
- * So this is deliberately NOT a SpeakerChip. There is no state here to draw
- * honestly, and drawing one anyway would be the archive asserting a kind of
- * claim it cannot support. It asks the question and lets the review
- * screen, which reads the lines, show the four possible answers.
- *
- * Nothing renders for a reader, and nothing renders for a passage that
- * cannot say which utterances it covers.
- */
+*/
 export function DisputePassage({ hit }: { hit: TranscriptHit }) {
   const operator = useOperator();
   if (!operator || hit.start_idx == null || hit.end_idx == null) return null;

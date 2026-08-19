@@ -13,10 +13,6 @@ const API = process.env.ARCHIVE_API ?? "http://127.0.0.1:8765";
 // boundary is structural now: admin has its own loopback listener, the
 // public API 404s every admin path, and the rewrite that reaches the
 // admin port EXISTS ONLY WHEN ADMIN_API IS SET.
-//
-// Unset in the production image, so out there /api/admin/* matches the
-// general rule, hits the public API, and 404s. Defaulted in development
-// so the console works on the maintainer's machine with no setup.
 const ADMIN_API = process.env.ADMIN_API
   ?? (process.env.NODE_ENV === "production" ? null : "http://127.0.0.1:8766");
 
@@ -45,12 +41,6 @@ const nextConfig: NextConfig = {
     // (deploy/nginx-proxy-manager.md). Two proxies with two ceilings is a trap:
     // the tighter one wins silently, so the config an operator reads is not the
     // one deciding. One number, both places.
-    //
-    // It is generous because it is no longer functional. web/server.py's
-    // HEARTBEAT writes every 10s, and these are INACTIVITY timers, so what a
-    // run's total length is has stopped mattering to any proxy in the chain.
-    // What is left for this to do is reclaim a socket whose upstream is wedged
-    // — and a run is bounded app-side anyway, by ASK_DEADLINE in web/agent.py.
     proxyTimeout: 900_000,
   },
 
@@ -82,16 +72,6 @@ const nextConfig: NextConfig = {
       // whole Python server: /legacy/speakers, /legacy/search and /legacy/ask
       // all answered 200 through this origin, and so did
       // /legacy/api/admin/session.
-      //
-      // NOTE the same hole remains one line above. `/api/:path*` forwards
-      // /api/admin/* too, and admin.loopback() reads the TCP peer - which for
-      // any proxied request is 127.0.0.1. The guard that document says makes
-      // admin "answer only on loopback" does not survive a reverse proxy.
-      // Verified: POST /api/admin/login through this origin reaches the
-      // handler and validates the token. Only the token's entropy is holding
-      // that door, and the session cookie deliberately has no Secure flag
-      // because the code assumes loopback. Block /api/admin at the edge before
-      // this is served publicly.
     ];
   },
 };

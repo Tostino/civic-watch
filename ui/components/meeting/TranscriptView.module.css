@@ -17,15 +17,13 @@
   container-type: inline-size;
 }
 
-/* The transcript says up front what it is and how it can be wrong -
+/*
+ *  The transcript says up front what it is and how it can be wrong -
  * and then gets out of the way, because it is the FIRST ROW of the scroller
  * rather than a header standing over it. A caption that is read once on
  * arrival should not hold a row of the pane for the rest of the session;
  * scrolling back to the top brings it back.
- *
- * No `--measure` cap either. That is a rule for PROSE, and it was holding
- * this to ~65 characters and wrapping a caption to two lines beside a metre
- * of empty space. */
+*/
 .caveat {
   padding: 0 var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--rule);
@@ -63,16 +61,15 @@
    * this is 0px, which is the arrangement most readers get. */
   padding-bottom: var(--dock-h, 0px);
   overflow-y: auto;
-  /* Deliberately NOT `overscroll-behavior: contain`. This pane, the agenda
+  /*
+   *  Deliberately NOT `overscroll-behavior: contain`. This pane, the agenda
    * spine and the page are three scroll surfaces on one screen; containing
    * them means the wheel stops dead at a pane's edge instead of passing to the
    * page, so the page cannot be scrolled from the 60% of the window the panes
    * occupy. Reported twice: "the wheel does nothing" and "multiple fighting
    * scrollbars" - which is what containment feels like from the outside.
    * Chaining is what makes three surfaces behave like one.
-   *
-   * It does not affect following the playhead: overscroll-behavior governs
-   * user scroll chaining, not programmatic scrollTo. */
+  */
   contain: strict;
 }
 
@@ -158,17 +155,9 @@
   align-items: start;
 }
 
-/* The name follows its own words down the pane.
- *
- * A turn is one speaker's whole run, and on this material that can be 35
- * utterances and a quarter of an hour - 3,987px of it. Four screens into one,
- * the only thing on the page saying who is talking had scrolled off the top,
- * and the answer to "is that me?" was to scroll back and lose your place.
- *
- * It sticks within its own turn and stops at the end of it, because the
- * containing block is the row: the next speaker pushes this one out rather
- * than covering it. Nothing scrolls underneath it either - the words are in
- * the other grid column - so it needs no background to stay legible. */
+/*
+ *  The name follows its own words down the pane.
+*/
 .who {
   padding-top: 0.1rem;
   min-width: 0;
@@ -284,14 +273,13 @@
     padding: var(--sp-2) 0;
   }
 
-  /* One column, so the name is ABOVE the words rather than beside them - and
+  /*
+   *  One column, so the name is ABOVE the words rather than beside them - and
    * it still has to answer "who is this" four screens into a turn. It pins
    * with a surface under it, because here the sentence really does pass
    * underneath. Flush to the top, not --sp-2: an 8px gap above an opaque bar
    * is 8px of a sentence sliding through it.
-   *
-   * This case is not only phones. A 1280px window with the player in its lane
-   * leaves this column 507px, which is inside the query. */
+  */
   .who {
     position: sticky;
     top: 0;
@@ -303,17 +291,12 @@
 }
 
 @media (max-width: 52rem) {
-  /* Still a fixed-height scroller: the virtualizer measures this element, and
+  /*
+   *  Still a fixed-height scroller: the virtualizer measures this element, and
    * letting it grow to the full 2,252-line height would render every row.
    * This one IS about the window - it is the page that becomes the scroller
    * on a phone.
-   *
-   * `flex: none` is what makes the height below mean anything. The base rule
-   * sets `flex: 1`, which is `flex: 1 1 0%`, and on a column flex container
-   * flex-basis beats `height` for the main axis - so this pane resolved to
-   * its 20rem floor and served a 26,000px transcript through a 320px window,
-   * about ten lines. Measured at 375px before the fix: height 320, content
-   * 25,964. */
+  */
   .scroll {
     flex: none;
     height: 70vh;

@@ -26,22 +26,7 @@ import s from "./CaseView.module.css";
 
 /**
  * `/case/:id` — the sleeper feature.
- *
- * A rezoning is heard by the Planning Commission, transmitted by the Board and
- * adopted months later. `PDE-25-7738` was taken up twelve times across ten
- * months, alternating bodies, continued five times, before it passed. On the
- * county's own portal those are twelve unrelated calendar events with no
- * connection between them, and no flat search can show the shape. Here it is
- * one object with one URL, which is the single most compelling thing this
- * archive can do that the incumbent cannot.
- *
- * The design problem is boilerplate. The official title is 62 words of legal
- * prose and it is *nearly* identical at every appearance, so printing it twelve
- * times buries the sequence — and the small part that does change is the most
- * informative thing on the page, because it is where the application itself
- * changed. So the title is stated once and each step is redlined against it
- *.
- */
+*/
 export function CaseView({ data }: { data: CaseDetail }) {
   const { steps, terminal, title } = data;
   const player = usePlayer();

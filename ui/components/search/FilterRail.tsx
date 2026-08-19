@@ -22,15 +22,7 @@ export type Query = {
  * rather than behind a menu, and a rail is right here too because the counts
  * are part of the information — "Planning Commission 9,918" tells a reader
  * what this archive is before they narrow anything.
- *
- * Every control is a link. No client state: the rail is readable, shareable,
- * and works with script off, and back does what back should.
- *
- * The rail deliberately does NOT hide filters that only one source honours.
- * `speaker` narrows speech and leaves the record untouched, and the section
- * headings say so — pretending a filter applies to both would be worse than
- * a reader noticing that the record count did not move.
- */
+*/
 export function FilterRail({
   facets,
   query,

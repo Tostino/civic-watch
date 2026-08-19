@@ -4,13 +4,7 @@ import s from "./SearchBox.module.css";
  * A plain GET form. No client component, no state, no JavaScript: the query
  * and every filter live in the URL, so a search is a link somebody can
  * send and the page works with script disabled.
- *
- * The placeholder is doing real work. Councilmatic's
- * `police, zoning, O2015-7825, etc.` teaches in six words that topics AND
- * identifiers both work. This archive has exactly that duality — subject words
- * against 23,122 published titles, and `PDE-25-7738` or `R-58` matched as
- * identifiers rather than as words — and nothing anywhere said so.
- */
+*/
 export function SearchBox({
   q,
   hidden = {},

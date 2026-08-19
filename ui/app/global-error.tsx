@@ -11,10 +11,7 @@
  * import here would be a link to something that never arrives. The colours
  * are the archive's, hard-coded to the two themes, keyed off the OS
  * preference because the app's toggle is not running either.
- *
- * `metadata` is not supported in a client component, so the title is set with
- * React's own <title>.
- */
+*/
 export default function GlobalError({
   error,
   retry,

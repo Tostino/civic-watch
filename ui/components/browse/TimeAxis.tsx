@@ -22,13 +22,6 @@ const MONTH_NAMES = [
  * on it, and this collection is twelve years of a recurring event, so the axis
  * is the natural spine of the whole page.
  *
- * Every cell carries two facts, because they are the two the archive most
- * needs to admit:
- *
- *   fill    how many meetings that month - the county's volume roughly
- *           doubled between 2019 and 2025
- *   bar     how many of them we can HEAR
- *
  * Drawn together, the shape that emerges is the honest one: twelve years of
  * published record and a fraction of that in recordings. The early years hold
  * almost none - a reader looking at 2016 should be able to see that the
@@ -36,10 +29,7 @@ const MONTH_NAMES = [
  * FOUND, at `firstRecorded`, and it moved from 2018 to 2017 the day a
  * mis-dated workshop was attached to its meeting.) A count alone would
  * hide that, and a site-wide disclaimer would be ignored.
- *
- * Cells are links, not buttons: a month is a filtered view of the archive with
- * its own URL, so it is navigable, shareable and works without script.
- */
+*/
 /**
  * How many years of month rows stand open before the rest fold away: the most
  * recent year that actually held a meeting, and the four before it.
@@ -67,15 +57,13 @@ export function TimeAxis({
   /** Every year row drawn on arrival, from `?axis=all`. */
   initialExpanded?: boolean;
 }) {
-  /* A CLIENT COMPONENT for the same reason the subject strip is one: opening
+  /*
+   *  A CLIENT COMPONENT for the same reason the subject strip is one: opening
    * the earlier years threw the whole document away and rebuilt it to add
    * seven rows. The URL still says what is open, and the control is still a
    * real link that works without script - the click is simply intercepted
    * when there is script to intercept it with.
-   *
-   * `href` used to arrive as a FUNCTION from the page, which cannot cross
-   * into a client component. The parts it closed over - the body filter -
-   * come as data now, and the URL is built here. */
+  */
   const [expanded, setExpanded] = useState(initialExpanded);
 
   const href = (next: { year?: string; month?: string; axis?: string }) => {

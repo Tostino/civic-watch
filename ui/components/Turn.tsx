@@ -10,32 +10,10 @@ import s from "./Turn.module.css";
 /**
  * Speech, attributed. One speaker's consecutive lines, each seekable.
  *
- * Lived inside ItemView until /case needed to show everything said about one
- * application across every meeting that took it up. It is the item's
- * and the case's, and it is not everybody's - which is worth stating, because
- * this comment used to claim search as a third caller and search has never
- * rendered a turn in its life:
- *
- *   /item, /case        this component, in flow.
- *   /meeting            its own, because it is virtualised over as many as
- *                       2,252 utterances and sizes its column against the
- *                       player's lane rather than the window. Same chip, same
- *                       `useDispute`; a different layout on purpose.
- *   /search, /ask       neither. They show PASSAGES - a run of utterances
- *                       collapsed to one row with a single `speaker`, which is
- *                       literally `(exchange)` when several people speak - so
- *                       there is no per-line claim to draw and no turn to
- *                       render.
- *
  * What must not diverge is how a claim about who spoke is presented, and that
  * is SpeakerChip's job in every one of them, and how a correction
  * is raised, which is `useDispute`'s.
- *
- * `offices` maps surname -> the office held AT THAT MEETING, so the
- * caller passes the right meeting's roster. A case spanning three years passes
- * a different one per hearing, which is the reason this is a parameter rather
- * than something looked up in here.
- */
+*/
 export function Turns({
   lines,
   tags,

@@ -9,29 +9,13 @@ import s from "./SourceDocument.module.css";
 /**
  * the county's own document, inline.
  *
- * This is the strongest provenance the archive can offer and the cheapest.
- * Everything else on an item page is something we extracted, parsed,
- * classified or transcribed; this is the PDF the county published, unaltered,
- * rendered on the page next to our reading of it. Councilmatic does exactly
- * this with ordinances and it is the one pattern from the design notes that costs
- * nothing but layout.
- *
  * Two things it must be honest about:
  *
  * **The document is the whole meeting, not this item.** A BCC agenda is 200
  * items in one PDF, and we do not know which page an item is on. So it is
  * labelled as the meeting's document rather than the item's, and it opens
  * closed - a reader who wants the source asks for it.
- *
- * **404 of 1,161 agendas are image-only scans.** For those the county's own
- * text extraction returns nothing, which is why the meeting has no parsed
- * items. The PDF is still perfectly readable by a person, so it is still
- * offered - with the gap stated, because "we have no text of this" and "there
- * is no agenda" are different facts.
- *
- * Mounted lazily. These run to a megabyte and fetching one per item page load
- * would spend the reader's bandwidth on a document they did not ask for.
- */
+*/
 export function SourceDocument({ file, meetingLabel }: { file: SourceFile; meetingLabel: string }) {
   const [open, setOpen] = useState(false);
   const kind = (file.kind ?? "Document").toLowerCase();

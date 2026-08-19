@@ -17,29 +17,7 @@ import s from "./RedactionScreen.module.css";
 
 /**
  * The address queue.
- *
- * `bin/redact.py` finds a member of the public's home address and proposes
- * removing it; this is where a person decides. The reason a person decides at
- * all, when the classifier is good, is that its two failure modes are not
- * symmetrical and neither shows up in a count:
- *
- *   too little   somebody's home address stays searchable
- *   too much     "access to the site is from Clinton Avenue" disappears, and
- *                that is the matter under discussion rather than a residence.
- *                Nobody can miss what is no longer there, so this one is
- *                silent for ever.
- *
- * So the row shows the whole line with the span marked in place, and the line
- * BEFORE it, which is usually the clerk saying "please state your name and
- * address for the record" - the single most useful signal for telling the two
- * apart. When it is still ambiguous, the timestamp opens the meeting at the
- * moment it was said.
- *
- * Applying re-indexes the recording, because the address is in the passage
- * text, the BM25 postings and the embedding as well as the utterance. That is
- * ~4s each, which is why "apply all" is a detached job with a progress count
- * and the per-row accept is capped at 25.
- */
+*/
 /** The three lists, and what each row's buttons mean in each. A decision is
  *  never a dead end: a removal can be put back and a keep can be reconsidered,
  *  because the queue is one-way only if you build it that way — the same

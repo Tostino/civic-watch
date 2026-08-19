@@ -6,24 +6,14 @@ import { SearchBox } from "@/components/search/SearchBox";
 import { ApiError, find, getFacets, getFacts } from "@/lib/api";
 import s from "./search.module.css";
 
-/* `/search`. Enter, by asking rather than by browsing.
- *
- * Two properties are the whole design:
+/*
+ *  `/search`. Enter, by asking rather than by browsing.
  *
  *   BOTH SOURCES. The old search read utterances only, which cannot
  *   reach the 91% of decided items that were never recorded — so a matter the
  *   county decided in 2017 returned nothing at all, and read as "the archive
  *   does not have this".
- *
- *   ONE SURFACE. Everything here is `web/tools.py`, which is the same set
- *   of tools the agent calls, with the same arguments. Not a parallel
- *   implementation that drifts: what a reader can find by hand, the agent can
- *   find too, and a bad result on this page reproduces as a tool call.
- *
- * No client component anywhere. The query and every facet are in the URL
- *, the search box is a plain GET form, and the rail is links — so the
- * page is shareable, back works, and none of it needs script.
- */
+*/
 
 /* Both sources have to be VISIBLE, not merely present. At 25 record cards the
  * transcript section sat two screens below the fold, so a page whose entire

@@ -20,14 +20,7 @@ const SUBSTANTIVE = new Set(["public_hearing", "regular", "proclamation", "staff
  * This is the half of the page that works for the 91% of decided items with no
  * recording, and on a meeting with no video it IS the page. It never
  * renders an empty player and never implies a recording exists.
- *
- * Hierarchy follows the record's own structure rather than flattening it: the
- * items that were heard get cards, and the consent agenda - which was approved
- * in one motion, without discussion - gets a table. Councilmatic classifies
- * routine legislation and then draws it identically to everything else, so a
- * page of permit-parking ordinances looks exactly like a page of rezonings.
- * That is the mistake this avoids.
- */
+*/
 export function RecordView({
   meeting,
   items,

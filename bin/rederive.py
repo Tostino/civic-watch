@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Re-derive speaker identity from the human labels, and measure what changed."""
+"""Re-derive speaker identity from the human labels, and measure what changed.
+
+`name_speakers` is deliberately absent: it calls the paid model, and the
+console must not spend money on a button press. Run bin/respeak.sh for the
+full chain when there is credit.
+"""
 import argparse
 import datetime
 import gzip

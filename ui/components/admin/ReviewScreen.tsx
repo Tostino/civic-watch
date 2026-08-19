@@ -84,12 +84,7 @@ export function ReviewScreen({
    * Kathryn Starkey and arrives here to be asked about Starkey. Same rule the
    * diarization id already follows further down — an id is shown AS an id, in
    * mono and labelled, never where a name goes.
-   *
-   * Both sources are already fetched: the roster the county published for this
-   * meeting, then display_name on the lines for anyone else the pipeline has
-   * resolved. A name from another meeting's voice match is in neither, and
-   * falls back to the key rather than to a guess.
-   */
+  */
   const printed = useMemo(() => {
     const by = new Map<string, string>();
     for (const r of review.data?.roster ?? []) if (r.full_name) by.set(r.surname, r.full_name);

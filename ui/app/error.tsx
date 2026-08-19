@@ -10,16 +10,7 @@ import s from "./status.module.css";
  * Without this file a production build shows the framework's blank
  * "Application error", which tells a resident of this county nothing and
  * tells us nothing either.
- *
- * The prop is `retry`, not `reset` — this version of Next renamed it, and the
- * two behave the same but only one exists. See
- * node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/error.md.
- *
- * A server-side error arrives here with its message replaced by a digest, on
- * purpose: the real message may name a table or a query. The digest is what
- * matches the line in the server log, so it is shown rather than hidden - it
- * is the only thing a reader could tell us that would help.
- */
+*/
 export default function RouteError({
   error,
   retry,

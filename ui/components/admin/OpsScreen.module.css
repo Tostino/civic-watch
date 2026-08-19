@@ -1,13 +1,9 @@
-/* Operations.
- *
- * Two things this page has to do that the first version did not: look like it
- * belongs to the archive, and make a run legible from across the room. So the
- * live panel is the loudest object on the page while it exists, the stages
- * read as a flow rather than as four unrelated lists, and every card states
- * its own condition in a line with a coloured dot on it.
+/*
+ *  Operations.
  *
  * Colour never carries a fact on its own: the dot has a sentence beside it,
- * the step marks have glyphs, and the bars have their counts written out. */
+ * the step marks have glyphs, and the bars have their counts written out.
+*/
 
 .wrap {
   max-width: 64rem;

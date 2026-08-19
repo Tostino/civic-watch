@@ -215,32 +215,22 @@
   }
 }
 
-/* Every cell is a link, and on a phone the axis is the way into the archive.
+/*
+ *  Every cell is a link, and on a phone the axis is the way into the archive.
  * At 1.1rem they were 17.6px tall with a 2px gap, so a thumb had a 19.6px
  * pitch to aim at - under the 24px WCAG 2.2 AA asks for (2.5.8), and too
  * tightly packed to earn the spacing exception. 1.375rem + the 2px gap makes
  * the vertical pitch exactly 24px.
- *
- * Height only. The horizontal pitch measures 23.5px and the remaining 0.5px
- * would have to come out of the year label or the trailing column, and
- * "the entire twelve-year axis fits on a phone" is a property somebody
- * measured on purpose. That one is a design call, not a fix. */
+*/
 @media (pointer: coarse) {
   .cell {
     height: 1.375rem;
   }
 }
 
-/* ------------------------------------------------------- the folded years
- *
- * One row standing in for the years outside the open window. It keeps the
- * grid's own columns so it reads as part of the axis rather than as a control
- * bolted under it - year gutter, a cell spanning the twelve months, and the
- * totals column where the affordance sits.
- *
- * It carries words where the rows above carry cells, and that is the point:
- * the gradient used to be what said "there is no video before 2018", and
- * folding those rows away takes that with them unless the summary says it. */
+/*
+ *  ------------------------------------------------------- the folded years
+*/
 /* Its OWN columns. It was inheriting the year grid, whose gutter is 2.6rem -
  * wide enough for "2024" and 6px short of "2015-2021", so the range overran
  * its cell and collided with the summary beside it. This row has three parts

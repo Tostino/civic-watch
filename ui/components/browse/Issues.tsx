@@ -8,40 +8,7 @@ import s from "./Issues.module.css";
 
 /**
  * what the county keeps coming back to.
- *
- * The rest of browse is structural or recent. The coverage bars say how much
- * of the record we hold, the time axis says how many meetings there were, and
- * the three entryways below say what happened lately. None of them says what
- * any of it was ABOUT, so a page whose header claims twelve years spent all
- * twelve of them counting meetings.
- *
- * One strip of years per issue, because the totals are the least interesting
- * thing about these. Opioid settlement money arrives in 2021 and Moffitt in
- * 2020; the county has argued about impact fees since the first meeting the
- * archive holds; school zone speed cameras exist only in the recordings and
- * only in the last two years. A number cannot say that. Twelve cells can.
- *
- * TWO LANES, NOT ONE CELL WITH TWO THINGS IN IT.
- *
- * The first version drew the published record as the cell's tint and the
- * speech as a 3px bar along its bottom edge — two measures nested in one
- * 24px box, each normalised to its OWN peak. That is the dual-axis mistake
- * in miniature: the alignment of the two scales is arbitrary, so the picture
- * implies a relationship the data does not contain. A full-strength cell
- * meant "7 items and 122 lines" on Homelessness and "176 items and 1,155
- * lines" on Rezoning, and nothing said so.
- *
- * So each year is two thin lanes sharing one column: what the county
- * PUBLISHED above, what was SAID below. Same grammar in both — tint is
- * magnitude — and each lane scaled to its own row so a subject is compared
- * against its own history. The interesting shape is the disagreement between
- * the lanes: a subject the record goes quiet on while the room does not.
- * That was the hairline before.
- *
- * Every cell is a link into `/search` for that issue in that year
- * — the counts here are found by wording, and the search page is where a
- * reader goes to see the items they were found in.
- */
+*/
 export function Issues({
   d,
   initialOpen = [],
@@ -50,20 +17,12 @@ export function Issues({
   /** Slugs open on arrival, from `?open=` so a link still carries the view. */
   initialOpen?: string[];
 }) {
-  /* A CLIENT COMPONENT, for one reason: opening a theme must not reload the
+  /*
+   *  A CLIENT COMPONENT, for one reason: opening a theme must not reload the
    * page. It was links into `?open=`, which is shareable and works with no
    * script, and which also threw the whole document away and rebuilt it to
    * reveal four rows.
-   *
-   * So both. The control is still an `<a href>` with a real URL - without
-   * script it navigates, exactly as before - and with script the click is
-   * intercepted, the state moves locally, and `replaceState` writes the same
-   * URL without a navigation. The link stays copyable and the view stays
-   * instant.
-   *
-   * `replaceState` rather than `pushState`: expanding a row is not somewhere
-   * you were, and making Back undo an indent one step at a time would bury
-   * the page a reader actually came from. */
+  */
   const [open, setOpen] = useState<string[]>(initialOpen);
   const toggle = useCallback((slug: string) => {
     setOpen((was) => {
@@ -81,14 +40,12 @@ export function Issues({
   if (!d.issues.length) return null;
   const yrs = d.span;
 
-  /* Top-level rows in the order the API ranked them, each followed by its own
+  /*
+   *  Top-level rows in the order the API ranked them, each followed by its own
    * sub-subjects when open. Regrouped here rather than ordered in SQL because
    * the ranking is by how much county business a subject is, and a child
    * sorted on that measure lands nowhere near its parent.
-   *
-   * A subject narrows only when it grew too broad to answer anything - three
-   * of twenty-seven did, at 2,109 items and up against 798 for the fourth -
-   * so most rows have no children and nothing about them changes. */
+  */
   const kids = new Map<string, typeof d.issues>();
   for (const i of d.issues) {
     if (!i.parent) continue;
@@ -191,27 +148,9 @@ function Row({
   open?: boolean;
   onToggle?: (slug: string) => void;
 }) {
-  /* ONE BAR PER YEAR, AND ITS HEIGHT IS THE WHOLE ENCODING.
-   *
-   * This was three lanes in a 33px cell: the published record as a tint, what
-   * was said as a second tint, and the share the board did not simply pass as
-   * a proportional bar. Every one of them was defensible on its own and the
-   * cell was unreadable without the legend - two grammars, three colours, and
-   * a rule that shades compare along a row but the third lane compares down
-   * the column. Nobody arrives willing to learn that.
-   *
-   * Height needs no key. Taller is more, and a reader already knows it.
-   *
-   * The bar counts PUBLISHED ITEMS and nothing else, which is what makes one
-   * bar honest. Adding the speech in would put a step at 2018 in every row on
-   * this page - not because the county got busier, but because that is when a
-   * camera first ran - and the strip would be drawing our coverage while
-   * appearing to draw the county's. The speech is still here, as a number, in
-   * words, in the totals.
-   *
-   * Scaled to its own row, so a subject with 39 items is legible beside one
-   * with 5,835. That is the one thing height cannot say for itself, and it is
-   * the only clause left in the legend. */
+  /*
+   *  ONE BAR PER YEAR, AND ITS HEIGHT IS THE WHOLE ENCODING.
+  */
   const peak = Math.max(1, ...i.years.map((y) => y.items));
 
   const hrefQ = (y?: IssueYear) =>
@@ -313,14 +252,10 @@ function pushedSays(i: Issue): string {
   return `${p} of ${d.toLocaleString()} decided items: ${bits.join(", ")}`;
 }
 
-/* LOW keeps a year with one item visible: the quietest year a subject
+/*
+ *  LOW keeps a year with one item visible: the quietest year a subject
  * appeared in must never look like a year it did not appear at all.
- *
- * 0.18 was too generous and it cost the chart its shape. A year at a fifth of
- * peak rendered at 0.34 of the cell, so eight of eight rows read as a solid
- * band with a wobble on top - which is exactly the failure the tints had, in
- * a new channel. 0.08 is about 2px at this cell height: still unmistakably a
- * mark, and it gives the scale back the bottom half of its range. */
+*/
 const LOW = 0.08;
 const height = (n: number, peak: number) =>
   n <= 0 ? "0" : (LOW + (1 - LOW) * (n / peak)).toFixed(3);
@@ -351,27 +286,7 @@ const ACTIVE_SHARE = 0.8;
 
 /**
  * The years the subject was actually live.
- *
- * `first`–`last` is the first and last time it was EVER mentioned, and for
- * any recurring subject that is the archive's own span restated: ten of
- * eighteen rows read "2015–2026", which is true, identical, and tells a
- * reader nothing. One stray 2015 committee resolution stretched Connected
- * City across a decade it was not being argued about.
- *
- * So: the SHORTEST run of consecutive years holding 80% of the subject's
- * activity. Opioid settlement money comes out 2021–2025 and Moffitt
- * 2020–2025, which are the arrivals this component's own header claims and
- * could not previously show.
- *
- * MEASURED ON THE PUBLISHED RECORD, and on the room only when a subject has
- * no published items at all. Counting both together measures coverage as
- * much as subject: the room begins in 2018 and reaches 23% of meetings, so
- * every window it touches is dragged forward into the years a camera
- * existed. Stormwater is the case that shows it - its record lane is at its
- * darkest in 2015-2017 and the two-source answer called it "mostly
- * 2018-2026", contradicting the strip beside it. The API's own ranking
- * refuses to mix them for the same reason.
- */
+*/
 function activeSpan(i: Issue): { label: string; whole: boolean } | null {
   const w = i.items
     ? i.years.map((y) => y.items)

@@ -11,16 +11,7 @@ import s from "./PlayerDock.module.css";
  * The persistent player dock. Collapsing hides the picture and keeps the
  * iframe mounted and playing - a meeting is often something you listen to
  * while reading the record.
- *
- * Where it sits is the reader's (see usePlacement): a lane of its own beside
- * the page, an overlay they can move, or a sheet across the bottom of a narrow
- * window. The default is the lane, because this page exists to be watched and
- * read at once and the old overlay covered nearly half the transcript.
- *
- * when the embed fails there is no broken frame. The dock says the
- * recording is unavailable and points at the transcript, which is held here
- * and does not depend on YouTube.
- */
+*/
 export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElement | null> }) {
   const p = usePlayer();
   const barRef = useRef<HTMLDivElement | null>(null);
@@ -68,22 +59,16 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
   const active = Boolean(p.source);
   const { placement } = place;
 
-  /* Publish the room this dock takes from the page, so a page can lay itself
+  /*
+   *  Publish the room this dock takes from the page, so a page can lay itself
    * out around it instead of underneath it.
-   *
-   *   --dock-lane  the column reserved at the trailing edge. globals.css pads
-   *                the body by it, which is what makes the lane a lane rather
-   *                than a card sitting on the text.
-   *   --dock-h     the strip covered at the bottom of the window, so a pane
-   *                that fills the window can keep its last lines reachable.
-   *                Zero in the lane, where nothing is covered - it used to
-   *                pad the transcript by 305px in every arrangement.
    *
    * Measured from offsets and computed style rather than getBoundingClientRect:
    * the card slides in and out on a transform, and its rect during those 220ms
    * is a lie about the room it occupies. The --dock token said 4.5rem and the
    * expanded dock measures 289px, so a declared constant was never going to
-   * work either. */
+   * work either.
+  */
   const publish = useCallback(() => {
     const el = dockRef.current;
     if (!el) return;

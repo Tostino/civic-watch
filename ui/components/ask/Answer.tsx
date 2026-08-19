@@ -29,9 +29,7 @@ import s from "./Answer.module.css";
  * that it could be sent to somebody. A reader following a shared link is being
  * shown what the sender saw, so a second implementation of this — even a
  * simplified "read-only" one — would quietly make that untrue.
- *
- * Client, not server, because a transcript citation seeks the player.
- */
+*/
 export function Answer({ r }: { r: AskResult }) {
   const byId = new Map(r.evidence.map((e) => [e.id, e]));
   const items = new Map(r.record.map((i) => [i.id, i]));
@@ -218,33 +216,7 @@ const isRun = (p: Part | undefined): p is Run =>
 /**
  * the two citation types are distinct. `[item:N]` reveals the
  * published record; `[N]` seeks the player to that moment.
- *
- * A CITATION IS A NUMBER, AND THE NUMBER RESOLVES BELOW.
- *
- * Everything else was tried against a real answer and each version put more
- * of the archive's furniture in the way of the sentence. `[323064] [323065]`
- * drawn one chip each gave four orange pills in a row for one supported
- * sentence. Folding them to one pill left `▸ 1:55:11 · 1:56:51`, still a row
- * of numbers to parse. Naming the recording made it `▸ Aug 11, 2026 morning
- * 53:54`, and an item with no agenda code printed the meeting date, so a
- * paragraph about one meeting carried the same date three times in four
- * lines — twice as a link. Setting the item's own title in the chip instead
- * just made the token bigger.
- *
- * The mistake each time was answering "what should the chip say" instead of
- * "why is a chip in the sentence at all". A reference is a POINTER; the thing
- * it points at is already on the page, under two headings, with the recording
- * named, the speaker named, the time, the quote and the outcome. So the
- * prose carries the smallest pointer that can be followed — `[4]` — and the
- * lists carry the answer. Repeat citations reuse their number, which is why
- * "Aug 11, 2026 … Aug 11, 2026" cannot happen again: the second mention of a
- * thing is the same number as the first.
- *
- * Still two kinds, and still distinct: the record's numbers are the record's
- * colour and reveal the item; a recording's are the player's colour and seek
- * it. And a number is legible on paper, which is where these answers get
- * read — an answer printed to PDF is what started all of this.
- */
+*/
 function marksOf(
   text: string,
   byId: Map<number, TranscriptHit>,
@@ -299,29 +271,7 @@ function marksOf(
 
 /**
  * MOST OF A REFERENCE'S "SEVERAL MOMENTS" ARE ONE MOMENT.
- *
- * A passage is about a minute of one speaker, cut by the indexer, so a
- * sentence that draws on two minutes of somebody talking cites two passages.
- * Numbering them separately would put `[4][5]` in the prose and two rows in
- * the list for one place in the recording.
- *
- * The test is the SILENCE between them, not the passage boundary. It is what
- * a reader experiences — click the first, and anything a quarter of a minute
- * later arrives on its own — and it does not care how the indexer cut, which
- * an `(start_idx, end_idx)` adjacency test does: two passages of one person
- * with a short interjection between them are not index-adjacent and are
- * plainly one place to go.
- *
- * FIFTEEN SECONDS, and the archive picked the number rather than taste.
- * Measured across the 28 passages one answer cited, the gaps are 0 seconds
- * (39 of them) or 39 seconds and up, with a single 8-second case: a change of
- * speaker mid-exchange. The threshold sits in the empty band, so no real
- * citation is near it and nothing hinges on 14 against 16.
- *
- * A fold may therefore cover two speakers, which is right — 8 seconds apart is
- * one place in the recording whoever is talking — so what names the stretch
- * names everyone in it.
- */
+*/
 const ONE_PLACE = 15;
 
 function moments(hits: TranscriptHit[]): Moment[] {
@@ -338,13 +288,7 @@ function moments(hits: TranscriptHit[]): Moment[] {
 
 /**
  * Numbers, in the order a reader meets them.
- *
- * Done over the whole answer at once and not by the markers as they draw: a
- * number depends on every reference before it, and a component that worked
- * that out while rendering would be reading a value it had written on a
- * previous pass. React renders twice in development, and the second pass
- * would start counting from wherever the first left off.
- */
+*/
 function number(
   parts: Part[],
   byId: Map<number, TranscriptHit>,

@@ -5,24 +5,13 @@ import s from "./Collection.module.css";
 /**
  * the shape of the collection, on arrival.
  *
- * ONE LINE OF FIGURES AND ONE LINE OF COVERAGE. This was a five-cell grid
- * beside three labelled bars and a paragraph, 230px of panel to say eight
- * numbers - and it spent most of that on air, because every cell carried a
- * caption that wrapped to three lines ("17,531 with an outcome in the
- * minutes") while the cell beside it carried none. Ragged captions are what
- * made it read as unconsidered rather than dense.
- *
- * The figures are the same figures. What changed is that they sit on a shared
- * baseline in one strip, each with a caption short enough not to wrap, so the
- * eye reads across a row instead of hunting a grid.
- *
  * The three coverage bars are still the load-bearing part and are deliberately
  * unflattering: of 1,214 meetings, 457 have a published agenda we can read,
  * 769 have minutes and 283 have a recording. A reader who assumes otherwise
  * reads every gap as something lost rather than something never published, and
  * the design says each object carries its own coverage state precisely so nobody has
  * to guess.
- */
+*/
 export function Collection({
   o,
   body,
@@ -32,12 +21,7 @@ export function Collection({
   body?: string;
   /**
    * The board selector, rendered into this panel's own heading row.
-   *
-   * It used to sit above the panel as a labelled form control of its own, a
-   * row of furniture between the search box and the numbers. Inside the
-   * heading it reads as what it is - the scope these figures are for - and
-   * costs no vertical space at all, because the heading row existed anyway.
-   */
+  */
   picker?: React.ReactNode;
 }) {
   const pct = (n: number) => (o.meetings ? Math.round((n / o.meetings) * 100) : 0);

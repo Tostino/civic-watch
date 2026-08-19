@@ -19,27 +19,11 @@ import s from "./TranscriptView.module.css";
  * the transcript, synchronised to the player. Clicking a line seeks;
  * playing scrolls.
  *
- * Virtualised because a meeting-day runs to 2,252 utterances and a four-hour
- * afternoon session is the normal case, not the outlier. Lines
- * are grouped into turns - consecutive lines from one voice - so the speaker
- * is named once per turn rather than once per line, which is both how a
- * transcript is read and a large reduction in visual noise.
- *
- * Two kinds of movement, and they are NOT the same thing:
- *
  *   a cue      an explicit "take me there" - a click on the spine, a band on
  *              the chapter track, a restored link. Always obeyed.
  *   following  passive drift with the playhead. The reader turns this off by
  *              scrolling, and a cue turns it back on.
- *
- * Collapsing the two is what made clicking an agenda item move the recording
- * and leave the transcript behind.
- *
- * Both of them move to a LINE and not to a row. See `target`: a row is a turn,
- * and a turn can be a quarter of an hour long.
- *
- * Every name here is an inference and is drawn as one. See SpeakerChip.
- */
+*/
 
 /** The share of the pane kept clear at each edge. A line resting on the
  *  boundary is in view and is not really readable. */
@@ -434,18 +418,10 @@ function ItemBreak({
 /**
  * NOT components/Turn.tsx, and deliberately so.
  *
- * That one is laid out in flow, with every timestamp on show and a media
- * query for its narrow case. This one is one row of a virtualiser - it cannot
- * be a list, it is measured, and its column is sized against the player's
- * lane rather than the window - and it carries a transcript of up to 2,252
- * utterances, where a visible timestamp on every line is noise. Two layouts,
- * for two jobs. Both stick the speaker's name beside a long turn; getting
- * that to work here took `top` rather than a transform, below.
- *
  * What they share is what must never differ: SpeakerChip decides how the claim
  * about who spoke is presented, and `useDispute` decides what "that is wrong"
  * does.
- */
+*/
 function Turn({
   lines,
   tags,

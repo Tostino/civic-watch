@@ -1,12 +1,9 @@
-/* The dock in its three arrangements. Everything below keys off data-mode,
+/*
+ *  The dock in its three arrangements. Everything below keys off data-mode,
  * which usePlacement sets - including the narrow-window case, so the
  * breakpoint is declared once, in the hook, and this file has no media query
  * that could disagree with it.
- *
- * The card is `position: fixed` in all three. It is the iframe's permanent
- * home and moving that node between containers would remount it, so the
- * lane is made by reserving room in the page - globals.css pads <main> by
- * --dock-lane - rather than by putting the dock inside the page's own grid. */
+*/
 
 .dock {
   position: fixed;
@@ -27,14 +24,10 @@
     opacity var(--normal) var(--ease);
 }
 
-/* The width is the reader's, within a range. The floor matters as much as the
+/*
+ *  The width is the reader's, within a range. The floor matters as much as the
  * ceiling: below 18rem the transport's controls start colliding.
- *
- * ------------------------------------------------------------------- lane
- * Its own column at the trailing edge, clear of the header. The page is
- * narrowed to match, so nothing is ever underneath it - and the lane may take
- * 42% of the window and no more, because the rest of that window is the page
- * it is standing beside. */
+*/
 .dock[data-mode="lane"] {
   top: calc(var(--header) + var(--sp-4));
   right: var(--sp-4);

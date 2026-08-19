@@ -122,19 +122,11 @@
   font-weight: 600;
 }
 
-/* The page stacks to one column at 60rem and the rail is first in the
+/*
+ *  The page stacks to one column at 60rem and the rail is first in the
  * DOM, so on a phone a search returned 1,086px of facets before its first
  * result - nearly two screens of narrowing before anything to narrow.
- *
- * Capped rather than reordered or hidden. Below the results a rail is
- * unreachable past 13,000px of hits, and moving it there is worse than
- * leaving it; behind a disclosure it would need `details`, which cannot be
- * forced open again for the desktop column from CSS alone. A capped pane
- * keeps every filter one scroll away and is the same answer the meeting
- * page's agenda spine already gives to the same question.
- *
- * The heading stays put inside it, because a scrolled pane with no label on
- * screen reads as a list of stray numbers. */
+*/
 @media (max-width: 60rem) {
   .rail {
     max-height: 45vh;

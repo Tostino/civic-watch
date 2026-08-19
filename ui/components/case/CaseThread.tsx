@@ -9,18 +9,7 @@ import s from "./CaseThread.module.css";
 
 /**
  * the case thread, on the item.
- *
- * An item is rarely the whole story. A rezoning is heard by the Planning
- * Commission, transmitted by the Board and adopted months later; read one of
- * those twelve appearances alone and it looks like a continuance that went
- * nowhere. Councilmatic puts the legislative history *on* the ordinance for
- * this reason and it is right to: by the time a reader has found the item,
- * "has this come up before" is the next question they have.
- *
- * Compact by design. The dedicated view is one click away and does the work of
- * showing what changed between appearances; this only has to show
- * that the sequence exists and where in it the reader is standing.
- */
+*/
 export function CaseThread({
   caseId,
   steps,

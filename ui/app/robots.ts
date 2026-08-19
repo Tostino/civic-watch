@@ -5,29 +5,7 @@ import { siteUrl } from "@/lib/site";
 /**
  * What a crawler may read. This archive exists to make a public record
  * findable, so the reading surfaces are open on purpose.
- *
- * Two exclusions, for two different reasons:
- *
- *   /admin  the curation console. It already refuses every non-loopback
- *           client and carries `robots: noindex` in its own metadata; this
- *           is the third lock on a door that should not be in an index.
- *   /api    machine surfaces. /api/ask in particular is PAID, and a crawler
- *           walking it would spend money for nobody's benefit. The rate
- *           limiter stops the bill either way (web/limits.py); this stops
- *           the well-behaved ones from queueing up against it at all.
- *   /ask/   saved answers. NOT /ask, which is the page and is in the sitemap:
- *           a Disallow matches by prefix, so the trailing slash is what makes
- *           this the answers and not the surface that produces them. They are
- *           machine-written readings of the archive, and the pages a search
- *           engine should be sending people to are the record itself — the
- *           meeting, the item, the case. Each one also carries `noindex` in
- *           its own metadata, which is the half that works on a crawler
- *           following a shared link from somewhere else.
- *
- * /legacy is no longer listed: the rewrite that served it is deleted and the
- * pages behind it no longer exist, so naming the path here would only tell a
- * crawler about a door that was bricked up.
- */
+*/
 /**
  * Rendered per request, which this file needs and its neighbours get for free.
  *

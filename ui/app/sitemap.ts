@@ -7,15 +7,7 @@ import { siteUrl } from "@/lib/site";
  * Every meeting, plus the four entry points. A meeting page links to its
  * items and its cases, so a crawler reaches the long tail by following the
  * record rather than by us enumerating twenty thousand URLs here.
- *
- * `lastModified` is the MEETING DATE, not today. A sitemap that stamps
- * everything with the build time tells a crawler that eight years of settled
- * public record changed this morning, which is both false and the fastest way
- * to have the whole file ignored.
- *
- * Written to survive the API being down: a sitemap is not worth failing a
- * build or a request over, and four URLs is a working sitemap.
- */
+*/
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

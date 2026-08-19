@@ -2,21 +2,9 @@ import { AskView } from "@/components/ask/AskView";
 import { siteUrl } from "@/lib/site";
 import s from "./ask.module.css";
 
-/* `/ask`. Enter, at speed.
- *
- * A thin server shell around a client view, because the answer arrives over
- * SSE and takes anywhere up to ASK_DEADLINE — seven minutes on a question that
- * reads widely. The question is in the URL so a reload mid-run asks the
- * same thing rather than losing it — but this is not the URL anyone sends.
- * `?q=` is an instruction to spend money and, at that deadline, up to seven
- * minutes of somebody else's patience. When the answer lands the view replaces
- * it with `/ask/<id>`, which is the answer itself, so the address bar always
- * holds the right thing to copy and there is no share control to find.
- *
- * the design notes: no conversational chat here, deliberately. Memory and persona
- * would make this a different product and would undermine every citation —
- * the value of this page is that each claim traces to a document or a moment
- * in a recording, and a chat history is neither. */
+/*
+ *  `/ask`. Enter, at speed.
+*/
 
 type Props = { searchParams: Promise<{ q?: string | string[] }> };
 

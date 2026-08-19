@@ -27,14 +27,13 @@
   border-color: transparent;
   padding-inline-start: 0;
   min-width: 0;
-  /* A native select sizes to its widest OPTION, so "All meetings" rendered in
+  /*
+   *  A native select sizes to its widest OPTION, so "All meetings" rendered in
    * a 256px box with the caret marooned at the far end - which is exactly what
    * made it look like a form control parked on a heading rather than the
    * heading itself. `field-sizing: content` sizes it to what is SELECTED, so
    * it hugs its own text and the caret sits where a reader would put it.
-   *
-   * Not universal yet, so the cap stays as the fallback: without it the
-   * control is wide but still legible, which is where this was a moment ago. */
+  */
   field-sizing: content;
   max-width: min(100%, 16rem);
   text-overflow: ellipsis;

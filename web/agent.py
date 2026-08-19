@@ -666,6 +666,13 @@ def _at(cover, video_id, idx):
     return None
 
 # --------------------------------------------------------- second sightings
+#
+# A list that hands back something already in the conversation prints a reference
+# instead of printing it twice. Only in lists that are SCANNED. Never in
+# `get_item`, where the block is the substance of what was asked for, and never
+# in `brief()`, where the writer must have the evidence itself. Honest only
+# because `msgs` is append-only: trim the history and "shown above" becomes a
+# dangling reference to something the model can no longer see.
 def _again(seen, kind, ident):
     """Times this was already rendered in full. Counts the sighting as it asks."""
     key = (kind, ident)

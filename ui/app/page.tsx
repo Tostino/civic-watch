@@ -10,21 +10,9 @@ import { ApiError, getBodies, getHighlights, getIssues, getMeetings, getOverview
 import { duration, isoWeekday, meetingDate } from "@/lib/format";
 import s from "./browse.module.css";
 
-/* `/` - the archive as an object, not a search box on a photo.
- *
- * Four things in order, and the order is the argument: what is here,
- * its shape over twelve years, what those twelve years were ABOUT,
- * and somewhere to go if you arrived without a question. The third
- * was missing until it was not: every other panel here counts meetings,
- * coverage or the last six of something, so the page could describe the
- * collection completely and name nothing the county ever argued about.
- *
- * The meeting list is last, because a list of 1,214 rows is the least
- * informative view of a collection this size and was the whole page in
- * slice 1.
- *
- * Every filter is in the URL, so a month of the archive is a link
- * somebody can send. */
+/*
+ *  `/` - the archive as an object, not a search box on a photo.
+*/
 
 type Props = {
   searchParams: Promise<{
@@ -83,11 +71,6 @@ export default async function BrowsePage({ searchParams }: Props) {
     // rows in the raw table are events that have not happened - no agenda, no
     // minutes, no recording - and sorting by date puts every one of them above
     // the actual record. CivicClerk splits Past / Coming Up and is right to.
-    //
-    // Twelve unfiltered, not sixty. Sixty rows measured 4,444px - 54% of the
-    // whole page - to say what the header of this file already calls the least
-    // informative view of a collection this size. Under a date filter the list
-    // IS what the reader asked for and stays long.
     getMeetings({ body, year, month, when: "past", limit: filtered ? 400 : 12 }),
   ]);
 

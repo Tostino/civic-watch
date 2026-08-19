@@ -17,16 +17,11 @@ export interface CitationSpec {
 /**
  * A canonical, copyable reference.
  *
- * All three serious civic archives reviewed publish one - Hansard's
- * "(Citation: HC Deb, 15 January 2024, c559)", CourtListener's docket
- * citation, Councilmatic's ordinance number - and it is what makes an archive
- * quotable in a filing or a news story rather than merely browsable.
- *
  * Ours must point at the RECORDING, not at this page. The transcript is
  * machine-generated and this site's URLs are ours to break; the county's
  * recording and the county's portal are the primary sources, and a citation
  * that outlives us has to name them.
- */
+*/
 export function citationText(c: CitationSpec): string {
   const parts = [
     `Pasco County ${c.body}`,

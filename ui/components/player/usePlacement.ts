@@ -5,29 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 /**
  * Where the player sits on the screen, and who decides.
  *
- * The dock used to be one thing: a card pinned to the bottom-right corner, on
- * top of the page. On a 1280x720 window that card covered 45% of the transcript
- * pane - the reader was watching the recording and reading the transcript at
- * the same time, which is the whole point of this page, and the player was
- * sitting on the words. Padding the pane's scrollable content by the dock's
- * height (--dock-h) kept the LAST lines reachable but did nothing for the ones
- * underneath it.
- *
- * So placement is now the reader's, with three arrangements:
- *
- *   lane   the dock owns a column at the right of the window and the page is
- *          narrowed to fit beside it. Nothing is ever covered. The default,
- *          because "I cannot see what I am reading" is a worse failure than
- *          "my text column is narrower".
- *   float  the old overlay, kept for readers who want the full width - but
- *          movable now, so it can be parked somewhere harmless.
- *   sheet  narrow windows, where a column is more room than the window has.
- *          Full width across the bottom, and the page reserves its height.
- *
  * The choice, the width and the floating position are the reader's preference
  * about their own screen, so they live in localStorage and never in the URL: a
  * shared link carries a moment in a meeting, not the furniture.
- */
+*/
 
 export type DockMode = "lane" | "float";
 export type Placement = DockMode | "sheet";
@@ -94,16 +75,9 @@ function tokenPx(name: string): number {
  *  which it would otherwise cover (the header is z-50, the dock z-60). */
 const ceiling = () => tokenPx("--header") + GAP;
 
-/* ------------------------------------------------------------------ store
- *
- * localStorage is the store rather than a copy of one, and React reads it
- * through useSyncExternalStore. That is not ceremony: it is the only way to
- * read something the server cannot see without either lying to the server
- * renderer or restoring the reader's choice in an effect, one frame after they
- * have already seen the wrong one.
- *
- * The in-memory snapshot leads and the write trails it, because a drag settles
- * a new position every frame and localStorage is synchronous. */
+/*
+ *  ------------------------------------------------------------------ store
+*/
 
 let snapshot: Stored = DEFAULTS;
 let snapshotRaw: string | null = null;
@@ -316,14 +290,11 @@ export function usePlacement(dockRef: React.RefObject<HTMLElement | null>): Plac
     [gesture, fit, update],
   );
 
-  /* Corners, so that moving the player is not pointer-only. Four
+  /*
+   *  Corners, so that moving the player is not pointer-only. Four
    * predictable places beat arrow-key nudging: a reader who cannot see the
    * card is not going to aim it a pixel at a time.
-   *
-   * Which corner the card is in is kept rather than derived, so that the label
-   * on the button ("move it to the bottom left") can be read from state during
-   * render. Deriving it would mean measuring the card, and measuring is
-   * something only an event handler may do. */
+  */
   const cornerAt = useCallback(
     (c: Corner) => {
       const el = dockRef.current;

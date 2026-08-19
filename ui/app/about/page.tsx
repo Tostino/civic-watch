@@ -13,11 +13,6 @@ import s from "./about.module.css";
  * What this archive is, where each part of it comes from, and what can be
  * wrong with it.
  *
- * The page exists because of one asymmetry: this site puts a named county
- * commissioner's name against words spoken in a public meeting, and some of
- * those names are our inference rather than the county's record. A reader has
- * to be able to find out which, and to tell us when we have it wrong.
- *
  * Everything measurable on this page IS measured, at request time - not only
  * the counts but the sentences that read like prose and are really counts:
  * which bodies were recorded, and which tools the endpoint serves. The lead
@@ -25,7 +20,7 @@ import s from "./about.module.css";
  * that sentence was typed once and never checked again. COPY.md: numbers are
  * concrete and load-bearing, and a fact baked into prose in August is wrong
  * by September.
- */
+*/
 export const revalidate = 3600;
 
 export const metadata: Metadata = {

@@ -11,12 +11,7 @@ import s from "./McpClients.module.css";
  * React never hydrates, and the arrow keys already move between the tabs
  * because a radio group is what this actually is. The only script on the page
  * is the clipboard, which cannot be anything else.
- *
- * Five panels rather than one list of five, because each one is now a command
- * or three steps rather than a sentence. Stacked, they buried the tool list
- * and the limits underneath them, and those two are the part of this section
- * that a reader who is NOT connecting anything still needs to see.
- */
+*/
 export function McpClients({ origin }: { origin: string }) {
   const list = clients(origin);
   const url = mcpUrl(origin);

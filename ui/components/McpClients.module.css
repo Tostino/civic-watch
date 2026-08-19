@@ -72,17 +72,13 @@
   color: var(--ink-2);
 }
 
-/* One rule per client, five times over. The ids are wrapped in :global()
+/*
+ *  One rule per client, five times over. The ids are wrapped in :global()
  * because this is a CSS module and it hashes an id selector exactly as it
  * hashes a class one: without it these are five selectors that match nothing
  * and five panels that never open. The classes beside them stay local, which
  * is the point.
- *
- * Mechanical, and the cost of having no script here at all: the checked radio has to reach its own tab and its own
- * panel, and a sibling combinator cannot be parameterised.
- *
- * If a sixth client is ever added, three lines go in below and nothing else on
- * this page changes. */
+*/
 :global(#mcpc-claude-code):checked ~ .tabs label[for="mcpc-claude-code"],
 :global(#mcpc-codex):checked ~ .tabs label[for="mcpc-codex"],
 :global(#mcpc-claude):checked ~ .tabs label[for="mcpc-claude"],

@@ -12,22 +12,7 @@ import s from "./SiteHeader.module.css";
  * authentication in its own shell and is never linked from here - putting the
  * workbench in the reader's navigation is the single largest reason the old UI
  * felt incoherent.
- *
- * The first three are rebuilt as of slice 4, so the `legacy` branch that marked
- * an entry as "not yet rebuilt" is gone with them - and so are the pages it
- * pointed at: web/api.py and the five hand-written HTML pages are deleted,
- * along with the /legacy rewrite that used to reach them.
- *
- * **About was the site footer until 2026-08-13, at the maintainer's direction.**
- * The footer argued for itself on the grounds that a reader looks for "what is
- * this, and can I trust it" at the foot of the page. It also cost every page
- * 231px of flow below the panes, which on the meeting page is what produced a
- * page scrollbar that the reading panes ate the wheel for. And its blanket
- * claim - "this is not the published record" on every page - is the pattern * refuses in as many words: a single site-wide disclaimer "trains readers to
- * ignore it". What carries that weight instead is per-object: the transcript
- * states its own limits, an item states whether it has an outcome, a meeting
- * states whether it was recorded. /about still says all of it in full.
- */
+*/
 const NAV = [
   { href: "/", label: "Browse", exact: true },
   { href: "/search", label: "Search" },

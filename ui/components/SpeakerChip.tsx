@@ -36,13 +36,7 @@ const STATE_CLASS: Record<SpeakerState, string> = {
 export interface SpeakerChipProps {
   /**
    * WHO SAID THIS, as one object rather than four loose props.
-   *
-   * It was four - name, displayName, human, basis - and every call site
-   * assembled them by hand from whichever of three field-namings its source
-   * happened to use. A wrong guess rendered as "no name" instead of failing.
-   * One object means the illegal state cannot be spelled: a caller passes what
-   * the API sent, or it does not compile.
-   */
+  */
   who: Speaker;
   /** The office held AT THIS MEETING, if the published roster records one. */
   office?: Office | null;
@@ -85,16 +79,11 @@ export function SpeakerChip({
   size = "md",
   onDispute,
 }: SpeakerChipProps) {
-  /* A claim that did not arrive is *unidentified*, which is a state this
+  /*
+   *  A claim that did not arrive is *unidentified*, which is a state this
    * component already draws and which the design calls the normal case rather than
    * an error. It is emphatically not a reason to throw.
-   *
-   * This destructured `who` directly and every route that rendered a line
-   * without one returned a 500: `archive.item()` and `archive.case()` shipped
-   * the speaker fields raw instead of assembling `who`, and /item and /case
-   * were down in production. The producer is fixed - `archive.line()` is now
-   * the one place LINES becomes a claim - and this is the belt, because the
-   * failure mode was a whole page lost to one absent field on one line. */
+  */
   const { name, display_name: displayName, human, basis, contested, several } =
     who ?? { name: null, display_name: null, basis: null, human: false,
              contested: false, several: false };
@@ -110,7 +99,8 @@ export function SpeakerChip({
    * evidence about this meeting. Collapsing the two is what let one cluster be
    * shown as Starkey in 36 meetings and Yeager in 10 without anything saying
    * so. */
-  /* `basis` carries the resolver's METHOD now, which is more than the four
+  /*
+   *  `basis` carries the resolver's METHOD now, which is more than the four
    * values this switch was written for, and two of them are not shades of
    * "inferred" at all.
    *
@@ -118,15 +108,7 @@ export function SpeakerChip({
    * letter into the record: the voice is hers, the words are his, and he was
    * never in the room. Drawn as an inference it would tell a reader he spoke
    * at the meeting. It is its own state because it is its own fact.
-   *
-   * STATED is the speaker naming themselves - "my name is ..." - which is
-   * stronger than a voice model's guess and weaker than a person on this
-   * archive checking it. It sat under `inferred` and was indistinguishable
-   * from the machine having a hunch.
-   *
-   * `self_weak` joins `cluster` at WEAK: a self-introduction the archive
-   * cannot attribute to this voice is evidence about a name and not about who
-   * said it. */
+  */
   const state: SpeakerState = several
     ? "several"
     : !name

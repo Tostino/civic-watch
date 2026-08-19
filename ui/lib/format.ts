@@ -108,11 +108,7 @@ export const phaseLabel = (p: string): string =>
  * pipeline's token. `bulk_consent` is an internal value and printing it is the
  * same mistake as rendering `Group 465` where a name goes — it reads
  * as a fact about the record and it is a fact about our parser.
- *
- * It is worth saying at all because these are materially different claims: the
- * minutes named this item and its outcome, or the minutes approved a block
- * and this item was in the block.
- */
+*/
 const OUTCOME_SOURCE_LABEL: Record<string, string> = {
   item: "the minutes, which name this item and its outcome",
   bulk_consent: "the consent agenda, which the board approved as one block",
@@ -149,29 +145,9 @@ export function shortTitle(title: string | null, max = 110): string {
   return t.slice(0, sp > 0 ? sp : max).trim() + "…";
 }
 
-/* ------------------------------------------------------- redlined
- *
- * A case's official title is legal prose that runs to 400 characters and is
- * repeated verbatim at every appearance. The archive's longest case says this
- * twelve times:
- *
- *   "Zoning Amendment (Continuance) – Evans County Line 80 MPUD Master Planned
- *    Unit Development – Evans Properties, Inc. – A Rezoning Petition from A-C
- *    Agricultural District to an MPUD … on Approximately 80 Acres, Located
- *    South of County Line Road North and East of Lake Iola Road"
- *
- * and the only thing that moves across those twelve is `(Continuance)` becoming
- * `(Regular)`, and a clause about support commercial appearing halfway through.
- * Printed twelve times, that difference is invisible; it is also the single
- * most informative thing on the page, because it is where the application
- * actually changed.
- *
- * So the case states the title once and redlines each step against it. A
- * redline is the right idiom rather than a clever one: this audience reads
- * marked-up ordinances and planning documents already, and it shows additions
- * AND deletions, where a "what's new" diff would render a step that dropped a
- * clause identically to one that changed nothing.
- */
+/*
+ *  ------------------------------------------------------- redlined
+*/
 export type Op = "same" | "add" | "cut";
 export interface TitleRun {
   text: string;
@@ -239,12 +215,7 @@ export function elide(text: string, words = CONTEXT_WORDS): string | null {
 /**
  * Are these two strings the same identifier or heading, differing only in the
  * punctuation, case and spacing the agenda happens to use?
- *
- * The published agenda supplies several fields that overlap, and printing both
- * halves of an overlap is how a dense page turns into a noisy one:
- * `file_number` "PDE25-7721" is `case_id` "PDE-25-7721" before normalisation,
- * and `section` "PUBLIC HEARINGS" is the same fact as phase "Public hearing".
- */
+*/
 export function sameThing(a: string | null, b: string | null): boolean {
   if (!a || !b) return false;
   const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -257,13 +228,7 @@ export function sameThing(a: string | null, b: string | null): boolean {
 /**
  * "Board of County Commissioners" is 29 characters and appears on every row of
  * a case thread and every entry point on Browse.
- *
- * Lives here rather than beside its first caller: it started life exported
- * from CaseThread, which is a `"use client"` module, and importing a plain
- * function out of one into a server component fails at render with "Attempted
- * to call shortBody() from the server". A pure helper belongs in a module with
- * no directive, where either side can have it.
- */
+*/
 export function shortBody(body: string): string {
   if (/board of county commissioners/i.test(body)) return "Board";
   if (/planning/i.test(body)) return "Planning";
@@ -285,17 +250,7 @@ export function sessionLabel(seq: number | null, total: number): string {
 
 /**
  * WHICH RECORDING a timestamp is on, in as few words as it takes.
- *
- * A clock alone is only usable by somebody already looking at the right tape,
- * and an answer's citations are not: one paragraph of a live answer cited
- * seven recordings across five years, every one of them printed as a bare
- * `1:46:53`. Two of those were the morning and the afternoon of the same day,
- * where even the date does not separate them — hence the session word, which
- * is said only where `sessions` proves the meeting HAS more than one and
- * `session_seq` says which this is. An undated video falls back to its own
- * title, because "Constitutional Budgets Workshop" is still a recording a
- * reader can go and find and an empty string is not.
- */
+*/
 export function recordingName(h: {
   meeting_date?: string | null;
   upload_date?: string | null;
@@ -332,14 +287,7 @@ export function recordingName(h: {
 
 /**
  * Split text on the query's terms so a hit can show WHY it matched.
- *
- * Postgres matched "cameras" through the stem `camera`, so an exact-word
- * highlighter leaves the word that caused the hit unmarked, which reads as a
- * bug. This strips one common English ending and then allows up to three
- * characters back — enough for camera/cameras and license/licensed, and
- * bounded, because open-ended prefixes marked "platform" for a search for
- * "plate".
- */
+*/
 export function highlight(text: string, query: string): { s: string; hit: boolean }[] {
   const terms = query
     .toLowerCase()

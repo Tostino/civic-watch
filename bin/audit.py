@@ -1081,6 +1081,10 @@ def _(con):
         # either: '9641 Jerome' is eleven characters and is somebody's house. Keep this
         # identical to redact.LOCATING or the check and the fix describe different
         # things.
+        #
+        # The range guards below are here rather than in the shared shape: dropping an
+        # uncomparable citation is right HERE and wrong in the text check above, where
+        # a malformed range must not hide an answer whose prose carries the span.
     locating = ("((r.span ~ '[0-9]' AND r.span ~ '[A-Za-z]{3}')"
                 " OR length(r.span) >= 20)")
     q = f"""FROM redaction r JOIN ({CITED_VIDEOS}) c

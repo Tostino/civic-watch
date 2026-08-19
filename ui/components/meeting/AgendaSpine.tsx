@@ -340,38 +340,12 @@ interface Lane {
 
 /**
  * Two spans of one item closer together than this are one appearance.
- *
- * Not a round number picked for looking reasonable. Across the archive, the
- * gaps between consecutive spans of the same item fall in two clumps with
- * nothing between them:
- *
- *     0s x6, 2s x2, 4s, 5s   |   64s, 65s, 67s, 74s, 86s, ... 207m
- *
- * The first ten are the span-binder cutting one continuous discussion in two;
- * the rest are the board genuinely leaving an item and coming back. Any
- * threshold in that trough gives the same answer, and this one has 55 seconds
- * of slack on both sides. Erring high would merge a real return into silence;
- * erring low only shows a row the reader can see and dismiss, so if the trough
- * ever fills in, move this DOWN.
- */
+*/
 const ONE_APPEARANCE = 60;
 
 /**
  * The spine, in the two orders this material actually supports.
- *
- * An item is in the first lane if we can say WHEN it happened, and in the
- * second if we cannot. That is the only line available: 5,500 items in the
- * archive are bound to a stretch of recording and roughly 17,600 are not, and
- * nothing about an unbound item tells us where in the day it fell. The board
- * routinely takes published item 77 after published item 94.
- *
- * Deriving a time for the unbound ones from their published neighbours would
- * fill the rail out nicely and would be a guess rendered as a timestamp - the
- * same trade refuses everywhere else.
- *
- * Neither lane re-sorts anything it has no basis to re-sort: lane one is
- * ordered by the clock, lane two arrives in published `seq` and stays in it.
- */
+*/
 function buildSpine(items: Item[], videos: Video[]): Lane[] {
   /* Offsets restart at zero in each recording, so an offset alone does not
    * order anything on a two-session day - and 126 of 283 recorded meetings are
