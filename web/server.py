@@ -315,7 +315,7 @@ def api_issues(request, con):
 # --------------------------------------------------------- retrieval
 # --------------------------------------------------------- retrieval
 # The tool surface, and the ways in. /api/tools is the manifest a model gets
-# handed, /api/tool/<name> invokes one, /mcp serves the same five to a model
+# handed, /api/tool/<name> invokes one, /mcp serves the same six to a model
 # somebody else is driving, and /api/find is the page's call, which is nothing
 # but two of these tools. The page and the agent share one surface on purpose.
 # Page copy reads the measured numbers from here rather than typing them:

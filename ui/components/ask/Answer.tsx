@@ -138,8 +138,30 @@ export const TOOL_LABEL: Record<string, string> = {
   search_record: "searched the published record",
   get_item: "opened an agenda item",
   get_case: "followed a case across meetings",
+  get_document: "read the county’s own document",
   get_meeting: "opened a meeting’s agenda",
 };
+
+/** What a continuation is called. A long item or case comes back one window at
+ *  a time, so the same tool on the same id can appear several times in a run;
+ *  labelling the second one "opened an agenda item" again reads as the agent
+ *  going in circles rather than reading on. */
+const TOOL_LABEL_MORE: Record<string, string> = {
+  get_item: "read further into that item",
+  get_case: "read further into that case",
+  get_meeting: "read further down that agenda",
+  get_document: "read further into that document",
+};
+
+/** Undefined for a tool with no phrase, so each caller keeps its own fallback:
+ *  the list prints the raw name, the live line says "looking something up". */
+export function toolLabel(
+  name: string,
+  a?: Record<string, unknown>,
+): string | undefined {
+  return (a?.offset != null ? TOOL_LABEL_MORE[name] : undefined)
+    ?? TOOL_LABEL[name];
+}
 
 /** One lookup the agent made. `ok: null` is one still in flight, which only
  *  the live view can produce — a kept run has finished by definition. */
@@ -160,7 +182,7 @@ export function Lookups({ lookups }: { lookups: Lookup[] }) {
     <ol className={s.calls}>
       {lookups.map((c, i) => (
         <li key={c.id ?? i} className={`${s.call} ${c.ok === null ? s.pending : ""}`}>
-          <span className={s.callWhat}>{TOOL_LABEL[c.name] ?? c.name}</span>
+          <span className={s.callWhat}>{toolLabel(c.name, c.args) ?? c.name}</span>
           <code className={s.callArgs}>{args(c.args)}</code>
           {c.ok === null ? (
             <span className={s.callWait}>…</span>

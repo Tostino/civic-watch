@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Answer, Lookups, TOOL_LABEL, type Lookup } from "./Answer";
+import { Answer, Lookups, toolLabel, type Lookup } from "./Answer";
 import { CopyButton } from "@/components/CopyButton";
 import { Examples as ExampleCards } from "@/components/Examples";
 import { mcpUrl } from "@/lib/mcp";
@@ -198,7 +198,7 @@ function Trace({ stages, running }: { stages: AskStage[]; running: boolean }) {
 function currently(x: AskStage | undefined): string {
   switch (x?.stage) {
     case "tool":
-      return TOOL_LABEL[x.name ?? ""] ?? "looking something up";
+      return toolLabel(x.name ?? "", x.args) ?? "looking something up";
     case "answering":
       return "writing the answer";
     case "checking":

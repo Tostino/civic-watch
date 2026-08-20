@@ -498,13 +498,29 @@ def main():
                           f"(bound {MAX_JARGON})"
                           + (f" — {jargon}" if jargon else ""))
 
-            # Nothing should be fetched twice: get_item takes only an item_id,
-            # so a second call on one returns exactly what the first did.
-            opened = [t["args"].get("item_id") for t in (r.get("trace") or [])
-                      if t["name"] == "get_item"]
-            twice = {i for i in opened if opened.count(i) > 1}
+            # NOTHING SHOULD BE FETCHED TWICE, AND A WINDOW IS NOT AN ITEM.
+            # This used to flag any id that appeared twice, on the stated
+            # grounds that "get_item takes only an item_id, so a second call
+            # on one returns exactly what the first did". That stopped being
+            # true when get_item, get_case and get_meeting took an offset: a
+            # second call is now the ONLY way to reach the rest of a long one,
+            # and on 2026-08-19 this check failed six times across two runs
+            # while flagging items of 130, 363, 1216 and 102 turns - every one
+            # of them paging, and one of them (39306) the item holding the
+            # vote that the same run's `cited the voice vote` check PASSED on.
+            #
+            # What is still waste is a call the agent's own repeat guard turned
+            # away, which it records as `refused`. That is exact where the id
+            # was only ever a proxy: it fires on a window already shown and on
+            # nothing else, including a negative offset that lands back inside
+            # one. Historical counts are NOT invalidated - before the window
+            # the id really was the window, so the old check was right when it
+            # was written and wrong only from the day the offset landed.
+            twice = {t["args"].get("item_id") or t["args"].get("case_id")
+                     or t["args"].get("meeting_id")
+                     for t in (r.get("trace") or []) if t.get("refused")}
             failures += bool(twice)
-            print(f"  {'PASS' if not twice else 'FAIL'}  no item fetched twice"
+            print(f"  {'PASS' if not twice else 'FAIL'}  nothing fetched twice"
                   + (f" — {sorted(twice)} opened again" if twice else ""))
 
             for c in r["evidence"][:8]:

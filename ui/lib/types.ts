@@ -662,7 +662,14 @@ export interface FindResult {
   };
   transcript: {
     hits: TranscriptHit[];
-    count: number;
+    /** Where this window starts, and where the next one does. There is no
+     *  total: the record arm counts its matches in SQL and can say one, and
+     *  ranking cannot without describing its own candidate pool instead of
+     *  the archive. `next_offset` is null when the ranked results run out. */
+    offset: number;
+    returned: number;
+    next_offset: number | null;
+    truncated: boolean;
     /** Non-null when the semantic arm was unavailable: keywords only. */
     degraded: string | null;
   };

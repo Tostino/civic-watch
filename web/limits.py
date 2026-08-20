@@ -135,13 +135,35 @@ def reserve(ip, question):
 
 # ------------------------------------------------------------- MCP tools
 # A different bill, so a different budget.
+#
+# WHOEVER SETS ASK_TRUST_PROXY DECIDES WHETHER ANY OF THIS WORKS. Every
+# ceiling below is per address, and the address comes from client_ip() above,
+# which reads X-Forwarded-For only when TRUST_PROXY is on. In the deployed
+# container the API listens on loopback with the UI's rewrite in front of it,
+# so EVERY caller looks like 127.0.0.1 and the whole internet shares one
+# bucket unless it is set. The variable is named for /api/ask and LAUNCH.md
+# §3.5 explains it as Ask's problem; it is equally this file's. Verified both
+# ways with MCP_PER_IP=2: at 1 three addresses get three buckets, at 0 they
+# get one between them.
 MCP_WINDOW = int(os.environ.get("MCP_WINDOW") or 60)          # seconds
-MCP_PER_IP = int(os.environ.get("MCP_PER_IP") or 60)          # calls per window
-# search_transcript gets its own, lower ceiling. It is the expensive tool -
-# it encodes the query before it can rank anything - and it is the one worth
-# pulling in bulk, because what it returns is passage text rather than a
-# count. The other four are indexed reads of the published record, which is a
-# document the county publishes anyway.
+# RAISED FROM 60 when the tools learned to page (2026-08-19). Sixty was chosen
+# when one call returned the whole of whatever was asked for; a window is 80
+# turns now, so reading the longest item end to end is 16 calls, the longest
+# case 16 and a 272-item agenda 4. A client walking one long item and one long
+# case spent 32 of its 60 on work that used to cost 2, and hit the ceiling
+# doing exactly what the tool descriptions tell it to do.
+#
+# Raising it does not raise peak load, which is what MCP_MAX_CONCURRENT bounds
+# and what it stays bounded by: a continuation is an indexed read of rows the
+# first call already located, measured at ~110 ms. The rate ceiling is here to
+# stop a caller monopolising the archive over minutes, and 180 still does that.
+MCP_PER_IP = int(os.environ.get("MCP_PER_IP") or 180)         # calls per window
+# search_transcript gets its own, lower ceiling, and it does NOT move with the
+# one above. It is the expensive tool - it encodes the query before it can
+# rank anything - and paging it costs a fresh encode per window, so the tool
+# that got cheaper to page is not the tool this ceiling is protecting. The
+# other five are indexed reads of the published record, which is a document
+# the county publishes anyway.
 MCP_SEARCH_PER_IP = int(os.environ.get("MCP_SEARCH_PER_IP") or 20)
 MCP_MAX_CONCURRENT = int(os.environ.get("MCP_MAX_CONCURRENT") or 8)
 

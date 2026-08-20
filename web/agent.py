@@ -25,7 +25,7 @@ answer", so RESEARCH carries a completeness test; and the writer did not stop,
 because a brief reads like a checklist, so COMPOSE says the brief is what it
 MAY use rather than what it must get through.
 
-Three properties are load-bearing. These are the same five tools `web/tools.py`
+Three properties are load-bearing. These are the same six tools `web/tools.py`
 serves to the page, so the agent cannot reach anything a reader cannot and a
 bad answer reproduces as a search. Every `[N]` and `[item:N]` is verified
 against what the tools returned in this run, because an unverifiable citation
@@ -63,6 +63,25 @@ EVIDENCE_HARD = int(MAX_EVIDENCE * 1.3)
 # hundreds and the cap on the tool itself is 2,000, which is the whole budget
 # in one call.
 LINES_SHOWN = 250
+# What to offer when an item comes back windowed and the end is the part that
+# matters. Sized to the tool's own default window rather than to LINES_SHOWN:
+# it is an argument to get_item, not a budget for this render.
+ITEM_TAIL = toolkit.ITEM_WINDOW
+# Agenda rows one `get_meeting` may print. Not the same job as the tool's
+# window: that one bounds the PAYLOAD, this one bounds what a single render
+# spends on a day that was mostly consent. It has to be the smaller of the two
+# or it never fires, and whichever fires first decides where the next window
+# starts - see the resume offset below, which counts rows SHOWN and not rows
+# received, because a caller told to resume at the end of the window would
+# never see the rows this cap dropped.
+ITEMS_SHOWN = 60
+# The refusal the repeat guard prints, and the marker the trace records it by.
+# A CONSTANT because two places have to agree on it: the render that writes it
+# and the trace entry that reports it, and eval_agent asserts on the report.
+# A window that was already shown is the only fetch that is now waste - a
+# second call at a different offset is how the rest of a long item is reached
+# at all - so this is the line between the two.
+ALREADY_SHOWN = "is already above"
 
 MODEL = os.environ.get("LLM_MODEL_AGENT") or llm.MODEL_HEAVY
 
@@ -144,9 +163,19 @@ HOW TO WORK
    specifically. Ranking finds an item's discussion easily and reliably misses
    its motion and its vote, because those carry no topic words. get_item does
    not have that problem.
+   A long item comes back one WINDOW of turns at a time AND SAYS SO, with the
+   offset to resume at. Only then is there more: an item that does not say it
+   was cut is already whole in front of you, and asking it for another window
+   spends a call to be told so. When it was cut and what you want is the
+   decision, ask for offset=-80 and get the end rather than paging forward to
+   it - the opening is usually staff presenting. The speaker census covers the
+   whole item, not the window, so it already tells you whether the person you
+   came for speaks in a part you have not read.
 4. If the matter has a case id, call get_case. It reaches every meeting that
    took the case up, INCLUDING ones with no recording, which searching the
-   transcript can never do.
+   transcript can never do. Its appearances and outcomes always come whole;
+   what was said across them windows exactly as get_item's does, on the same
+   offset.
 5. When a search misses, change the AIM and not the words. Both arms of the
    transcript search run on every call, so the paraphrase has already been
    tried; and the record search stems what you give it and, when no item
@@ -503,42 +532,28 @@ def _who(p):
     who = p.get("speaker_display") or p.get("speaker") or "unidentified"
     return "several speakers" if who == "(exchange)" else who
 
-# HOW SURE THE NAME IS, in the archive's own four states. These are
-# SpeakerChip's, read off the same two fields in the same order, because a
-# reader following a citation from an answer to the page must not be told two
-# different things about one name. Not a confidence threshold: a number would be
-# a second precedence rule about a question the utterance_speaker view owns.
+# HOW SURE THE NAME IS: the rule lives in toolkit.name_state, and this reads
+# it. It used to live here, which is exactly why /ask warned about an unsound
+# name and the MCP surface did not - the same judgement, in one place only.
 def _name_state(p):
     """SpeakerChip's state for this passage's speaker."""
-    who = p.get("speaker")
-    if who == "(exchange)":
-        return "several"
-    if not who:
-        return "unknown"
-    if p.get("name_human"):
-        return "confirmed"
-    # A passage whose fields were never filled in reads as the ordinary case,
-    # which is what it was before any of this existed.
-    return "weak" if p.get("name_basis") == "cluster" else "inferred"
+    return toolkit.name_state(p.get("speaker"), p.get("name_human"),
+                              p.get("name_basis"))
 
-# What each state adds to the printed line. Said here and not in the prompt
-# because it is true of some passages and not others. Only the two ends are
-# marked: 'inferred' is 89% of the archive, so marking it would warn on almost
-# every line. An unmarked name is an inferred one.
-_NAME_NOTE = {
-    "confirmed": " ✓ NAME CONFIRMED by a person: you may state it plainly",
-    "weak": (" ⚠ NAME NOT CONFIRMED: this is the name the voice goes by "
-             "across the archive, not evidence about this meeting. Do not "
-             "attribute anything here to them by name."),
-}
-
+# What each state adds to the PRINTED line. The sentences are the tool
+# surface's, so a client and this composer are told the same thing; the glyph
+# and the leading space are this renderer's own. Only the two ends are marked:
+# 'inferred' is 89% of the archive, so marking it would warn on almost every
+# line. An unmarked name is an inferred one.
 def _name_mark(p):
     state = _name_state(p)
-    if state == "several" and p.get("name_basis") == "cluster":
-        return (" ⚠ NAMES NOT CONFIRMED: the names written into this "
-                "exchange are archive-wide voice matches, not evidence about "
-                "this meeting. Do not attribute anything here by name.")
-    return _NAME_NOTE.get(state, "")
+    if state == "several":
+        if p.get("name_basis") != "cluster":
+            return ""
+    elif state not in ("confirmed", "weak"):
+        return ""
+    note = toolkit.NAME_NOTE.get(state, "")
+    return f" {'✓' if state == 'confirmed' else '⚠'} {note}" if note else ""
 
 # A passage IN FULL, for everything that relies on its words rather than skimming
 # them. The longest in the archive is 1,582 characters, so nothing is cut here.
@@ -734,8 +749,14 @@ def render(name, result, seen, con=None):
                 # measured at 39,695 characters and a fifth of the evidence budget for
                 # one
                 # item. A prompt line would be advisory against something deterministic.
+        # The guard is on the WINDOW, not on the item. get_item used to take an
+        # item_id and nothing else, so a second call on the same id was
+        # deterministically the same output and refusing it cost nothing. It
+        # takes an offset now: refusing by id would strand every turn past the
+        # first window behind a refusal, which is the opposite of the point.
         ident = item.get("id")
-        if ident in seen.opened:
+        window = (ident, item.get("offset"), item.get("returned"))
+        if window in seen.opened:
             # Name the SECTIONS of the earlier output rather than explain what this tool
             # does. The re-fetch that prompted this reasoned "I have the argument but
             # not
@@ -744,18 +765,52 @@ def render(name, result, seen, con=None):
             # Built from what the item actually has, so it cannot send the model looking
             # for a WHAT WAS SAID that an unrecorded meeting never produced.
             where = ["MINUTES: for the outcome"]
-            if item.get("lines"):
+            if any(r.get("lines") for r in (item.get("runs") or [])):
                 where.append("WHAT WAS SAID for the transcript")
             if len(item.get("thread") or []) > 1:
                 where.append("SAME CASE for its other appearances")
-            return f"[item:{ident}] is already above: see {'; '.join(where)}."
+            # This window is above. The REST of the item is not, and the model
+            # asking twice is usually a model that wanted something it has not
+            # been shown - so say where that is rather than only refusing.
+            more = ""
+            if item.get("truncated"):
+                # TWO NUMBERINGS IN ONE SENTENCE, so keep them straight: turns
+                # are named 1-based, the way the header above prints them, and
+                # `offset` is the 0-based argument. next_offset is that
+                # argument, so the first UNREAD turn is one past it - saying
+                # "turns 80-1225" after printing "turns 1-80" names a turn the
+                # model has just read as one it has not.
+                nxt = item["next_offset"]
+                more = (f" The rest is not: turns {nxt + 1}-{item.get('turns')}"
+                        f" are unread, get_item offset={nxt} for the next of "
+                        f"them or offset=-{ITEM_TAIL} for the end, where a "
+                        f"motion and its vote sit.")
+            return (f"[item:{ident}] {ALREADY_SHOWN}: "
+                    f"see {'; '.join(where)}.{more}")
         if ident is not None:
-            seen.opened.add(ident)
-        item.setdefault("has_recording", bool(item.get("spans")))
-        seen.item(item)
-        out = [_item_block(item, full=True)]
+            seen.opened.add(window)
+        # The tool sends the record once and the turns as often as they are
+        # asked for. `record` is its marker for the second kind, and rendering
+        # an item block off one would print a header with no outcome, no case
+        # and no minutes under it - the shape of an item that has none, which
+        # is a claim about the county rather than about this call.
+        continued = "record" in item
+        if continued:
+            out = [f"[item:{ident}] continued."]
+        else:
+            item.setdefault("has_recording", bool(item.get("spans")))
+            seen.item(item)
+            out = [_item_block(item, full=True)]
 
-        lines = item.get("lines") or []
+        # `runs` is the only copy now. archive.item also flattens every turn
+        # into `lines` for the page's older callers, and tools.get_item drops
+        # that copy: for a model it was half the payload and said nothing the
+        # runs did not. Flattened here exactly the way archive.item flattened
+        # it, so this render sees what it has always seen - `_line` reads
+        # `display_name`, `name`, `basis` and `human` straight off the turn,
+        # which is where they still are.
+        lines = [ln for r in (item.get("runs") or [])
+                 for ln in (r.get("lines") or [])]
         cover = _cover(con, item["id"]) if (con and lines) else []
 
         def shown(ln):
@@ -770,29 +825,45 @@ def render(name, result, seen, con=None):
             # even in here" in one line, WITHOUT the speaker= filter, which would drop
             # the 67% of passages carrying no usable name. Not a phase census: phase is
             # an attribute of the item, so every passage under it reads the same.
+            # Printed once, on the call that carries it: it describes the whole
+            # item and does not change as the window moves.
             secs = sum((s.get("end") or 0) - (s.get("start") or 0)
                        for s in (item.get("spans") or []))
-            who = {}
-            for ln in lines:
-                nm = ln.get("display_name") or ln.get("name") or "unidentified"
-                who[nm] = who.get(nm, 0) + 1
+            # OFF THE TOOL'S CENSUS, WHICH COUNTS THE WHOLE ITEM, not off the
+            # window. A census of the window would answer "is the person I am
+            # asking about in here" with the part already on screen, which is
+            # the one place the answer is worthless.
+            who = dict((result.get("census") or {}).get("speakers") or [])
+            if not who:
+                for ln in lines:
+                    nm = (ln.get("display_name") or ln.get("name")
+                          or "unidentified")
+                    who[nm] = who.get(nm, 0) + 1
             top = sorted(who.items(), key=lambda kv: -kv[1])[:5]
             census = ", ".join(f"{nm} {n}" for nm, n in top)
             if len(who) > len(top):
                 census += f", +{len(who) - len(top)} more"
             moments = len({p["id"] for p in cover}) if cover else 0
-            out.append(
-                f"\n{len(lines)} lines"
-                + (f" over {secs / 60:.0f} min" if secs else "")
-                + (f", {moments} citable moments" if moments else "")
-                + f". Who spoke: {census}.")
+            total = item.get("turns", len(lines))
+            if not continued:
+                out.append(
+                    f"\n{total} lines"
+                    + (f" over {secs / 60:.0f} min" if secs else "")
+                    + (f", {moments} citable moments" if moments else "")
+                    + f". Who spoke: {census}.")
 
-            # The whole item, in order. This is the tool that recovers a motion and a
-            # vote: they sit at the END of an item and carry no topic words, so ranking
-            # never reaches them. When it has to be cut, the END is kept.
-            out.append(f"\nWHAT WAS SAID, {len(lines)} lines, in order"
-                       + (" (item truncated upstream)" if item.get("truncated")
-                          else "") + ":")
+            # One window of the item, in order. This is the tool that recovers a
+            # motion and a vote: they sit at the END of an item and carry no
+            # topic words, so ranking never reaches them - which is exactly
+            # why the window says which turns it holds and the footer below
+            # names the call that reaches the end. Within a window that is
+            # itself too long to print, the END is still what is kept.
+            lo = item.get("offset", 0)
+            hi = lo + len(lines)
+            out.append(
+                f"\nWHAT WAS SAID, turns {lo + 1}-{hi} of {total}, in order:"
+                if item.get("truncated") or lo
+                else f"\nWHAT WAS SAID, {total} lines, in order:")
             if len(lines) > LINES_SHOWN:
                 head, tail = LINES_SHOWN // 3, LINES_SHOWN - LINES_SHOWN // 3
                 out.extend(shown(ln) for ln in lines[:head])
@@ -819,6 +890,21 @@ def render(name, result, seen, con=None):
                 out.extend(shown(ln) for ln in lines[-tail:])
             else:
                 out.extend(shown(ln) for ln in lines)
+            # WHERE THE REST IS, in the words of the call that fetches it. The
+            # model has just been handed the opening of an item, which is
+            # usually staff presenting; the motion and the vote are at the far
+            # end and carry no topic words, so nothing it can search will bring
+            # them back. Naming the exact argument is the difference between a
+            # model that pages and one that concludes the item was thin.
+            if item.get("next_offset") is not None:
+                rest = total - hi
+                out.append(
+                    f"\n… {rest} more turn{'' if rest == 1 else 's'} not shown. "
+                    f"get_item item_id={item.get('id')} "
+                    f"offset={item['next_offset']} for the next window, or "
+                    f"offset=-{ITEM_TAIL} for the END of the item, where a "
+                    f"motion and its vote sit. A continuation carries the "
+                    f"turns alone; the census above counts the whole item …")
         else:
             out.append("\n(no recording of this item; the published record "
                        "above is the only evidence of it here)")
@@ -852,20 +938,35 @@ def render(name, result, seen, con=None):
     if name == "get_meeting":
         m = result.get("meeting") or {}
         items = result.get("items") or []
+        continued = "record" in result
         for i in items:
             i["date"] = i.get("date") or m.get("date")
             i["body"] = i.get("body") or m.get("body")
             i.setdefault("has_recording", bool(result.get("videos")))
             seen.item(i)
-        # A BCC meeting carries up to 189 items and most are consent. The cap
+        # A BCC meeting carries up to 272 items and most are consent. The cap
         # is stated rather than silent, so the model does not read a truncated
         # agenda as the whole one.
-        shown = items[:60]
-        more = ("" if len(shown) == len(items) else
-                f"\n\n(+{len(items) - len(shown)} further items not shown; "
-                f"use search_record with this date to reach them)")
-        return (f"{m.get('date')} {m.get('body')}, {len(items)} agenda items:\n\n"
-                + "\n\n".join(_row(i, seen) for i in shown)
+        shown = items[:ITEMS_SHOWN]
+        lo = result.get("offset", 0)
+        total = result.get("agenda_items", len(items))
+        # Where the NEXT window has to start: the end of what was printed, not
+        # the end of what arrived. Those differ whenever the cap above bites,
+        # and advertising the tool's own next_offset there would skip every
+        # row between them.
+        resume = lo + len(shown)
+        more = ("" if resume >= total else
+                f"\n\n(+{total - resume} further items not shown; "
+                f"get_meeting meeting_id={m.get('id')} offset={resume} for "
+                f"the next of them, or search_record with this date to reach "
+                f"a particular one)")
+        head = (f"[meeting:{m.get('id')}] continued, agenda items "
+                f"{lo + 1}-{lo + len(shown)} of {total}:"
+                if continued else
+                f"{m.get('date')} {m.get('body')}, {total} agenda items"
+                + (f", showing {lo + 1}-{lo + len(shown)}" if resume < total
+                   or lo else "") + ":")
+        return (head + "\n\n" + "\n\n".join(_row(i, seen) for i in shown)
                 + _echoes(shown, "i", seen, "items") + more)
 
     return _clip(json.dumps(result), 4000)
@@ -1368,6 +1469,11 @@ def ask(question, con, on_event=None, max_steps=MAX_STEPS, model=MODEL,
             trace.append({"name": name, "args": args, "ok": ok,
                           "chars": len(text), "seconds": round(took, 2),
                           "found": found,
+                          # A call the repeat guard turned away, which is not
+                          # the same as a call that paged. Recorded rather
+                          # than inferred: the id alone stopped telling the
+                          # two apart the day get_item took an offset.
+                          "refused": ALREADY_SHOWN in text,
                           "new": len(seen.passages) + len(seen.items) - before})
             emit("tool_done", id=c.get("id"), name=name, ok=ok,
                  passages=len(seen.passages), items=len(seen.items))

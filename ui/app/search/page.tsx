@@ -99,8 +99,15 @@ export default async function SearchPage({ searchParams }: Props) {
   ]);
 
   const shown = (page + 1) * LIMIT;
+  // EITHER ARM having more is a reason to offer more, and it used to be only
+  // the record's. The transcript arm could not page at all, so a query the
+  // county never wrote an agenda line for - which is most of what people say
+  // out loud - offered no way on even while ranking still had hundreds of
+  // moments left. Ranking has no total to compare against, so it answers the
+  // only question that matters here: is there another window.
   const more =
-    result && result.record.total > shown
+    result &&
+    (result.record.total > shown || result.transcript.next_offset != null)
       ? `${href({})}&page=${page + 1}`
       : null;
 
@@ -139,7 +146,7 @@ export default async function SearchPage({ searchParams }: Props) {
             <p className={s.summary}>
               <b>{result.record.total.toLocaleString()}</b> in the published record,{" "}
               <a href="#tr-head" className={s.jump}>
-                <b>{result.transcript.count.toLocaleString()}</b> in the recordings
+                <b>{result.transcript.returned.toLocaleString()}</b> in the recordings
               </a>
               {/* An identifier was recognised as one. Worth saying: it is the
                   thing the placeholder promised, and a reader who typed R-58
@@ -164,7 +171,7 @@ export default async function SearchPage({ searchParams }: Props) {
               degraded={result.transcript.degraded}
             />
 
-            {!result.record.total && !result.transcript.count ? (
+            {!result.record.total && !result.transcript.returned ? (
               <p className={s.dead}>
                 Nothing matched.{" "}
                 {facts

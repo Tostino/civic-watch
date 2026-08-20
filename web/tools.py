@@ -1,9 +1,11 @@
 """The retrieval surface, as callable tools."""
+import os
 import re
 import sys
 import textwrap
 import threading
 import time
+from urllib.parse import quote
 
 import archive
 
@@ -92,17 +94,39 @@ def canonical_speaker(con, name):
     return r[0] if r else name
 
 
+EXCHANGE = "(exchange)"
+
+
 # -------------------------------------------------------- search_transcript
-def search_transcript(con, query, limit=12, spread=None, speaker=None,
-                      phase=None, case=None, body=None, since=None,
-                      until=None, outcome=None, meeting_id=None,
+def search_transcript(con, query, limit=12, offset=0, spread=None,
+                      speaker=None, phase=None, case=None, body=None,
+                      since=None, until=None, outcome=None, meeting_id=None,
                       agenda_item_id=None):
-    """What was SAID. Hybrid retrieval over the passage index."""
+    """What was SAID. Hybrid retrieval over the passage index.
+
+    PAGED, and it was the last tool that was not. Both arms rank the whole
+    archive and then truncate, so the second window was simply unreachable:
+    /search asked for offset 25 and got moments 1-25 again, beside a correctly
+    paged list of published items. That is what a reader saw when they clicked
+    for more.
+
+    THERE IS NO TOTAL HERE and one is not invented. `search_record` counts its
+    matches in SQL and can say `total` honestly; ranking cannot - a hit is a
+    passage that survived RRF over a bounded candidate pool, so any number
+    would describe the pool rather than the archive, and a count in this file
+    is measured or absent. What IS knowable exactly is whether another window
+    exists: ask for one row more than the caller wanted and see if it arrives.
+    """
     speaker = canonical_speaker(con, speaker)
     r = retrieve()
+    offset = max(0, int(offset or 0))
+    # The extra row is the whole trick, and it is nearly free: both arms rank
+    # and project a fixed candidate pool whatever the limit, and the per-hit
+    # work below runs on the window rather than on the pool.
+    want = offset + limit + 1
     hits, degraded = [], None
     try:
-        hits = r.search(query, limit=limit, spread=spread, speaker=speaker,
+        hits = r.search(query, limit=want, spread=spread, speaker=speaker,
                         phase=phase, case=case, body=body, since=since,
                         until=until, outcome=outcome, meeting_id=meeting_id,
                         agenda_item_id=agenda_item_id, con=con)
@@ -112,15 +136,22 @@ def search_transcript(con, query, limit=12, spread=None, speaker=None,
         # it must not pretend the search was as good as usual.
         degraded = f"{type(e).__name__}: {e}"
         ranked = r.rrf(r.bm25(con, query, 300), r.thread_hits(con, query, 200))
-        hits = _plain(con, ranked, limit, speaker=speaker, phase=phase,
+        hits = _plain(con, ranked, want, speaker=speaker, phase=phase,
                       case=case, body=body, since=since, until=until,
                       outcome=outcome, spread=spread, meeting_id=meeting_id,
                       agenda_item_id=agenda_item_id)
+    more = len(hits) > offset + limit
+    hits = hits[offset:offset + limit]
     # Here rather than in either arm's projection, so both arms describe a
     # speaker the same way and neither pays for the 575 candidates it threw
     # out. This is the one place a hit becomes a hit.
-    return {"query": query, "hits": turns(con, speaker_sure(con, hits)), "count": len(hits),
-            "degraded": degraded or _dense_error}
+    # `returned` and not `count`: they were the same number under two names,
+    # which is what this file removes from get_case eight hundred lines down
+    # for the same reason. `returned` is the one every windowed tool uses.
+    return {"query": query, "hits": turns(con, speaker_sure(con, hits)),
+            "offset": offset, "returned": len(hits),
+            "next_offset": offset + len(hits) if more else None,
+            "truncated": more, "degraded": degraded or _dense_error}
 
 
 # One passage, as a hit. Shared rather than written twice because two callers
@@ -162,6 +193,72 @@ PASSAGE_HIT = """
         LEFT JOIN agenda_items ai ON ai.id = p.agenda_item_id"""
 
 
+# HOW SURE THE NAME IS, in the archive's own four states. SpeakerChip's, and
+# web/agent.py's, read off the same two fields in the same order - a reader
+# following a citation from an answer to the page must not be told two
+# different things about one name, and neither must a stranger's client. Not a
+# confidence threshold: a number would be a second precedence rule about a
+# question the utterance_speaker view owns.
+#
+# THIS LIVES HERE, in the tool surface, and the other two read it. It used to
+# live only in agent.py, which is why /ask warned about an unsound name and
+# MCP did not: the instructions handed to every client said 'a passage marked
+# "NAME NOT CONFIRMED"' and no tool result had ever carried those words, or
+# any other form of the warning. 15,787 passages are in that state.
+def name_state(who, human, basis):
+    """The state, from the three fields that decide it."""
+    if who == EXCHANGE:
+        return "several"
+    if not who:
+        return "unknown"
+    if human:
+        return "confirmed"
+    # A row whose fields were never filled in reads as the ordinary case,
+    # which is what it was before any of this existed.
+    return "weak" if basis == "cluster" else "inferred"
+
+
+# What each state MEANS, in the words a caller should act on. Only the states
+# that change what may be written get one: 'inferred' is 89% of the archive,
+# so a note on it would warn on almost every row and teach a reader to skip
+# them all. An unmarked name is an inferred one.
+NAME_NOTE = {
+    "confirmed": "NAME CONFIRMED by a person: you may state it plainly",
+    "weak": ("NAME NOT CONFIRMED: this is the name the voice goes by across "
+             "the archive, not evidence about this meeting. Do not attribute "
+             "anything here to them by name."),
+    "several": ("NAMES NOT CONFIRMED: the names written into this exchange "
+                "are archive-wide voice matches, not evidence about this "
+                "meeting. Do not attribute anything here by name."),
+}
+
+
+# The two states that carry a WARNING, as opposed to a permission. Only these
+# put a sentence on the row: 'confirmed' means you may use the name, which is
+# what a caller was going to do anyway, and spelling that out on 37 of one
+# window's 80 turns cost 6 KB to say nothing that changes an answer. The state
+# is still on every row for a caller that wants to act on it.
+_WARNED = ("weak", "several")
+
+
+def name_fields(who, human, basis):
+    """`name_state` for every row, `name_note` only where a name is unsound.
+
+    The note is why this is not just a machine-readable enum. A model that
+    never read the handshake instructions - or read them a hundred thousand
+    tokens ago - still gets the rule in the row it is about to quote, and this
+    is the one rule in the archive whose cost is a real person's name on words
+    they may not have said.
+    """
+    state = name_state(who, human, basis)
+    out = {"name_state": state}
+    # The exchange warning is only true when the names in it are archive-wide
+    # guesses; an exchange of confirmed names needs no warning.
+    if state in _WARNED and (state != "several" or basis == "cluster"):
+        out["name_note"] = NAME_NOTE[state]
+    return out
+
+
 def speaker_sure(con, rows):
     """Fill in HOW WELL each passage's speaker name is known, in place."""
     # A row that cannot be keyed still gets the fields, set to null. Absent
@@ -193,11 +290,10 @@ def speaker_sure(con, rows):
     for r in rows:
         r["who"] = archive.who(r.get("speaker"), r.get("speaker_display"),
                                r.get("name_basis"), r.get("name_human"))
+        r.update(name_fields(r.get("speaker"), r.get("name_human"),
+                             r.get("name_basis")))
     return rows
 
-
-
-EXCHANGE = "(exchange)"
 
 
 def turns(con, rows):
@@ -545,8 +641,7 @@ def _outline(row, words=12):
     for r in inner.get("runs") or []:
         turns = []
         for ln in r.get("lines") or []:
-            who = (ln.get("display_name") or ln.get("name")
-                   or "(unidentified)")
+            who = ln.get("display_name") or ln.get("name") or "unidentified"
             seen[who] = seen.get(who, 0) + 1
             text = (ln.get("text") or "").split()
             turns.append({"idx": ln.get("idx"), "start": ln.get("start"),
@@ -562,6 +657,298 @@ def _outline(row, words=12):
         "speakers": sorted(seen.items(), key=lambda kv: -kv[1]),
     }
     return out
+
+
+ITEM_WINDOW = 80
+
+
+def _census(runs, key):
+    """Who is in an item and how much of it there is, over the WHOLE item.
+
+    Computed before any window is applied, because its whole job is to answer
+    "is the person I am asking about in here at all" - and a census of the
+    window answers a question nobody asked.
+    """
+    seen = {}
+    for r in runs:
+        for ln in r.get(key) or []:
+            # ONE SPELLING, because the census sits directly above lines that
+            # use it: agent._line falls back to bare "unidentified", and a
+            # census saying "(unidentified) 5" over lines saying
+            # "unidentified:" reads as two different speakers.
+            who = (ln.get("speaker") or ln.get("display_name")
+                   or ln.get("name") or "unidentified")
+            seen[who] = seen.get(who, 0) + 1
+    return {"turns": sum(len(r.get(key) or []) for r in runs),
+            "speakers": sorted(seen.items(), key=lambda kv: -kv[1])}
+
+
+def _window_turns(entries, key, offset, limit):
+    """Slice a turn list that is spread across entries, in place.
+
+    ONE IMPLEMENTATION FOR BOTH TOOLS. An item's entries are its runs and a
+    case's are its hearings, but the unit is the same turn and the contract a
+    model has to learn should be the same too.
+
+    Entries survive the window even when they hold none of it. A run is one
+    appearance and a hearing is one meeting; dropping the empty ones would
+    tell a caller paging through February that the case was never heard in
+    May. Each keeps `count` for its own length and `returned` for how much of
+    it is in this window.
+    """
+    total = sum(len(e.get(key) or []) for e in entries)
+    limit = max(1, int(limit or ITEM_WINDOW))
+    # A NEGATIVE OFFSET COUNTS FROM THE END, and it is not a convenience. A
+    # motion and its vote sit at the end and carry no topic words, which is
+    # the whole reason these tools exist where search does not reach. A window
+    # that only ever opens at the front would put that end behind however many
+    # round trips the thing is long.
+    offset = int(offset or 0)
+    offset = max(0, total + offset) if offset < 0 else offset
+    at = returned = 0
+    for e in entries:
+        got = e.get(key) or []
+        lo = min(max(offset - at, 0), len(got))
+        hi = min(max(offset + limit - at, 0), len(got))
+        e[key] = got[lo:hi]
+        e["count"], e["returned"] = len(got), hi - lo
+        at += len(got)
+        returned += hi - lo
+    return offset, returned, total
+
+
+def _paging(offset, returned, total, unit="turns"):
+    """The cursor fields, in the one spelling every windowed tool uses.
+
+    `next_offset` is here so nobody has to do the arithmetic. A caller adding
+    offset and returned itself gets it right until the first window that comes
+    back short, and then it silently re-reads or skips. None means no more.
+
+    Only the TOTAL is named for what it counts - `turns` for speech,
+    `text_chars` for a document, `agenda_items` for a meeting - because a
+    caller has to know what an offset is denominated in. The cursor itself is
+    the same four fields everywhere, so learning one tool teaches the rest.
+    """
+    more = offset + returned < total
+    return {unit: total, "offset": offset, "returned": returned,
+            "next_offset": offset + returned if more else None,
+            "truncated": more}
+
+
+def _thin_turns(runs):
+    """Drop the two fields on a turn that carry nothing the turn does not.
+
+    NOT a compression of the speaker. Who said it stays on every line, spelled
+    out, because that is what a model attributes from - an index into a table
+    of speakers would save bytes and buy a join, and a join is exactly where
+    attribution goes wrong in an archive whose whole discipline is that a
+    quote belongs to the right person.
+
+    So only these two go, and neither is information:
+
+    - `who`, which archive.who() computes from `name`, `display_name`,
+      `basis`, `human` and `contested` - the five fields sitting beside it on
+      the same line. It is a shape the UI wants, restated on every turn, and
+      it measured 19.2% of an 80-turn window.
+    - `agenda_item_id`, which is the item that was asked for, on all of them.
+    """
+    for r in runs:
+        for ln in r.get("lines") or []:
+            ln.pop("who", None)
+            ln.pop("agenda_item_id", None)
+            # A turn carries the same risk a search hit does and used to carry
+            # none of the warning: `basis` and `human` sit right there, and
+            # nothing said what they mean. Same fields under the turn's own
+            # spelling.
+            ln.update(name_fields(ln.get("name"), ln.get("human"),
+                                  ln.get("basis")))
+
+
+def get_item(con, item_id, outline=False, offset=None, limit=ITEM_WINDOW):
+    """One agenda item: the record whole, the speech in a window.
+
+    The record half is 7 KB and it is the authoritative half, so it always
+    comes back entire. The transcript half is what runs away. Turns per item
+    are a median of 18, a p99 of 474 and a maximum of 1,225, and that longest
+    item serialised whole was 1.5 MB - about 387k tokens, more context than
+    any caller has. Half of that was duplication: `archive.item` also flattens
+    every turn into `lines` for the page's older callers, and a model reading
+    `runs` never needed the second copy. It is dropped here.
+
+    THE WINDOW COUNTS TURNS, NOT CHARACTERS, which is the one place this
+    deliberately differs from `get_document`. A turn is a passage that never
+    crosses a speaker boundary, so a cut between turns is the only cut that
+    leaves every quote verbatim - and a quote that is not verbatim is the one
+    failure this archive cannot afford. A PDF has no such seam, so that tool
+    windows by character; this one has, so it does not.
+
+    Runs survive the window even when they hold none of it. A run is one
+    appearance, and an item argued at 18:05 and taken up again at 3:38:04 is
+    two of them - dropping the empty one would tell a caller paging through
+    the first appearance that there had never been a second.
+
+    `census` is deliberately OUTSIDE the window: it counts the whole item and
+    names everyone in it, so `outline=true` still answers "is the person I am
+    asking about in here at all" in one call, whatever the window holds.
+
+    A CONTINUATION SENDS THE TURNS AND NOTHING ELSE. The record, the case
+    thread, the files, the census and the meeting are the same bytes on every
+    window of the same item - 9.0 KB of them, which over the sixteen calls
+    the longest item takes is 144 KB of pure repeat, and repeat is the thing
+    a window exists to stop. So a call that passes a non-zero `offset` is
+    resuming, and gets back the turns, the paging fields and the id to hang
+    them on. Passing no offset, or zero, means "from the start" and is the
+    call that carries the record.
+
+    What is NOT thinned is who spoke. See `_thin_turns`: the speaker stays
+    spelled out on every line, and only the two fields that restate something
+    already on the line or on the response are dropped.
+    """
+    row = archive.item(con, item_id)
+    if row is None:
+        raise ToolError(
+            f"no agenda item with id {item_id}. The id comes from `id` on any "
+            f"search result, and is not the county's `file_number`.")
+    if outline:
+        row = _outline(row)
+    item = row.get("item")
+    if not isinstance(item, dict):
+        return row
+    # `lines` is a flat copy of exactly what `runs` already holds, and it is
+    # half the payload. _outline has already dropped it; the full form has not.
+    item.pop("lines", None)
+    # The turn list is called `lines` in the full form and `turns` in the
+    # outline, so the per-run counts below must not be named either of them.
+    key = "turns" if outline else "lines"
+    runs = item.get("runs") or []
+    # _outline has already counted the whole item; the full form has not, and
+    # it needs the same answer for the same reason.
+    row.setdefault("census", _census(runs, key))
+    # A non-zero offset is a resume. Zero and absent both mean "from the
+    # start", because a model that means the beginning should not have to know
+    # which of the two spellings costs it the record. The negative-offset rule
+    # lives in _window_turns, which is where it is applied.
+    continued = bool(offset)
+    offset, returned, total = _window_turns(runs, key, offset, limit)
+    # archive.item clips at MAX_ITEM_LINES before this ever sees the item, and
+    # that is a DIFFERENT truncation from this one: no offset reaches past it.
+    # It cannot fire today - 2,000 against a longest item of 1,225 - but a flag
+    # that says so costs less than a caller paging forever into nothing.
+    if item.pop("truncated", False):
+        item["clipped"] = True
+    if not outline:
+        _thin_turns(runs)
+    item.update(_paging(offset, returned, total))
+    if continued:
+        keep = ("id", "runs", "turns", "offset", "returned", "next_offset",
+                "truncated", "clipped")
+        row = {"item": {k: item[k] for k in keep if k in item}}
+        # Said rather than implied, because the one caller this could hurt is
+        # the one that jumped straight to the end of an item it had never
+        # opened, and it cannot tell a record that is absent from a record
+        # that does not exist.
+        row["item"]["record"] = (
+            f"omitted: this is a continuation. get_item item_id={item_id} "
+            f"with no offset for the record, the case thread and the census.")
+    return row
+
+
+# get_case windows on the same number, deliberately. One window size across
+# the tool surface is one thing for a model to hold, and a case's turns are
+# the same turns an item's are.
+CASE_WINDOW = ITEM_WINDOW
+
+
+def get_case(con, case_id, offset=None, limit=CASE_WINDOW):
+    """One case, every meeting that took it up, with the speech in a window.
+
+    THE RECORD IS THE POINT OF THIS TOOL and it always comes back whole: the
+    appearances, their outcomes, the terminal one and the continuances reach
+    meetings with no recording, which searching the transcript can never do.
+    It is 14 KB.
+
+    `heard` is the other 98%. The archive's largest case is 2,349 turns over
+    four meetings and served whole it was 802 KB - about 187k tokens for one
+    call, and cases are worse than items here because a case accumulates:
+    median 32 turns, p90 221, p99 783.
+
+    Same contract as `get_item`, down to the field names, because it is the
+    same unit and a model should not have to learn it twice. Pass no offset
+    for the record and the first window; pass back `next_offset` for the rest;
+    negative counts from the end. A continuation carries the hearings alone.
+    """
+    row = archive.case(con, case_id)
+    if row is None:
+        raise ToolError(
+            f"no case with id {case_id}. Case ids look like 'PDE-25-7738' and "
+            f"come from `case_id` on a search result or an item.")
+    heard = row.get("heard") or []
+    _thin_turns(heard)
+    row.setdefault("census", _census(heard, "lines"))
+    continued = bool(offset)
+    offset, returned, total = _window_turns(heard, "lines", offset, limit)
+    # `heard_lines` was this same total under another name, and two names for
+    # one number is one of them going stale. `heard_truncated` is the
+    # MAX_CASE_LINES clip, which is a different truncation from this one: no
+    # offset reaches past it. At 2,349 against 4,000 it has never fired.
+    row.pop("heard_lines", None)
+    if row.pop("heard_truncated", False):
+        row["clipped"] = True
+    row.update(_paging(offset, returned, total))
+    if continued:
+        keep = ("case_id", "heard", "turns", "offset", "returned",
+                "next_offset", "truncated", "clipped")
+        row = {k: row[k] for k in keep if k in row}
+        row["record"] = (
+            f"omitted: this is a continuation. get_case case_id={case_id} "
+            f"with no offset for the appearances, their outcomes and the "
+            f"census.")
+    return row
+
+
+# The same number again. get_meeting's unit is an agenda item rather than a
+# turn, which is a different thing to count and the same thing to page.
+MEETING_WINDOW = ITEM_WINDOW
+
+
+def get_meeting(con, meeting_id, offset=None, limit=MEETING_WINDOW):
+    """One meeting's agenda in published order, in a window.
+
+    The meeting itself - its date, body, roster, recordings, coverage and the
+    county's files - always comes back whole. It is 1.9 KB. The AGENDA is the
+    other 98.6%: a Board meeting runs to 272 items against a median of 17, and
+    that one served whole was 160 KB, about 37k tokens to answer "what else
+    happened that day".
+
+    The total is `agenda_items` and the window of them is `items`, because the
+    list had the obvious name first. Everything else is the cursor `get_item`
+    and `get_case` use, down to the negative offset - the end of an agenda is
+    board reports and adjournment, which is where a meeting's loose ends get
+    raised.
+    """
+    row = archive.meeting(con, meeting_id)
+    if row is None:
+        raise ToolError(
+            f"no meeting with id {meeting_id}. The id comes from `meeting_id` "
+            f"on any search result or item.")
+    continued = bool(offset)
+    # The row itself is the one entry holding the list, so the same windowing
+    # serves a flat agenda and an item's runs.
+    offset, returned, total = _window_turns([row], "items", offset, limit)
+    row.pop("count", None)
+    row.pop("returned", None)
+    row.update(_paging(offset, returned, total, "agenda_items"))
+    if continued:
+        keep = ("items", "agenda_items", "offset", "returned", "next_offset",
+                "truncated")
+        kept = {k: row[k] for k in keep if k in row}
+        kept["meeting"] = {"id": meeting_id}
+        kept["record"] = (
+            f"omitted: this is a continuation. get_meeting "
+            f"meeting_id={meeting_id} with no offset for the date, the body, "
+            f"the roster, the recordings and the county's files.")
+        row = kept
+    return row
 
 
 DOC_WINDOW = 20_000
@@ -614,15 +1001,16 @@ def get_document(con, file_id, offset=0, limit=DOC_WINDOW):
         # Only Agenda and Minutes are ever listed, so this is a fetch that has
         # not happened rather than a kind that is skipped.
         out.update(text=None, held=False, truncated=False, offset=0,
-                   returned=0)
+                   returned=0, next_offset=None)
         return out
     body = _squeeze(body)
     offset = max(0, int(offset or 0))
     limit = max(1, min(int(limit or DOC_WINDOW), 100_000))
     window = body[offset:offset + limit]
-    out.update(text=window, held=True, offset=offset, returned=len(window),
-               text_chars=len(body),
-               truncated=offset + len(window) < len(body))
+    # The unit here is characters and in get_item it is turns, but the way you
+    # ask for the rest should not change with the tool.
+    out.update(text=window, held=True,
+               **_paging(offset, len(window), len(body), "text_chars"))
     return out
 
 
@@ -674,6 +1062,21 @@ SPECS = [
                                          "every extra hit is paid for twice: "
                                          "once to read, and again in the room "
                                          "it leaves for everything after it."},
+                "offset": {"type": "integer", "default": 0,
+                           "description": "Hit to start at, in rank order. "
+                                          "Pass back `next_offset` for the "
+                                          "next window, the way get_item and "
+                                          "get_case are paged. Prefer it to a "
+                                          "bigger `limit`.\n"
+                                          "There is no total, because ranking "
+                                          "cannot honestly give one: a number "
+                                          "here would describe the candidate "
+                                          "pool and not the archive. "
+                                          "`next_offset` goes null when the "
+                                          "ranked results run out, which is "
+                                          "the end of what these WORDS "
+                                          "reached, never the end of what the "
+                                          "archive holds."},
                 "case": CASE, "body": BODY,
                 "meeting_id": {
                     "type": "integer",
@@ -794,10 +1197,16 @@ SPECS = [
             "county's own PDF, its place in a case thread, and - if the "
             "meeting was recorded - the transcript of the item itself. "
             "Call this after a search puts an item in play; it is how you get "
-            "from 'this looks relevant' to what actually happened.",
-        "run": lambda con, item_id, outline=False: (
-            _outline(archive.item(con, item_id)) if outline
-            else archive.item(con, item_id)),
+            "from 'this looks relevant' to what actually happened.\n"
+            "Call it with no offset and the record comes back whole. The "
+            "SPEECH comes back in a window of turns: most items are short "
+            "enough to arrive complete, and a long one hands you "
+            "`next_offset` - pass that back as `offset` for the turns after "
+            "it, and again, until `next_offset` is null. A continuation "
+            "carries the turns alone, because the record it would repeat is "
+            "the record you already have. `turns` is the total, so you can "
+            "skip ahead instead of walking.",
+        "run": get_item,
         "parameters": {
             "type": "object", "required": ["item_id"],
             "properties": {
@@ -813,9 +1222,48 @@ SPECS = [
                                            "know what opening it costs before "
                                            "you spend it. `census` says how "
                                            "many turns there are and who did "
-                                           "the talking, which answers 'is "
-                                           "the person I am asking about even "
-                                           "in here' without reading it."},
+                                           "the talking, and it counts the "
+                                           "WHOLE item rather than the window, "
+                                           "so it answers 'is the person I am "
+                                           "asking about even in here' without "
+                                           "reading it."},
+                "offset": {"type": "integer",
+                           "description": "Turn to start at. LEAVE IT OFF THE "
+                                          "FIRST CALL: that is the one that "
+                                          "carries the record, the case "
+                                          "thread and the census. After that, "
+                                          "pass back the `next_offset` you "
+                                          "were handed, and keep going until "
+                                          "it comes back null.\n"
+                                          "You are not held to walking. "
+                                          "`turns` is the whole length, so an "
+                                          "offset of your own skips ahead - "
+                                          "and a NEGATIVE ONE COUNTS FROM THE "
+                                          "END: -80 is the last 80 turns, "
+                                          "which is where a motion and its "
+                                          "vote are. Reach for that rather "
+                                          "than paging to it, because the "
+                                          "opening of an item is usually "
+                                          "staff presenting.\n"
+                                          "`census` is whole-item whatever "
+                                          "the window holds, so it already "
+                                          "says who is in the part you have "
+                                          "not read. Every appearance is "
+                                          "listed either way, each with "
+                                          "`count` for its own length and "
+                                          "`returned` for how much of it is "
+                                          "in this window."},
+                "limit": {"type": "integer", "default": ITEM_WINDOW,
+                          "maximum": archive.MAX_ITEM_LINES,
+                          "description": "Turns to return. Leave it alone "
+                                         "unless you have read the window and "
+                                         "need the rest. The maximum is the "
+                                         "longest item the archive holds, so "
+                                         "asking for it is asking for the "
+                                         "whole thing - which for the longest "
+                                         "item is around 387k tokens, and is "
+                                         "the cost the default exists to "
+                                         "avoid."},
             },
         },
     },
@@ -827,12 +1275,35 @@ SPECS = [
             "than one meeting; {deep_case} was heard at {deep_case_meetings} "
             "of them. Use this instead of searching again "
             "when you already have a case id - it reaches meetings with no "
-            "recording, which searching the transcript cannot.",
-        "run": lambda con, case_id: archive.case(con, case_id),
+            "recording, which searching the transcript cannot.\n"
+            "The appearances and their outcomes always come back whole - that "
+            "is what this tool is for. What was SAID across them windows "
+            "exactly as get_item's does: pass back `next_offset` until it is "
+            "null, or a negative offset for the end.",
+        "run": get_case,
         "parameters": {
             "type": "object", "required": ["case_id"],
-            "properties": {"case_id": {"type": "string",
-                                       "description": "e.g. 'PDE-25-7738'."}},
+            "properties": {
+                "case_id": {"type": "string",
+                            "description": "e.g. 'PDE-25-7738'."},
+                "offset": {"type": "integer",
+                           "description": "Turn to start at, across every "
+                                          "hearing in order. LEAVE IT OFF THE "
+                                          "FIRST CALL: that is the one "
+                                          "carrying the appearances, the "
+                                          "outcomes and the census. Then pass "
+                                          "back `next_offset` until it comes "
+                                          "back null. NEGATIVE COUNTS FROM "
+                                          "THE END. Every hearing stays "
+                                          "listed whatever the window holds, "
+                                          "so a case heard five times still "
+                                          "looks like five."},
+                "limit": {"type": "integer", "default": CASE_WINDOW,
+                          "maximum": archive.MAX_CASE_LINES,
+                          "description": "Turns to return. Leave it alone "
+                                         "unless you have read the window and "
+                                         "need the rest."},
+            },
         },
     },
     {
@@ -862,12 +1333,14 @@ SPECS = [
                                           "receive - and not against `chars`, "
                                           "which is the raw extraction before "
                                           "its column padding is collapsed. A "
-                                          "long document comes back in windows "
-                                          "and says `truncated` when there is "
-                                          "more. There is no page to ask for: "
-                                          "the extraction is flat text, though "
-                                          "the printed page footers survive it "
-                                          "and can be searched."},
+                                          "long document comes back in "
+                                          "windows: pass back `next_offset` "
+                                          "until it comes back null, exactly "
+                                          "as get_item and get_case do. There "
+                                          "is no page to ask for: the "
+                                          "extraction is flat text, though "
+                                          "the printed page footers survive "
+                                          "it and can be searched."},
                 "limit": {"type": "integer", "default": 20000,
                           "description": "Characters to return. Leave it "
                                          "alone unless you have read the "
@@ -880,11 +1353,33 @@ SPECS = [
         "description":
             "One meeting's agenda in published order, with each item's outcome "
             "and its offset into the recording. Use it to see what else "
-            "happened around an item, or to establish what a meeting covered.",
-        "run": lambda con, meeting_id: archive.meeting(con, meeting_id),
+            "happened around an item, or to establish what a meeting covered.\n"
+            "The meeting comes back whole; its AGENDA comes in a window, "
+            "because a Board meeting runs to hundreds of items against a "
+            "median of 17. `agenda_items` is how many it has and `items` is "
+            "the window you were given. Pass back `next_offset` until it is "
+            "null, the same way get_item and get_case page.",
+        "run": get_meeting,
         "parameters": {
             "type": "object", "required": ["meeting_id"],
-            "properties": {"meeting_id": {"type": "integer"}},
+            "properties": {
+                "meeting_id": {"type": "integer"},
+                "offset": {"type": "integer",
+                           "description": "Agenda item to start at, in "
+                                          "published order, counted against "
+                                          "`agenda_items`. LEAVE IT OFF THE "
+                                          "FIRST CALL: that one carries the "
+                                          "date, the body, the roster, the "
+                                          "recordings and the files. NEGATIVE "
+                                          "COUNTS FROM THE END, which on an "
+                                          "agenda is board reports and "
+                                          "adjournment."},
+                "limit": {"type": "integer", "default": MEETING_WINDOW,
+                          "maximum": 500,
+                          "description": "Agenda items to return. Most of a "
+                                         "long agenda is consent, so read the "
+                                         "window before asking for more."},
+            },
         },
     },
 ]
@@ -900,6 +1395,74 @@ def manifest(con):
     """
     f = facts(con)
     return [fill({k: v for k, v in s.items() if k != "run"}, f) for s in SPECS]
+
+
+# The archive's own public address, and the reason a tool result can be
+# clicked. READ FROM THE CONTAINER, not baked in: the UI and the API are two
+# processes in one container (deploy/entrypoint.sh) and SITE_URL is already
+# set there for the sitemap and the canonical tags, so the API gets it free
+# and one image still serves any county.
+SITE = (os.environ.get("SITE_URL") or "").rstrip("/")
+
+
+def _url(path):
+    """An absolute URL, or nothing at all.
+
+    NOTHING, rather than a relative path or a localhost guess. A tool result
+    crosses into somebody else's client and is read by a model that cannot
+    resolve a relative link and will happily print a dead one - and a citation
+    a reader cannot open is worse than a citation that does not pretend to be
+    a link. `ui/lib/site.ts` makes the opposite choice for the same reason:
+    it falls back to localhost so a misconfigured DEPLOY is obvious on sight,
+    where here the audience is a stranger's assistant.
+    """
+    return f"{SITE}{path}" if SITE else None
+
+
+def _attach_urls(name, out):
+    """Put the reader's address on every row a caller might cite.
+
+    ONE PLACE, at the single entry point, because the alternative is six
+    projections each remembering to do it and one of them not. Only rows that
+    are actually cited get one: a transcript hit, a published item, a case, a
+    meeting. Not the individual turns inside get_item - they are utterances
+    rather than citable passages, and a URL on each would put back the
+    per-row repetition the window exists to remove.
+
+    The query shape is the meeting page's own contract (`?v=` and `?t=`, read
+    in ui/app/meeting/[id]/page.tsx), so a link lands on the words rather than
+    at the top of a six-hour recording.
+    """
+    if not SITE or not isinstance(out, dict):
+        return out
+
+    def moment(h):
+        if h.get("meeting_id") and h.get("video_id") and h.get("start") is not None:
+            return _url(f"/meeting/{h['meeting_id']}?v={quote(str(h['video_id']))}"
+                        f"&t={int(h['start'])}")
+        return None
+
+    for h in out.get("hits") or []:
+        if isinstance(h, dict):
+            h["url"] = moment(h)
+    for i in out.get("items") or []:
+        # get_meeting's items are agenda rows; search_record's are too.
+        if isinstance(i, dict) and i.get("id"):
+            i["url"] = _url(f"/item/{i['id']}")
+    item = out.get("item")
+    if isinstance(item, dict) and item.get("id"):
+        item["url"] = _url(f"/item/{item['id']}")
+    for st in out.get("steps") or []:
+        if isinstance(st, dict) and st.get("id"):
+            st["url"] = _url(f"/item/{st['id']}")
+    if out.get("case_id"):
+        out["url"] = _url(f"/case/{quote(str(out['case_id']), safe='')}")
+    meeting = out.get("meeting")
+    if isinstance(meeting, dict) and meeting.get("id"):
+        meeting["url"] = _url(f"/meeting/{meeting['id']}")
+    if name == "get_document" and out.get("meeting_id"):
+        out["url"] = _url(f"/meeting/{out['meeting_id']}")
+    return out
 
 
 class ToolError(Exception):
@@ -935,7 +1498,7 @@ def call(con, name, args):
                             f"{', '.join(props[k]['enum'])}")
         if props[k].get("maximum") is not None:
             args[k] = min(args[k], props[k]["maximum"])
-    return spec["run"](con, **args)
+    return _attach_urls(name, spec["run"](con, **args))
 
 
 # --------------------------------------------------------------- the page
@@ -944,7 +1507,9 @@ def search(con, query, limit=25, offset=0, **facets):
     query = (query or "").strip()
     if not query:
         return {"query": "", "record": {"total": 0, "items": []},
-                "transcript": {"hits": [], "count": 0, "degraded": None}}
+                "transcript": {"hits": [], "offset": 0, "returned": 0,
+                               "next_offset": None, "truncated": False,
+                               "degraded": None}}
 
     # Each tool takes the facets it can honour and no others. `speaker` reaches
     # speech and has no meaning for a published agenda item; `decided` is the
@@ -958,7 +1523,10 @@ def search(con, query, limit=25, offset=0, **facets):
 
     record = call(con, "search_record", dict(
         query=query, limit=limit, offset=offset, **only("search_record")))
+    # OFFSET REACHES BOTH ARMS. It used to reach only the record, so /search
+    # page 2 renewed the published items and re-served the same 25 moments
+    # beside them.
     heard = call(con, "search_transcript", dict(
-        query=query, limit=limit, **only("search_transcript")))
+        query=query, limit=limit, offset=offset, **only("search_transcript")))
     return {"query": query, "record": record, "transcript": heard,
             "by_code": record.get("by_code", False)}

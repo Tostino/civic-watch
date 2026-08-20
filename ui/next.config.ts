@@ -55,7 +55,7 @@ const nextConfig: NextConfig = {
       { source: "/api/:path*", destination: `${API}/api/:path*` },
       // The tool surface (web/mcp_server.py), which is public on purpose:
       // an MCP client asks the archive its own questions, and the answer it
-      // composes is composed from the same five tools /search and the agent
+      // composes is composed from the same six tools /search and the agent
       // use. It lives OUTSIDE /api because that is the path an MCP client is
       // given, and it needs no separate timeout note: the transport answers
       // in JSON rather than SSE, so a tool call is one short request and
