@@ -72,6 +72,10 @@
           Description="1 when a reverse proxy is in front. At 0 behind a proxy, every visitor looks like one address and the whole internet shares a single rate-limit bucket. Only set it with a proxy actually in front - at 1 with nothing forwarding, a caller can forge their address."
           Type="Variable" Display="always" Required="true" Mask="false">1</Config>
 
+  <Config Name="ASK_ASKER_KEY" Target="ASK_ASKER_KEY" Default=""
+          Description="Secret for counting people rather than questions. With it set, every arrival at /api/ask is filed under an HMAC of the caller's address and the LOCAL DATE - enough to count distinct people per day, useless for following one across two days, and not reversible to an address without this key. Unset, the arrivals are still counted and the identity column stays empty. Keep it in step with env.local.sh, and note that changing it counts a person either side of the change as two."
+          Type="Variable" Display="advanced" Required="false" Mask="true"/>
+
   <Config Name="ASK_DAILY_MAX" Target="ASK_DAILY_MAX" Default="400"
           Description="Questions per 24h across all callers. This is a MONEY ceiling: about $3.60/day typical, $30/day worst case."
           Type="Variable" Display="always" Required="false" Mask="false">400</Config>

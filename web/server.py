@@ -29,6 +29,7 @@ import psycopg                                    # noqa: E402
 import admin                                     # noqa: E402
 import answers                                   # noqa: E402
 import archive                                   # noqa: E402
+import asklog                                    # noqa: E402
 import db                                        # noqa: E402
 import limits                                    # noqa: E402
 import mcp_server                                # noqa: E402
@@ -457,9 +458,16 @@ def api_ask(request):
     """Bound what a public, unauthenticated, PAID endpoint can be made to
     spend, before it spends any of it."""
     question = request.query_params.get("q", "")
+    # Held in a name because the refusal below has to be counted against the
+    # same address the limiter charged, and because the stream needs it to
+    # file the outcome minutes from now.
+    ip = limits.client_ip(request)
     try:
-        release = limits.reserve(limits.client_ip(request), question)
+        release = limits.reserve(ip, question)
     except limits.Throttled as t:
+        # A refusal used to be invisible: it never reached `answers`, so a
+        # ceiling set too low looked exactly like nobody asking.
+        asklog.record(ip, t.kind, question)
         if "text/event-stream" not in request.headers.get("Accept", ""):
             headers = ({"Retry-After": str(t.retry_after)}
                        if t.retry_after else None)
@@ -473,14 +481,15 @@ def api_ask(request):
                                       "retry_after": t.retry_after})
         return Response(body, media_type="text/event-stream",
                         headers=SSE_HEADERS)
-    return StreamingResponse(_ask_stream(question, release),
+    return StreamingResponse(_ask_stream(question, release, ip),
                              media_type="text/event-stream",
                              headers=SSE_HEADERS)
 
-def _ask_stream(question, release):
+def _ask_stream(question, release, ip):
     """Server-sent events: the agent takes minutes on a hard question, so what
     it is DOING is streamed rather than leaving the page on a bare spinner."""
     q = queue.Queue()
+    t0 = time.monotonic()
     # Set when the reader is gone. `on_event` raises on it, which unwinds
     # agent.ask from inside whatever call it is in - the same effect the old
     # BrokenPipeError had, and the reason this is not merely tidy: without it
@@ -514,9 +523,15 @@ def _ask_stream(question, release):
                 result["id"] = answers.save(con, result)
             except Exception as e:                            # noqa: BLE001
                 print(f"answer not saved: {type(e).__name__}: {e}", flush=True)
+            asklog.record(ip, "kept", question, answer_id=result.get("id"),
+                          ms=int((time.monotonic() - t0) * 1000))
             q.put(("answer", result))
         except BrokenPipeError:
-            pass                          # the reader left; nothing to report
+            # Nothing to report to the reader, who has gone. Worth counting
+            # though: this is a run that was paid for and never read, and if
+            # it is common the answer is arriving too slowly to wait for.
+            asklog.record(ip, "gone", question,
+                          ms=int((time.monotonic() - t0) * 1000))
         # SystemExit is caught EXPLICITLY because it is not an Exception, and
         # a library that calls sys.exit() inside a request thread otherwise
         # kills the thread with the stream still open - the reader waits for
@@ -525,6 +540,8 @@ def _ask_stream(question, release):
         # permanent "thinking" spinner with a silent server. Fixed at the
         # source too; this is the guard that makes the class of bug loud.
         except (Exception, SystemExit) as e:                  # noqa: BLE001
+            asklog.record(ip, "error", question,
+                          ms=int((time.monotonic() - t0) * 1000))
             q.put(("error", {"error": str(e) or e.__class__.__name__}))
         finally:
             if con is not None:
@@ -874,6 +891,15 @@ def main():
         with db.connect(autocommit=True) as c:
             n = c.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
         print(f"catalog: {n} videos")
+        # Loud at startup, because the alternative is a month of counts that
+        # quietly say nobody asked. With a key set and nothing forwarding, the
+        # address is this container's own loopback for every visitor on earth,
+        # and asklog files that as unattributable rather than as one person.
+        if asklog.KEY and not limits.TRUST_PROXY:
+            print("asks: ASK_ASKER_KEY is set and ASK_TRUST_PROXY is not, so "
+                  "no run can be attributed and every day will count zero "
+                  "people. Set ASK_TRUST_PROXY=1 if a proxy is really in "
+                  "front (LAUNCH.md 3.5).", flush=True)
     except Exception as e:                                    # noqa: BLE001
         print(f"cannot reach the database: {e}\n"
               f"  source ./env.local.sh first", file=sys.stderr)

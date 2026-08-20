@@ -45,6 +45,7 @@ the agent should carry over.
   * [Keeping it current](#keeping-it-current)
   * [A rant on reading votes out of a transcript](#a-rant-on-reading-votes-out-of-a-transcript)
   * [What it gets wrong](#what-it-gets-wrong)
+  * [Who is asking](#who-is-asking)
   * [Redaction](#redaction)
   * [Documents](#documents)
   * [Not the official record](#not-the-official-record)
@@ -235,6 +236,33 @@ Board reports carry no agenda code at all and never will.
 
 Everything the agent says is bounded by that list, which is why the pages tell
 you what they're showing you and where it came from.
+
+## Who is asking
+
+Two tables come out of `/ask`. `answers` holds a run so that a shared link
+still resolves years later, and it holds nothing that could tell two people
+apart. `asks` is the operator's, and no route serves it: one row per arrival
+at the endpoint, including the ones that were turned away, because a ceiling
+set too low used to look exactly like nobody asking.
+
+The only identity in it is an HMAC of the caller's address and the local date.
+That counts people within a day and cannot be joined across two, so it says
+how many asked on Tuesday and can't tell you that Tuesday's visitor came back
+on Friday. The key is what keeps it a token rather than a thin disguise: an
+IPv4 address is 32 bits, so a bare hash of one is undone by trying all four
+billion. With `ASK_ASKER_KEY` unset, the arrivals are still counted and that
+column stays empty. Nothing else is kept per visitor anywhere: no cookie, no
+session, no access log.
+
+```bash
+./emb-venv/bin/python bin/asks.py               # a line a day
+./emb-venv/bin/python bin/asks.py --questions   # what was actually asked
+```
+
+A count of tokens is a count of addresses, so a household behind one router is
+one person and somebody on a phone and a laptop is two. It is a floor with a
+wobble, not a headcount, and it is as far as a server that keeps no accounts
+can honestly go.
 
 ## Redaction
 
