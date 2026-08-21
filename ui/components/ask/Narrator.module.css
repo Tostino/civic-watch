@@ -83,8 +83,12 @@
   align-items: center;
   justify-content: center;
   flex: none;
-  width: 1.75rem;
+  /* A minimum rather than a size: it was a bare glyph in a circle, and it
+     now carries the key it answers to as well. */
+  min-width: 1.75rem;
   height: 1.75rem;
+  padding-inline: 0.35rem;
+  gap: 0.25em;
   font-size: 0.7rem;
   color: var(--ink-2);
   background: var(--surface);
@@ -203,6 +207,37 @@
   font-style: italic;
 }
 
+/*
+ *  THE KEY A CONTROL ANSWERS TO, printed on it.
+ *
+ * These lived in `title` attributes, which is to say they were invisible
+ * until a reader hovered a button they had already decided to click - so the
+ * shortcuts were discoverable only by the people who least needed them. On
+ * the control, they are learned by anybody who looks at the bar.
+ *
+ * Quiet enough to read as an annotation rather than as part of the label:
+ * the button says what it does and this says what to press instead.
+ */
+.hint {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1;
+  padding: 0.15em 0.3em;
+  color: var(--ink-3);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  border-radius: 3px;
+  /* Never the reason a control wraps or grows. */
+  flex: none;
+}
+
+.minor .hint {
+  /* The text buttons are underlined; their key must not be. */
+  text-decoration: none;
+  display: inline-block;
+  margin-inline-start: 0.35em;
+  vertical-align: baseline;
+}
+
 /* The shortcuts, in the idle state that has room to say them. Its own line,
    because it is a reference rather than a sentence: a reader wants to find
    one key in it, not read it. */
@@ -242,6 +277,21 @@
     order: 1;
     flex-basis: 100%;
   }
+
+  /* NO ROOM TO PRINT THEM. A narrow window still has a keyboard - this is a
+     desktop split in half, not a phone - but six controls each carrying a key
+     took the bar from two rows to five, which is a worse trade than a
+     shortcut a reader has to hover to find. The `title` on every control
+     still says it, and the line in the idle state still lists them.
+
+     `.minor .hint` as well as `.hint`: the text buttons set their own
+     `display` to keep the key out of their underline, and a media query adds
+     no specificity - so hiding matched four controls and left "Heard enough"
+     and "Stop" carrying theirs, which is what took the bar to three rows. */
+  .hint,
+  .minor .hint {
+    display: none;
+  }
 }
 
 /*
@@ -279,8 +329,11 @@
     margin-inline-start: auto;
   }
 
-  /* The keys are a machine this reader does not have. */
-  .forKeys {
+  /* The keys are a machine this reader does not have - neither the line in
+     the idle state nor the annotation on every control. */
+  .forKeys,
+  .hint,
+  .minor .hint {
     display: none;
   }
 }

@@ -18,6 +18,23 @@ import s from "./Narrator.module.css";
 const SEEK = 10;
 
 /**
+ * The keys, named once. Every control below prints the one it answers to, so
+ * a reader who has never read a shortcut list still learns them by using the
+ * bar - which is the only way anybody learns a shortcut.
+ */
+const KEYS = { hold: "k", back: "p", on: "n", rew: "j", ff: "l" } as const;
+
+/** The key a control answers to, printed on it. Hidden where there is no
+ *  keyboard to press it with - see the coarse-pointer rules in the CSS. */
+function Key({ is }: { is: string }) {
+  return (
+    <kbd className={s.hint} aria-hidden>
+      {is}
+    </kbd>
+  );
+}
+
+/**
  * The control that reads an answer aloud and plays its citations in place.
  *
  * IT SAYS WHAT IT IS DOING, always. A synthesised voice that stops talking is
@@ -43,39 +60,34 @@ export function Narrator({ narration: n }: { narration: Narration }) {
   }, [running, n.at, n.step?.part]);
 
   /**
-   * The keys. ONE TRANSPORT, on two axes.
+   * The keys, and NOT ONE THE PAGE ALREADY USES TO MOVE.
    *
-   * DOWN THE PAGE IS THROUGH THE ANSWER and ACROSS IS ALONG THE RECORDING.
-   * That is the whole of the mapping, and it is the second one this control
-   * had. The first gave the narration its own set - arrows stepped a sentence
-   * - and left the player's `j k l` live underneath, so a reader steering a
-   * clip had two vocabularies for one transport and had to know which object
-   * a key was aimed at. Worse, `←` meant "back a sentence" here and "rewind"
-   * in every video anybody has ever watched, so the reflex that follows a
-   * missed word threw the reader out of the clip instead of back into it.
+   * This is the third mapping and the first two both got it wrong in the same
+   * way. The first gave the narration its own set and left the player's
+   * `j k l` live underneath, so two vocabularies were aimed at one transport.
+   * The second put the transport on the arrow keys, which was worse: the
+   * arrows and the space bar are how a document is scrolled, and a reader who
+   * wants to look ahead while the voice talks is doing something entirely
+   * reasonable that the page had quietly stopped letting them do. That the
+   * narration scrolls itself is not an argument for taking them - it is the
+   * reason a reader would want them back.
    *
-   * Split by axis, each key does the thing its direction already means:
-   * `↑ ↓` move between the sentences and the recordings, `← →` move within
-   * whichever recording is playing. Nothing is aimed at the wrong object,
-   * because the two axes cannot address the same one.
+   * So this takes letters and `esc`, and nothing else. Arrows, space, page up
+   * and down, home and end all still belong to the page, running or not.
    *
-   * WHAT IT COSTS is scrolling the page with the keyboard while a narration
-   * runs, which is close to free: the narration scrolls the page to follow
-   * itself, so a reader scrolling away by hand is already being dragged back
-   * every sentence. PageUp and PageDown are untouched for anyone who wants
-   * it anyway.
+   * The letters are the ones the dock already taught - `k` holds, `j` and `l`
+   * move ten seconds - extended by two that say what they do: `n` for the
+   * next sentence and `p` for the previous one.
    *
    * CAPTURE, and it stops the event dead. The dock has its own `j k l` on
    * this same window, and `k` there paused the video WITHOUT telling the
-   * narration - which left this bar saying "Playing the recording" over a
-   * stopped one. Claimed in the capture phase, a running narration is the
-   * only thing steering, and the dock's keys go back to being the dock's the
-   * moment it stops.
+   * narration, which left the bar describing a recording that was not
+   * running. While a narration runs it is the only thing steering, and the
+   * dock's keys go back to being the dock's the moment it stops.
    *
-   * A FOCUSED BUTTON KEEPS ITS OWN SPACE BAR. Pressing Pause with the mouse
-   * leaves that button focused, and without this the next press of space both
-   * clicked it and ran the shortcut - which paused and resumed in the same
-   * keystroke and looked like a control that did nothing.
+   * A FOCUSED BUTTON KEEPS ITS OWN KEYS. Pressing a control with the mouse
+   * leaves it focused, and a shortcut that fired on top of the button's own
+   * activation would run the same action twice.
    */
   useEffect(() => {
     if (!running) return;
@@ -88,22 +100,17 @@ export function Narrator({ narration: n }: { narration: Narration }) {
         e.preventDefault();
         e.stopPropagation();
       };
-      /* `k` alongside space, rather than left to the dock, so that one key
-         does one thing: whichever of the two a reader reaches for, the
-         narration is what hears it and the bar cannot fall out of step. */
-      if (e.key === " " || e.key === "k") { take(); n.togglePause(); }
-      else if (e.key === "ArrowDown") { take(); n.skip(); }
-      else if (e.key === "ArrowUp") { take(); n.back(); }
+      if (e.key === KEYS.hold) { take(); n.togglePause(); }
+      else if (e.key === KEYS.on) { take(); n.skip(); }
+      else if (e.key === KEYS.back) { take(); n.back(); }
       else if (e.key === "Escape") { take(); n.stop(); }
-      /* ACROSS ONLY WHERE THERE IS A TIMELINE. While the voice is reading
-         there is nothing to move along - the recording under the dock, if one
-         is still loaded, is a clip that finished several sentences ago - so
-         these are not claimed at all rather than claimed and made to do
-         nothing. */
-      else if (n.phase === "listening" && e.key === "ArrowLeft") {
+      /* SEEKING ONLY WHERE THERE IS A TIMELINE. While the voice is reading
+         there is nothing to move along, so these are left to the dock, whose
+         own `j` and `l` behave the same way they do on every other page. */
+      else if (n.phase === "listening" && e.key === KEYS.rew) {
         take();
         player.seek(player.position - SEEK);
-      } else if (n.phase === "listening" && e.key === "ArrowRight") {
+      } else if (n.phase === "listening" && e.key === KEYS.ff) {
         take();
         player.seek(player.position + SEEK);
       }
@@ -121,15 +128,17 @@ export function Narrator({ narration: n }: { narration: Narration }) {
           {/* Transport order, so the pair either side of pause reads as one
               thing: back a sentence, hold, on to the next. */}
           <button type="button" className={s.step} onClick={n.back}
-                  aria-label="Back one sentence" aria-keyshortcuts="ArrowUp"
-                  title="Back one sentence (↑). Onto a recording, plays it again.">
-            <span aria-hidden>▲</span>
+                  aria-label="Back one sentence" aria-keyshortcuts={KEYS.back}
+                  title="Back one sentence. Onto a recording, plays it again.">
+            <span aria-hidden>◀</span>
+            <Key is={KEYS.back} />
           </button>
           <button type="button" className={s.key} onClick={n.togglePause}
-                  aria-keyshortcuts="Space K"
-                  title={`${n.paused ? "Resume" : "Pause"} (space or k)`}>
+                  aria-keyshortcuts={KEYS.hold}
+                  title={n.paused ? "Resume" : "Pause"}>
             <span aria-hidden>{n.paused ? "▶" : "▮▮"}</span>
             {n.paused ? "Resume" : "Pause"}
+            <Key is={KEYS.hold} />
           </button>
           {/* THE RECORDING'S OWN CONTROLS, kept with the line that names it.
               On a narrow screen this whole group drops to a second row, so
@@ -142,16 +151,18 @@ export function Narrator({ narration: n }: { narration: Narration }) {
                 <button type="button" className={s.nudge}
                         onClick={() => player.seek(player.position - SEEK)}
                         aria-label={`Back ${SEEK} seconds in the recording`}
-                        aria-keyshortcuts="ArrowLeft"
-                        title={`Back ${SEEK} seconds (←)`}>
+                        aria-keyshortcuts={KEYS.rew}
+                        title={`Back ${SEEK} seconds in the recording`}>
                   −{SEEK}s
+                  <Key is={KEYS.rew} />
                 </button>
                 <button type="button" className={s.nudge}
                         onClick={() => player.seek(player.position + SEEK)}
                         aria-label={`Forward ${SEEK} seconds in the recording`}
-                        aria-keyshortcuts="ArrowRight"
-                        title={`Forward ${SEEK} seconds (→)`}>
+                        aria-keyshortcuts={KEYS.ff}
+                        title={`Forward ${SEEK} seconds in the recording`}>
                   +{SEEK}s
+                  <Key is={KEYS.ff} />
                 </button>
               </span>
             ) : null}
@@ -203,15 +214,17 @@ export function Narrator({ narration: n }: { narration: Narration }) {
               for minutes, and without a way past it the only escape from a
               long one is to abandon the whole narration. */}
           <button type="button" className={s.minor} onClick={n.skip}
-                  aria-keyshortcuts="ArrowDown"
+                  aria-keyshortcuts={KEYS.on}
                   title={n.phase === "listening"
-                    ? "Stop the recording and read on (↓)"
-                    : "On to the next sentence (↓)"}>
+                    ? "Stop the recording and read on"
+                    : "On to the next sentence"}>
             {n.phase === "listening" ? "Heard enough" : "Skip"}
+            <Key is={KEYS.on} />
           </button>
           <button type="button" className={`${s.minor} ${s.stop}`} onClick={n.stop}
-                  aria-keyshortcuts="Escape" title="Stop reading (esc)">
+                  aria-keyshortcuts="Escape" title="Stop reading">
             Stop
+            <Key is="esc" />
           </button>
         </>
       ) : (
@@ -242,14 +255,17 @@ export function Narrator({ narration: n }: { narration: Narration }) {
                   down the page twice as tall as it needs to be. */}
               <span className={s.keys}>
                 Tap or click any sentence to read from there.{" "}
-                {/* The keys are worth a line on a machine that has them and
-                    are noise on one that does not, where every one of these
-                    actions is a button on the bar instead. */}
+                {/* Worth a line on a machine that has a keyboard, noise on one
+                    that does not. Once it is running every control prints its
+                    own key, so this only has to get a reader as far as
+                    pressing play. */}
                 <span className={s.forKeys}>
-                  While it reads, <kbd>space</kbd> holds it, <kbd>↑</kbd> and{" "}
-                  <kbd>↓</kbd> step back and on a sentence, and <kbd>esc</kbd>{" "}
-                  stops. Inside a recording, <kbd>←</kbd> and <kbd>→</kbd> move
-                  ten seconds.
+                  Each control carries the key it answers to:{" "}
+                  <kbd>{KEYS.hold}</kbd> holds it, <kbd>{KEYS.back}</kbd> and{" "}
+                  <kbd>{KEYS.on}</kbd> step a sentence, <kbd>esc</kbd> stops,
+                  and <kbd>{KEYS.rew}</kbd> and <kbd>{KEYS.ff}</kbd> move ten
+                  seconds inside a recording. Nothing the page scrolls with is
+                  taken.
                 </span>
               </span>
             </>
