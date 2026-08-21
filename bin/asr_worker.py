@@ -25,10 +25,87 @@ REPAIR_PAD = 2.0
 REPAIR_EDGE = 0.75
 GAP_SPLIT = 2.0
 MAX_UTT = 30.0
-BOOST_ALPHA = 1.0  # chosen by sweep: fixes target names, leaves the rest intact
+# RE-SWEPT at 122 phrases (2026-08-21), against the 532-clip corpus that
+# bin/eval_phrases.py builds. The value was chosen when the list held 55, and
+# more than half of it is arbitrary proper nouns now, so it was not obvious
+# the old weight still balanced it. It does:
+#
+#   alpha  names fixed  total hurt  fixes-hurt  bystanders kept
+#     0.0       25/145           0          25          113/137
+#     0.5       61/145          19          42          121/137
+#     1.0       73/145          37          36          127/137   <- here
+#     1.5       84/145          50          34          125/137
+#     3.0       95/145          77          18          122/137
+#
+# Names keep coming back all the way up, and so does the damage, faster. The
+# two defensible choices are 0.5, which fixes 12 fewer names for 18 fewer
+# broken clips, and 1.5, which buys 11 more names for 13 more. Neither is a
+# clear win over the incumbent on any weighting worth arguing for, and 1.0 is
+# where BYSTANDERS peak - clips holding a boosted word the ASR already got
+# right, which is the set a wrong choice quietly damages.
+#
+# Left alone, therefore, on evidence rather than on inertia. Move it if the
+# weighting changes: a fix is a name written correctly, and a hurt is
+# ordinary prose written slightly worse.
+BOOST_ALPHA = float(os.environ.get("ASR_BOOST_ALPHA") or 1.0)
+# phrases.txt went 55 -> 103 on 2026-08-20, measured rather than assumed:
+# bin/eval_phrases.py re-transcribed 210 real clips against both lists.
+#
+#   90 clips whose stored transcript holds a known mis-hearing
+#       20/90 correct before, 59/90 after, and nothing that was right broke
+#   30 more were mined and then REMOVED: the archive already writes them
+#       correctly without help (Bexley 353 right / 0 wrong, Publix 69/0,
+#       Watergrass 96/0), so boosting them was pure prefix competition.
+#       Dropping them cost no target and recovered one control clip.
+#   120 clips with none
+#       16 changed: 7 gained a correct name, 4 cosmetic, 5 got worse
+#
+# WHAT GOES IN IT IS NAMES, NOT VOCABULARY, and that is the finding rather
+# than a preference. A first pass added everything the archive says often -
+# Multifamily, Countywide, Wellhead - and that list turned "Barbara Wellheit"
+# into "Barbara WELLHEAD", losing a real person's name to a boosted common
+# noun. Names are arbitrary and the model cannot guess them; compound English
+# it already builds correctly, so boosting it only adds a competitor for
+# every word that starts the same way.
+#
+# The five that got worse are the same effect surviving in miniature -
+# `severability` pulls "several", `Chasco` pulls "-asco". Left in because
+# each earns more than it costs, and named here so the next sweep knows where
+# to look. NO COMMENTS IN phrases.txt itself: every line of that file is a
+# phrase to boost, including one that starts with a hash.
 
 BIN = os.path.dirname(os.path.abspath(__file__))
 PHRASES = os.path.join(BIN, "phrases.txt")
+
+
+def _boost_file():
+    """The words to bias towards, written out from bin/lexicon.py.
+
+    GENERATED, NOT READ. phrases.txt was a hand-kept list living beside the
+    lexicon, and the two drifted apart the first day both existed: 82 phrases
+    were boosted that the lexicon had never heard of, and the lexicon's
+    pronunciations covered words the ASR was never told about. Building the
+    file here means there is one list and no way to edit half of it.
+
+    Written back to phrases.txt so the boost list stays readable in the repo
+    and shows up in a diff when the lexicon changes.
+    """
+    import lexicon
+    try:
+        n = lexicon.write_phrases(PHRASES)
+        print(f"[asr] boosting {n} phrases from bin/lexicon.py", flush=True)
+        return PHRASES
+    except OSError as e:
+        # A read-only checkout should degrade, not stop a transcription run.
+        # The list still comes from the lexicon; only the readable copy in the
+        # repo is skipped.
+        import tempfile
+        fd, path = tempfile.mkstemp(prefix="phrases-", suffix=".txt")
+        os.close(fd)
+        n = lexicon.write_phrases(path)
+        print(f"[asr] boosting {n} phrases from bin/lexicon.py "
+              f"({PHRASES} not writable: {e})", flush=True)
+        return path
 
 
 # ---------------------------------------------------------------- windowing
@@ -67,7 +144,7 @@ def load_model(gpu):
         # CUDA-graph TDT decoding throws illegal memory accesses on this driver
         cfg.greedy.use_cuda_graph_decoder = False
         cfg.greedy.boosting_tree = {
-            "key_phrases_file": PHRASES,
+            "key_phrases_file": _boost_file(),
             "context_score": 1.0,
             "depth_scaling": 2.0,   # documented value for TDT
             "use_triton": False,

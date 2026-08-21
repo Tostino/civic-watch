@@ -18,6 +18,11 @@ next-env.d.ts
 data/
 logs/
 *-venv/
+# Weights, not source: 338 MB of Kokoro fetched by bin/get_voice.sh, and the
+# audio it renders. Same rule as data/ - the archive keeps what it derives on
+# disk and the repository keeps what derives it.
+models/
+
 __pycache__/
 
 # Working notes from the build, not reader documentation. They date fast and
