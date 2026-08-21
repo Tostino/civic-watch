@@ -321,9 +321,19 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
    */
   const [heard, setHeard] = useState<ReadonlySet<number>>(() => new Set());
 
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
   /** Bumped by anything that invalidates callbacks already in flight. */
   const run = useRef(0);
   const atRef = useRef(-1);
+  /** `paused` where an async callback can read it, a render sooner. */
+  const pausedRef = useRef(false);
+  /** The step a spurious abort has already been retried at, so a request that
+   *  keeps being cancelled cannot turn into a loop. Cleared on any sentence
+   *  that reaches the point of actually playing. */
+  const retried = useRef(-1);
   /**
    * The player segment this narration armed, and may therefore act on.
    *
@@ -339,11 +349,30 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
   const sound = useRef<HTMLAudioElement | null>(null);
   const rendered = useRef<Rendered>(new Map());
   const abort = useRef<AbortController | null>(null);
+  /** The keys in `rendered` whose fetch has not settled yet. See `shush`. */
+  const inFlight = useRef<Set<string>>(new Set());
 
   const shush = useCallback(() => {
     run.current += 1;
     abort.current?.abort();
     abort.current = null;
+    /*
+     * AND FORGET WHAT THAT ABORT JUST DOOMED, in the same breath.
+     *
+     * `abort()` does not reject the fetch synchronously; the rejection, and
+     * so the `cache.delete` hanging off it, arrive a microtask later. Every
+     * caller here is `jump`, which calls this and then `perform` on the SAME
+     * TICK - so the next step asked the cache for its sentence while the
+     * promise that was already cancelled was still sitting in it, got handed
+     * that, and died on an AbortError for a request nobody was waiting for.
+     *
+     * Skipping onto the sentence being read next is not an unusual thing to
+     * do: it is what "Heard enough" does, and what clicking the sentence
+     * below the one being read does. It only bit while the prefetch was
+     * still in the air, which is why it came and went.
+     */
+    for (const key of inFlight.current) rendered.current.delete(key);
+    inFlight.current.clear();
     const a = sound.current;
     if (a) {
       a.pause();
@@ -374,11 +403,15 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
       if (!abort.current) abort.current = new AbortController();
       const job = fetchChunk(answer ?? "", text, abort.current.signal);
       cache.set(text, job);
+      inFlight.current.add(text);
       /* A FAILED render must not be remembered as a render. Left in the map,
        * a rejected promise makes every later attempt at that sentence fail
        * instantly with a stale reason - including the retry the reader makes
        * by pressing play again. */
-      job.catch(() => cache.delete(text));
+      job.then(
+        () => inFlight.current.delete(text),
+        () => { inFlight.current.delete(text); cache.delete(text); },
+      );
       return job;
     },
     [answer],
@@ -461,6 +494,7 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
             a.src = url;
             return a.play().then(() => {
               if (run.current !== mine) return;
+              retried.current = -1;
               setPhase("reading");
               /* THE NEXT SENTENCE IS FETCHED WHILE THIS ONE PLAYS, which is
                  the whole of the latency story: only the first chunk of a
@@ -471,7 +505,31 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
           })
           .catch((e: unknown) => {
             if (run.current !== mine) return;
-            if (e instanceof DOMException && e.name === "AbortError") return;
+            if (e instanceof DOMException && e.name === "AbortError") {
+              /*
+               * AN ABORT THAT BELONGS TO THIS RUN IS NOT NOTHING.
+               *
+               * The one this used to be written for - a callback from a run
+               * the reader has since left - returned on the line above, where
+               * it always did. Reaching here means the run is still going and
+               * something it is waiting on was cancelled anyway: a request
+               * `shush` killed a moment before the cache handed it over, or
+               * the reader pausing inside the window where `play()` had not
+               * settled yet.
+               *
+               * The second is theirs to undo and the first is worth asking
+               * for again. Neither is a reason to stop, and stopping without
+               * saying anything is what this did: the phase stayed on
+               * "Getting the voice" until the deadline fired ten seconds
+               * later and blamed the browser for a request that was never
+               * made.
+               */
+              if (!pausedRef.current && retried.current !== i) {
+                retried.current = i;
+                performRef.current(i);
+              }
+              return;
+            }
             setTrouble(
               e instanceof DOMException && e.name === "NotAllowedError"
                 ? "This browser blocked the audio. Press play again."
