@@ -6,7 +6,7 @@ import { McpClients } from "@/components/McpClients";
 import { getBodies, getOverview, getTools } from "@/lib/api";
 import { mcpUrl } from "@/lib/mcp";
 import { meetingDate } from "@/lib/format";
-import { siteUrl } from "@/lib/site";
+import { mcpName, siteUrl } from "@/lib/site";
 import s from "./about.module.css";
 
 /**
@@ -247,7 +247,7 @@ export default async function AboutPage() {
             numbered steps do not stack. The reader knows which program they
             use, so asking them is cheaper than showing them all five. */}
         <p className={s.installsLead}>Add it to</p>
-        <McpClients origin={siteUrl()} />
+        <McpClients origin={siteUrl()} name={mcpName()} />
 
         {/* The tool list needs a lead of its own now. Directly under four
             install rows and with none of its own, it read as a fifth one. */}

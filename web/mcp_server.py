@@ -7,6 +7,7 @@ able to close each other.
 """
 import json
 import os
+import re
 import sys
 
 import anyio
@@ -25,8 +26,36 @@ import limits                                        # noqa: E402
 import tools                                         # noqa: E402
 from wire import jsonable                            # noqa: E402
 
-NAME = "pasco-meeting-archive"
+#
+#  WHAT THIS SERVER CALLS ITSELF, from the environment.
+#
+# Both strings go out in the initialize handshake and both are per-instance:
+# `civic-watch` is the code, and the archive it happens to be serving is not.
+# Pasco Watch sets MCP_NAME=pasco-meeting-archive and MCP_TITLE=Pasco Watch, so
+# the name every existing client already has in its config is unchanged.
+# MCP_TITLE governs the handshake and nothing else - the UI still carries its
+# brand as a literal, so this is deliberately not called SITE_NAME.
+#
+# THE SAME MCP_NAME HAS TO REACH THE UI, which prints it in the `claude mcp
+# add` and `codex mcp add` lines on /about - a reader should be told to
+# register the server under the name the handshake actually announces. One
+# container, one environment, so production gets both from the one variable;
+# in development Next reads ui/.env.local and only Python reads env.local.sh,
+# which is why the variable is written in both (the same seam SITE_URL has).
+# ui/lib/site.ts mcpName() is the other half, slug rule included.
 VERSION = "1.0"
+
+
+def _slug(raw, fallback):
+    """A client alias, out of whatever the operator typed. It lands in a shell
+       command, a TOML table header and a JSON key on /about, so a name with a
+       space in it would hand the reader something that does not run."""
+    s = re.sub(r"[^a-z0-9]+", "-", (raw or "").strip().lower()).strip("-")
+    return s or fallback
+
+
+NAME = _slug(os.environ.get("MCP_NAME"), "civic-watch")
+TITLE = (os.environ.get("MCP_TITLE") or "").strip() or "Civic Watch"
 
 # Handed to every client at initialize, so it is in front of the model whether
 # or not anyone asked for a prompt. Deliberately SHORT: this is the part that
@@ -328,7 +357,7 @@ def build():
     server = Server(
         NAME,
         version=VERSION,
-        title="Pasco Watch",
+        title=TITLE,
         instructions=instructions,
         on_list_tools=_list_tools,
         on_call_tool=_call_tool,

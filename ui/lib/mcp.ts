@@ -2,17 +2,13 @@
  * Where the tool endpoint can be added, and the exact thing each client wants
  * to be given.
  *
- * ORIGIN IS PASSED IN, never read here. `siteUrl()` reads a server-only
- * environment variable and one of the two callers is a client component; a
- * helper that reached for it directly would render the deployed host on the
- * server and localhost in the browser, which is a hydration mismatch that
- * presents as a copy button handing over the wrong address.
+ * ORIGIN AND NAME ARE PASSED IN, never read here. `siteUrl()` and `mcpName()`
+ * read server-only environment variables and one of the two callers is a
+ * client component; a helper that reached for them directly would render the
+ * deployed values on the server and the fallbacks in the browser, which is a
+ * hydration mismatch that presents as a copy button handing over the wrong
+ * address.
 */
-
-/** The name the server answers to (web/mcp_server.py `NAME`). A client lists
- *  its servers under this, so it should match what the handshake says rather
- *  than being a second, prettier name for the same thing. */
-export const MCP_NAME = "pasco-meeting-archive";
 
 export const mcpUrl = (origin: string) => `${origin}/mcp`;
 
@@ -50,8 +46,13 @@ export type Client = {
  * --transport http`, which answers a question they did not ask and reads as
  * "this is not for you". "Anything else" stays last; it is the one to reach
  * for once none of the four named ones matched.
+ *
+ * `name` is what the server announces at initialize (web/mcp_server.py
+ * `NAME`), resolved by `mcpName()` in a server component. A client lists its
+ * servers under this, so it should match the handshake rather than being a
+ * second, prettier name for the same thing.
  */
-export function clients(origin: string): Client[] {
+export function clients(origin: string, name: string): Client[] {
   const url = mcpUrl(origin);
   return [
     {
@@ -88,7 +89,7 @@ export function clients(origin: string): Client[] {
       lede: "One command, in a terminal.",
       snippet: {
         lang: "shell",
-        text: `claude mcp add --transport http ${MCP_NAME} ${url}`,
+        text: `claude mcp add --transport http ${name} ${url}`,
         label: "Copy the command",
       },
       note:
@@ -101,13 +102,13 @@ export function clients(origin: string): Client[] {
       lede: "One command, in a terminal.",
       snippet: {
         lang: "shell",
-        text: `codex mcp add ${MCP_NAME} --url ${url}`,
+        text: `codex mcp add ${name} --url ${url}`,
         label: "Copy the command",
       },
       also: {
         lead: "If your Codex does not take --url, write it into ~/.codex/config.toml instead:",
         lang: "toml",
-        text: `[mcp_servers.${MCP_NAME}]\nurl = "${url}"`,
+        text: `[mcp_servers.${name}]\nurl = "${url}"`,
         label: "Copy the config",
       },
     },
@@ -117,7 +118,7 @@ export function clients(origin: string): Client[] {
       lede: "Streamable HTTP. No sign-in, no key, no account.",
       snippet: {
         lang: "json",
-        text: `{\n  "${MCP_NAME}": {\n    "type": "http",\n    "url": "${url}"\n  }\n}`,
+        text: `{\n  "${name}": {\n    "type": "http",\n    "url": "${url}"\n  }\n}`,
         label: "Copy the server block",
       },
       note:

@@ -70,6 +70,14 @@
           Description="Postgres connection string, e.g. postgresql://civic:PASSWORD@10.0.0.6:5432/civic_meetings. Was called PASCO_DSN, which the image still accepts: on an existing container, add this one and remove the old at your leisure, in either order."
           Type="Variable" Display="always" Required="true" Mask="true"/>
 
+  <Config Name="MCP_NAME" Target="MCP_NAME" Default="pasco-meeting-archive"
+          Description="What the tool endpoint calls itself: the name in the initialize handshake, and the one /about tells a reader to register the server under. Lower-cased and hyphenated whatever you type, since it lands in a shell command and a JSON key. Both halves of the container read this one variable. Unset, the server answers to civic-watch."
+          Type="Variable" Display="always" Required="false" Mask="false">pasco-meeting-archive</Config>
+
+  <Config Name="MCP_TITLE" Target="MCP_TITLE" Default="Pasco Watch"
+          Description="The human-readable title beside that name in the handshake. Unset, Civic Watch. It governs the tool endpoint only; the pages carry their own brand."
+          Type="Variable" Display="always" Required="false" Mask="false">Pasco Watch</Config>
+
   <Config Name="SITE_URL" Target="SITE_URL" Default="https://pasco.watch"
           Description="The public origin. Read at run time by the sitemap, robots.txt, canonical links and Open Graph tags. Nothing is baked into the image, which is what lets one image serve any county."
           Type="Variable" Display="always" Required="true" Mask="false">https://pasco.watch</Config>

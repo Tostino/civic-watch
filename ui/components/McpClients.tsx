@@ -12,8 +12,8 @@ import s from "./McpClients.module.css";
  * because a radio group is what this actually is. The only script on the page
  * is the clipboard, which cannot be anything else.
 */
-export function McpClients({ origin }: { origin: string }) {
-  const list = clients(origin);
+export function McpClients({ origin, name }: { origin: string; name: string }) {
+  const list = clients(origin, name);
   const url = mcpUrl(origin);
 
   return (
