@@ -991,6 +991,9 @@ def main():
     ap.add_argument("--no-dense", action="store_true",
                     help="skip loading the embedding model; search falls back "
                          "to keywords and says so")
+    ap.add_argument("--no-voice", action="store_true",
+                    help="skip fetching and loading the speech model; /api/say "
+                         "still loads it on demand")
     args = ap.parse_args()
     try:
         with db.connect(autocommit=True) as c:
@@ -1009,6 +1012,36 @@ def main():
         print(f"cannot reach the database: {e}\n"
               f"  source ./env.local.sh first", file=sys.stderr)
         return 1
+    # THE VOICE, ON A THREAD, AND STARTED FIRST SO THE TWO OVERLAP.
+    #
+    # Same argument as the embedding model below - the reader who presses play
+    # first should not pay for loading it - but it cannot be done the same
+    # way. The weights are a 338 MB download the first time, and
+    # deploy/entrypoint.sh gives this process 120 seconds to start listening
+    # before it calls the API dead and takes the container down with it. The
+    # embedding model already spends about 50 of those on CPU. Fetching the
+    # voice inline would put a cold start on a slow link over the edge, so an
+    # empty model volume would present as a container that will not boot.
+    #
+    # Off the critical path it costs nothing and changes no behaviour anybody
+    # can be hurt by: `say.voice()` holds a lock, so a reader who gets there
+    # first simply waits on the same load this started, which is exactly what
+    # they did before. Daemon, so it can never hold up a shutdown.
+    if not args.no_voice:
+        def warm_voice():
+            try:
+                say.voice()
+                print("[say] voice READY", flush=True)
+            except Exception as e:                            # noqa: BLE001
+                # Not fatal, and deliberately not silent. Every other endpoint
+                # works without a voice, and an operator who mounted the model
+                # directory wrong should hear about it at boot rather than
+                # from the first reader who presses play.
+                print(f"[say] voice UNAVAILABLE: {e}", file=sys.stderr,
+                      flush=True)
+        threading.Thread(target=warm_voice, name="warm-voice",
+                         daemon=True).start()
+
     # Load the embedding model before the port opens, not on the first search:
     # it costs ~6s and the reader who happens to be first should not pay it.
     if not args.no_dense:
