@@ -300,6 +300,16 @@ a.title:hover {
   background: var(--live);
 }
 
+.stop {
+  position: absolute;
+  width: 2px;
+  height: 0.62rem;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--live);
+  opacity: 0.55;
+}
+
 .knob {
   position: absolute;
   width: 0.6rem;

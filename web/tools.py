@@ -1,4 +1,5 @@
 """The retrieval surface, as callable tools."""
+import math
 import os
 import re
 import sys
@@ -1429,17 +1430,33 @@ def _attach_urls(name, out):
     rather than citable passages, and a URL on each would put back the
     per-row repetition the window exists to remove.
 
-    The query shape is the meeting page's own contract (`?v=` and `?t=`, read
-    in ui/app/meeting/[id]/page.tsx), so a link lands on the words rather than
-    at the top of a six-hour recording.
+    The query shape is the meeting page's own contract (`?v=`, `?t=` and
+    `?end=`, read in ui/app/meeting/[id]/page.tsx), so a link lands on the
+    words rather than at the top of a six-hour recording, AND STOPS AT THE END
+    OF THEM.
+
+    `end` is what makes a citation a quotation rather than a starting gun.
+    Everything here already knew where a passage stopped - `p."end"` is in
+    PASSAGE_HIT and has been on every hit this file has ever returned - and
+    the link threw it away, so a reader sent to a forty-second exchange got
+    forty seconds of it and then however many hours of unrelated county
+    business were recorded next. Somebody else's client cannot compute this:
+    it renders the url it was handed and nothing more, which is exactly why
+    the url has to carry both edges.
+
+    Rounded UP, because a passage's end is the last word's end and a truncating
+    int would clip the final syllable off every quote in the archive.
     """
     if not SITE or not isinstance(out, dict):
         return out
 
     def moment(h):
         if h.get("meeting_id") and h.get("video_id") and h.get("start") is not None:
-            return _url(f"/meeting/{h['meeting_id']}?v={quote(str(h['video_id']))}"
-                        f"&t={int(h['start'])}")
+            url = (f"/meeting/{h['meeting_id']}?v={quote(str(h['video_id']))}"
+                   f"&t={int(h['start'])}")
+            if h.get("end") is not None and h["end"] > h["start"]:
+                url += f"&end={math.ceil(h['end'])}"
+            return _url(url)
         return None
 
     for h in out.get("hits") or []:

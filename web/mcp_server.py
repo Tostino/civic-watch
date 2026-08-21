@@ -81,6 +81,15 @@ or item. Where your client renders links, make the citation the link; a reader
 who cannot check a quote has to take your word for it, and the point of this
 archive is that nobody has to.
 
+A TRANSCRIPT CITATION HAS TWO EDGES, and the archive knows both: every hit
+carries `start` and `end` in seconds, and its `url` carries them as `t` and
+`end`, so following one plays the cited stretch and STOPS there instead of
+running on into the rest of a six-hour meeting. When you name a time in your
+own prose, name the range - "from 1:57:52 to 2:00:14" - not the start alone.
+Cite the passages the claim actually rests on and no more: consecutive
+passages are consecutive seconds of recording, so a citation you padded is a
+reader you made sit through the padding.
+
 Where the tools do not settle a question, say so. "The archive does not show
 this" is a complete answer here."""
 
@@ -98,7 +107,13 @@ name from one passage and a figure from another, it carries both.
 
 Never cite an id you did not receive from a tool in this conversation. Do not
 cite anything for a claim about what is NOT there; say what you searched for
-and what came back empty, and let that sentence stand on the searching."""
+and what came back empty, and let that sentence stand on the searching.
+
+A passage is a STRETCH of recording, not a moment in one: it carries `start`
+and `end`, and its `url` carries both, so a reader who follows it hears the
+quoted exchange and no more. Where you write a time, write the range. Where
+you cite a run of passages, cite the ones the sentence rests on - the last
+one's `end` is where the reader is let go."""
 
 _PLAIN = """HOW TO WRITE IT. Somebody who lives in the county, was not at the
 meeting, and does not follow local government. Short sentences, ordinary

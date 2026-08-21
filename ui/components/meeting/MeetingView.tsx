@@ -22,6 +22,17 @@ import s from "./MeetingView.module.css";
 export interface MeetingLocation {
   videoId?: string;
   t?: number;
+  /**
+   * Where the recording stops on its own, in seconds.
+   *
+   * `t` is where a link was aimed; this is how much of the recording the link
+   * was about. It arrives on citations from the agent and from MCP, where the
+   * whole point is that a stranger's client can hand a reader forty seconds of
+   * a hearing and give them the archive back afterwards rather than leaving a
+   * county meeting running in a tab. Arrival state only: the player disarms it
+   * as it fires, and a reader who scrubs has already said they want more.
+   */
+  end?: number;
   item?: number;
   /** Utterance range to mark, inclusive. From a search hit's passage. */
   focus?: [number, number];
@@ -43,6 +54,8 @@ export interface MeetingLocation {
 export interface Cue {
   videoId: string;
   seconds: number;
+  /** Where to stop, when the cue came from a citation. Null for "play on". */
+  until: number | null;
   n: number;
 }
 
@@ -92,9 +105,19 @@ export function MeetingView({
    * back to where that item begins. */
   const [cue, setCue] = useState<Cue | null>(() => {
     if (!initialVideo) return null;
-    if (location.t != null) return { videoId: initialVideo, seconds: location.t, n: 1 };
+    if (location.t != null) {
+      return {
+        videoId: initialVideo,
+        seconds: location.t,
+        until: location.end ?? null,
+        n: 1,
+      };
+    }
     if (linkedSpan && linkedSpan.video_id === initialVideo) {
-      return { videoId: initialVideo, seconds: linkedSpan.start, n: 1 };
+      /* An `?item=` alone gets no stop point, for the reason seek() gives
+         below: an item is a place to start listening, not a claim that the
+         answer ends there. Only an explicit `end` arms it. */
+      return { videoId: initialVideo, seconds: linkedSpan.start, until: null, n: 1 };
     }
     return null;
   });
@@ -118,10 +141,15 @@ export function MeetingView({
 
   /** Every explicit "take me to this moment" goes through here. */
   const seek = useCallback(
+    /* No `until` on this path, and that is the design rather than an omission.
+       Clicking a line of the transcript, or an item on the spine, is a reader
+       settling in to LISTEN from there; a stop point belongs to a citation,
+       which is somebody else's claim about which forty seconds answered a
+       question. */
     (vid: string, seconds: number, autoplay = true) => {
       setVideoId(vid);
       setView("transcript");
-      setCue((c) => ({ videoId: vid, seconds, n: (c?.n ?? 0) + 1 }));
+      setCue((c) => ({ videoId: vid, seconds, until: null, n: (c?.n ?? 0) + 1 }));
       player.play(sourceFor(vid), seconds, autoplay);
     },
     [player, sourceFor],
@@ -134,7 +162,7 @@ export function MeetingView({
   useEffect(() => {
     if (restored.current || !cue) return;
     restored.current = true;
-    player.play(sourceFor(cue.videoId), cue.seconds, false);
+    player.play(sourceFor(cue.videoId), cue.seconds, false, cue.until);
     // Runs once, for the cue the page was built with; later cues come from
     // seek(), which drives the player itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,11 +211,22 @@ export function MeetingView({
       q.set("from", String(location.focus[0]));
       q.set("to", String(location.focus[1]));
     }
+    /* Carried like `focus` - this effect rebuilds the query from scratch and
+       drops whatever it does not know about - but only while it is still
+       ahead of the playhead. Once the recording has run past the cited
+       stretch, `end` is a lie about this view, and copying the address bar
+       would hand somebody a link that stops before it starts. */
+    if (
+      location.end != null &&
+      (playhead.videoId !== video.id || playhead.position < location.end)
+    ) {
+      q.set("end", String(location.end));
+    }
     const url = `${window.location.pathname}?${q}`;
     if (url === lastUrl.current) return;
     lastUrl.current = url;
     window.history.replaceState(null, "", url);
-  }, [video, playhead.videoId, playhead.position, activeItem, location.focus]);
+  }, [video, playhead.videoId, playhead.position, activeItem, location.focus, location.end]);
 
   const selectItem = useCallback(
     /* `at` is the appearance the reader clicked. The spine lists an item once

@@ -56,6 +56,13 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
   }, [p]);
 
   const pct = p.duration ? Math.min(100, (p.position / p.duration) * 100) : 0;
+  /* Where a citation's stretch runs out, as a tick on the bar. A player that
+     stops by itself and says nothing looks broken, and the reader's next move
+     is to press play again to find out - which is the one thing that undoes
+     what the stop was for. One mark, ahead of the knob, and it is gone the
+     moment the stop fires or the reader scrubs past it. */
+  const stopPct =
+    p.until != null && p.duration ? Math.min(100, (p.until / p.duration) * 100) : null;
   const active = Boolean(p.source);
   const { placement } = place;
 
@@ -210,7 +217,11 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
             aria-valuemin={0}
             aria-valuemax={Math.round(p.duration)}
             aria-valuenow={Math.round(p.position)}
-            aria-valuetext={`${clock(p.position)} of ${clock(p.duration)}`}
+            aria-valuetext={
+              p.until != null
+                ? `${clock(p.position)} of ${clock(p.duration)}, stopping at ${clock(p.until)}`
+                : `${clock(p.position)} of ${clock(p.duration)}`
+            }
             onKeyDown={onBarKey}
             onPointerDown={(e) => {
               e.currentTarget.setPointerCapture(e.pointerId);
@@ -220,6 +231,9 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
           >
             <div className={s.track} />
             <div className={s.fill} style={{ width: `${pct}%` }} />
+            {stopPct != null ? (
+              <div className={s.stop} style={{ left: `${stopPct}%` }} aria-hidden />
+            ) : null}
             <div className={s.knob} style={{ left: `${pct}%` }} />
           </div>
         </div>

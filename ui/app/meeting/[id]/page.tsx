@@ -8,7 +8,14 @@ import { meetingDate } from "@/lib/format";
 /* Next 16: params and searchParams are Promises. */
 type Props = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ v?: string; t?: string; item?: string; from?: string; to?: string }>;
+  searchParams: Promise<{
+    v?: string;
+    t?: string;
+    end?: string;
+    item?: string;
+    from?: string;
+    to?: string;
+  }>;
 };
 
 async function load(idParam: string) {
@@ -48,6 +55,13 @@ export default async function MeetingPage({ params, searchParams }: Props) {
   // in the recording. Parsed here rather than in the client so a shared link
   // is right on the server-rendered first paint.
   const t = q.t != null ? Number(q.t) : NaN;
+  /* Where the recording stops on its own. A citation from the agent or from
+     an MCP client is a stretch of a meeting, not a moment in one, and this is
+     the half of it the URL never used to carry. Only honoured with a `t` in
+     front of it and only when it is actually later: an `end` on its own says
+     nothing, and one behind the start would stop the player the instant it
+     began. */
+  const end = q.end != null ? Number(q.end) : NaN;
   const item = q.item != null ? Number(q.item) : NaN;
   // The utterance range a search hit came from, so following a result lands on
   // the passage rather than near it. Utterance idx, not seconds: it is the
@@ -65,6 +79,10 @@ export default async function MeetingPage({ params, searchParams }: Props) {
       location={{
         videoId: q.v,
         t: Number.isFinite(t) && t >= 0 ? t : undefined,
+        end:
+          Number.isFinite(t) && t >= 0 && Number.isFinite(end) && end > t
+            ? end
+            : undefined,
         item: Number.isInteger(item) ? item : undefined,
         focus,
       }}
