@@ -1,44 +1,111 @@
 /* The archive's own words, under the recording. See Captions.tsx for why they
- * are not YouTube's, and why this is one line rather than a list. */
+ * are not YouTube's, and for what this went through before it was a list
+ * again. */
 
 .strip {
-  display: flex;
-  flex-direction: column;
-  align-items: start;
-  gap: 0.3rem;
-  padding: var(--sp-2) var(--sp-3);
   border-top: 1px solid var(--rule);
 }
 
 /*
- *  A FIXED HEIGHT, so nothing moves.
+ *  ROOM TO BE A LIST.
  *
- * The dock is a card the reader can drag anywhere and narrow to eighteen
- * rems, and it is often sitting beside prose that is being read. A strip that
- * grew and shrank with the length of each utterance would resize it, and
- * reflow whatever it is docked against, several times a minute.
+ * The first attempt gave this six rems, which holds three lines of county
+ * business - too few to see an argument turn, and enough of them crammed
+ * together to read as a wall. Nine is five or six lines: what is being said,
+ * a couple of sentences of what led to it, and a couple of where it is going.
  *
- * Four lines holds the great majority of what this archive's speakers say in
- * one breath - the mean utterance is 173 characters, which is under three
- * lines at the width this card opens at. Longer ones are clamped rather than
- * scrolled: a scrollbar inside a caption is furniture, and the whole line is
- * one click away on the meeting page.
+ * A CEILING, NOT A HEIGHT. It is the largest this may be, and a short
+ * transcript simply takes less - the dock is a card the reader can drag
+ * anywhere, and one that reserved nine rems of empty space under every
+ * recording would be nine rems of nothing most of the time.
+ */
+.box {
+  max-height: 9rem;
+  overflow-y: auto;
+  /* Thin, because the box is 9rem tall and a platform scrollbar with stepper
+     arrows on it was a third of the furniture in here. */
+  scrollbar-width: thin;
+  padding: var(--sp-2) var(--sp-3);
+  /* AFTER the shorthand, which would otherwise put it back. A speaker's name
+     sticks to this edge, and padding above it is a gap the lines scroll
+     through on their way past - so the top padding moves onto the name. */
+  padding-block-start: 0;
+  /* It scrolls itself to follow the playhead. A reader who reaches the end of
+     it should not then find the page scrolling behind them. */
+  overscroll-behavior: contain;
+}
+
+.turn {
+  margin-block-end: 0.4rem;
+}
+
+/*
+ *  WHOSE WORDS THESE ARE, for as long as they are on screen.
+ *
+ * Drawn once per turn and left in the flow, the name scrolled away the
+ * instant anybody said more than fits in the box - which in county business
+ * is most of the time - and the reader was left watching a paragraph with
+ * nobody attached to it. This is the one thing a caption must never be
+ * ambiguous about, in an archive whose whole discipline is not putting words
+ * in the wrong mouth.
+ *
+ * Sticky inside its own turn rather than pinned to the strip, so it is the
+ * name of whatever is on screen and not just of whatever is playing: scroll
+ * back two minutes and the name at the top is the person who was talking two
+ * minutes ago.
+ */
+.who {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 0.15rem;
+  padding-block: var(--sp-2) 0.15rem;
+  /* The card's own surface, so lines pass behind it rather than through it. */
+  background: var(--surface);
+}
+
+/*
+ *  WHAT IS BEING SAID, and what is merely nearby.
+ *
+ * One distinction, not three. An earlier version dimmed the past and the
+ * future differently and the result was three greys nobody could rank at a
+ * glance - which is the only way this is ever read, since the reader is
+ * listening at the same time.
+ *
+ * A button, because a line is a place in the recording and pressing it goes
+ * there. Flat, because a transcript set in buttons reads as a menu: no
+ * border, no weight, no underline, and a tint under the pointer to say it can
+ * be pressed at all.
  */
 .said {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
-  /* Held open at its full height whether or not there are words in it, so a
-     gap in the transcript is a quiet pause rather than a jump. */
-  min-height: calc(4 * var(--leading-normal) * 1em);
-  margin: 0;
-  /* A caption is read at a glance while listening, so it is a step up from
-     the dock's other text rather than the smallest thing on the card. */
-  font-size: var(--text-xs);
+  display: block;
+  width: 100%;
+  padding: 0.05rem 0 0.05rem 0.5rem;
+  font: inherit;
+  font-size: var(--text-2xs);
   line-height: var(--leading-normal);
+  color: var(--ink-3);
+  text-align: start;
+  background: none;
+  /* Transparent rather than absent, so the line being spoken gaining a rule
+     does not shift every other line half a character to the right. */
+  border: none;
+  border-inline-start: 2px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.said:hover {
+  color: var(--ink-2);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+/* The archive's live colour, the same one the narration bar and a playing
+   citation carry: this is the recording talking, and it is where the reading
+   has got to. */
+.said[data-now] {
   color: var(--ink);
-  text-wrap: pretty;
+  border-inline-start-color: var(--live);
 }
 
 /* Not an error. A recording with no transcript is an ordinary state of this
@@ -46,6 +113,7 @@
    and it is a different fact from silence in the room. */
 .none {
   margin: 0;
+  padding: var(--sp-2) var(--sp-3);
   font-size: var(--text-2xs);
   line-height: var(--leading-normal);
   color: var(--ink-4, var(--ink-3));
