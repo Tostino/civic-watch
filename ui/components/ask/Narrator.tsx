@@ -98,6 +98,14 @@ export function Narrator({ narration: n }: { narration: Narration }) {
                 || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
       const take = () => {
         e.preventDefault();
+        /* IMMEDIATE, because the dock's own `j k l` are on this same window.
+         * Plain `stopPropagation` separates them only by phase - this listens
+         * in the capture phase and the dock's listens in the bubble one - and
+         * that distinction disappears whenever `window` is itself the event's
+         * target, where every listener on it runs at AT_TARGET regardless of
+         * the phase it registered for. Then both handlers fire and `k` both
+         * holds the narration and starts the recording under it. */
+        e.stopImmediatePropagation();
         e.stopPropagation();
       };
       if (e.key === KEYS.hold) { take(); n.togglePause(); }

@@ -432,6 +432,19 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
 
       if (step.kind === "say") {
         setPhase("fetching");
+        /* THE RECORDING YIELDS TO THE VOICE. Two things talking at once is
+         * two things nobody can follow, and there are several ways to arrive
+         * here with a recording still running: pressing play on an answer
+         * while watching a clip you opened yourself, clicking a sentence
+         * mid-recording, stepping back off a citation. Only the clips this
+         * narration started were ever stopped, because only those went
+         * through `jump`.
+         *
+         * `pause`, not `toggle`: this has to mean "be quiet" rather than
+         * "change", or the times the recording was already stopped are the
+         * times this starts it. The stop point survives, so the reader can
+         * still pick the recording up where they left it. */
+        player.pause();
         chunk(step.text)
           .then((url) => {
             if (run.current !== mine) return;
@@ -671,6 +684,8 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
     const a = sound.current;
     if (paused) {
       setPaused(false);
+      // Resuming the voice is the voice starting, and the same rule applies.
+      player.pause();
       /* Resumes mid-sentence, where the browser voice could not. An audio
          element holds its position, so there is no reason to re-read a
          sentence the reader has already heard most of. */

@@ -192,6 +192,18 @@ interface PlayerState {
    *  who scrubs has left the cited stretch behind, whichever way they went. */
   seek(seconds: number): void;
   toggle(): void;
+  /**
+   * Stop the recording, without meaning anything by it.
+   *
+   * NOT `toggle`, which is what everything reached for before this existed
+   * and is the wrong tool for "make sure it is quiet": it starts a stopped
+   * video as readily as it stops a running one, so a caller that guessed
+   * wrong about the current state produced the exact noise it was trying to
+   * prevent. And not `seek` or `close`, because neither of those is what a
+   * pause means: the stop point a citation armed survives this, so the
+   * recording can be picked up again where it was left.
+   */
+  pause(): void;
   close(): void;
   setExpanded(v: boolean): void;
   /** Re-attempt after a failure. YouTube is someone else's service. */
@@ -471,6 +483,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setPosition(at);
   }, [disarm]);
 
+  const pause = useCallback(() => {
+    playerRef.current?.pauseVideo();
+  }, []);
+
   const toggle = useCallback(() => {
     const p = playerRef.current;
     if (!p) return;
@@ -510,12 +526,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       play,
       seek,
       toggle,
+      pause,
       close,
       setExpanded,
       retry,
     }),
     [source, position, duration, playing, ready, failed, expanded, until, segment,
-     onSegmentEnd, play, seek, toggle, close, retry],
+     onSegmentEnd, play, seek, toggle, pause, close, retry],
   );
 
   return (
