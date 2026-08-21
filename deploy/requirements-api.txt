@@ -30,3 +30,21 @@ uvicorn==0.52.3
 mcp==2.0.0
 mcp-types==2.0.0
 pydantic==2.13.4
+
+# Reading an answer aloud (web/say.py). Kokoro is 82M parameters of Apache-2.0
+# text-to-speech, and it is here rather than in a fourth virtualenv because
+# `kokoro-onnx` runs on onnxruntime and NOT torch - the pin conflict that
+# split this project into three venvs does not reach it.
+#
+# `espeakng-loader` carries the phonemiser as a wheel, which is what keeps
+# espeak-ng off this image's apt list; there is no apt list. `lameenc` is the
+# encoder for the same reason: the runtime has no ffmpeg, and 24 kHz WAV is
+# 4.3 MB per answer against 700 KB of 64 kbit MP3.
+#
+# THE WEIGHTS ARE NOT IN THE IMAGE. 338 MB that never changes, mounted at
+# SAY_MODEL_DIR the same way HF_HOME is. Unmounted, /api/say reports itself
+# unavailable and every other endpoint carries on.
+kokoro-onnx==0.6.1
+onnxruntime==1.29.0
+espeakng-loader==0.2.4
+lameenc==1.8.4

@@ -56,6 +56,16 @@
           Description="Where the 0.6B embedding model is cached. MUST be writable by uid 65534 - the container runs as nobody. Run: mkdir -p /mnt/user/appdata/civicwatch/models &amp;&amp; chown -R 65534:65534 /mnt/user/appdata/civicwatch/models. Get this wrong and the model never loads, search silently degrades to BM25 only, and the container still looks healthy."
           Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/civicwatch/models</Config>
 
+  <Config Name="Voice" Target="/voice"
+          Default="/mnt/user/appdata/civicwatch/voice" Mode="rw"
+          Description="Where the text-to-speech model is cached, so /ask can read an answer aloud. 338 MB, fetched on first use like the embedding model above, and MUST be writable by uid 65534. Run: mkdir -p /mnt/user/appdata/civicwatch/voice &amp;&amp; chown -R 65534:65534 /mnt/user/appdata/civicwatch/voice. Leave it unmapped and the archive still serves everything else; the read-aloud control simply reports that it has no voice."
+          Type="Path" Display="always" Required="false">/mnt/user/appdata/civicwatch/voice</Config>
+
+  <Config Name="Spoken audio" Target="/said"
+          Default="/mnt/user/appdata/civicwatch/said" Mode="rw"
+          Description="Rendered speech, kept between restarts. An answer is immutable, so its audio is rendered once and every listener after the first pays nothing; unmapped, that work is redone after every container recreation. About 700 KB per answer. Same ownership requirement as the two above."
+          Type="Path" Display="always" Required="false">/mnt/user/appdata/civicwatch/said</Config>
+
   <Config Name="PASCO_DSN" Target="PASCO_DSN" Default=""
           Description="Postgres connection string, e.g. postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings"
           Type="Variable" Display="always" Required="true" Mask="true"/>

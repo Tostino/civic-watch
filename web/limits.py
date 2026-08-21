@@ -244,6 +244,75 @@ def mcp_reserve(ip, tool):
     return release
 
 
+# ------------------------------------------------------------------- say
+#
+# Reading an answer aloud, one sentence per call. A DIFFERENT SHAPE from the
+# two ceilings above: a narration is intrinsically chatty - twenty-odd calls
+# for one answer, because the chunk a voice speaks is the chunk the page
+# highlights - so the per-call cost has to be low and the count high. It is,
+# after the first listener: web/say.py caches every rendered sentence on disk
+# and the second request for one is a file read.
+#
+# What this bounds is therefore the FIRST listener's CPU, and the way to spend
+# it is not rate but concurrency, which is why the concurrent ceiling is the
+# tight one. Synthesis measured at 7x real time on one core; two at once
+# leaves the search path its cores.
+SAY_WINDOW = int(os.environ.get("SAY_WINDOW") or 60)
+SAY_PER_IP = int(os.environ.get("SAY_PER_IP") or 120)
+SAY_MAX_CONCURRENT = int(os.environ.get("SAY_MAX_CONCURRENT") or 2)
+
+_say_lock = threading.Lock()
+_say_hits = {}
+_say_running = 0
+
+
+def say_reserve(ip):
+    """Claim a slot for one sentence of narration, or raise Throttled."""
+    now = time.monotonic()
+    with _say_lock:
+        global _say_running
+        for dead in [i for i, q in _say_hits.items()
+                     if not q or now - q[-1] > SAY_WINDOW]:
+            del _say_hits[dead]
+        if len(_say_hits) > MAX_TRACKED_IPS:
+            for i in sorted(_say_hits, key=lambda i: _say_hits[i][-1])[
+                    :len(_say_hits) - MAX_TRACKED_IPS]:
+                del _say_hits[i]
+
+        # Zero closes the surface without a deploy, as everywhere else here.
+        if SAY_PER_IP <= 0:
+            raise Throttled("This archive is not reading answers aloud at the "
+                            "moment.", kind="closed")
+
+        seen = _say_hits.setdefault(ip, deque())
+        while seen and now - seen[0] > SAY_WINDOW:
+            seen.popleft()
+        if len(seen) >= SAY_PER_IP:
+            wait = int(SAY_WINDOW - (now - seen[0])) + 1
+            raise Throttled(
+                f"That is {SAY_PER_IP} sentences read aloud in "
+                f"{_plain(SAY_WINDOW)} from this address, which is the limit. "
+                f"Try again in {_plain(wait)}.", retry_after=wait, kind="rate")
+        if _say_running >= SAY_MAX_CONCURRENT:
+            raise Throttled("This archive is reading as much as it can at "
+                            "once. Try again in a moment.",
+                            retry_after=3, kind="busy")
+        seen.append(now)
+        _say_running += 1
+
+    done = False
+
+    def release():
+        nonlocal done
+        with _say_lock:
+            global _say_running
+            if not done:
+                done = True
+                _say_running = max(0, _say_running - 1)
+
+    return release
+
+
 def _plain(seconds):
     """The wait, in words. A reader is being told to come back, so this says
     minutes rather than 247."""

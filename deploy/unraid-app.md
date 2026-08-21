@@ -60,11 +60,27 @@ The image runs as `nobody` (uid **65534**) and caches the 0.6B embedding model i
 container cannot write to it. Before the first start:
 
 ```
-mkdir -p /mnt/user/appdata/civicwatch/models && chown -R 65534:65534 /mnt/user/appdata/civicwatch/models
+mkdir -p /mnt/user/appdata/civicwatch/{models,voice,said}
+chown -R 65534:65534 /mnt/user/appdata/civicwatch/{models,voice,said}
 ```
 
 Get this wrong and the model re-downloads on every recreation at best, and never
 loads at all at worst. The startup line tells you which.
+
+`voice` and `said` are the other two, and they behave the same way. `/voice`
+caches the 338 MB text-to-speech model that lets `/ask` read an answer aloud;
+`/said` keeps the audio it renders, which is what makes the second listener to
+any answer free. Both fetch and fill themselves on first use - there is nothing
+to install - and both are optional in the sense that the archive serves
+everything else without them. What you lose by skipping them is the read-aloud
+control reporting that it has no voice, and every restart paying to render the
+same sentences again.
+
+A host that must not reach the network can set `SAY_AUTOFETCH=0`, which turns
+the download off and makes the surface report itself unavailable rather than
+hanging on a connection it will not get. Pre-seed it with `bin/get_voice.sh
+/mnt/user/appdata/civicwatch/voice` if you would rather the first reader did
+not wait the fifteen seconds.
 
 ## 3. Point NPM at it
 

@@ -60,6 +60,51 @@
 }
 
 /*
+ *  WHAT IS BEING READ, while it is being read.
+ *
+ * The prose is split into the chunks a voice speaks one at a time, and each
+ * one is a span whether or not anybody ever presses play - so this selector
+ * is the entire cost of the highlight, and an answer nobody listens to renders
+ * exactly as it did before.
+ *
+ * A background rather than a colour change: the text must stay the colour the
+ * rest of the answer is, because the reader is READING it. Something that
+ * recoloured every sentence in turn would be a thing happening TO the prose
+ * rather than a place in it.
+*/
+.chunk[data-saying] {
+  /* MIXED, not the `--live-soft` token, which is the right colour and the
+     wrong strength for this. That token is sized for a whole panel with a
+     border on it - the narrator's own bar uses it - and measured against the
+     page it is #fbeee6 on #faf8f4, a difference of ten in one channel. On a
+     block it reads as a panel; on one sentence in the middle of a paragraph
+     it is invisible, which is the one thing this cannot be.
+
+     A mix carries into dark mode by itself: the same proportion of the same
+     orange over whatever the surface is. */
+  background: color-mix(in srgb, var(--live) 18%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 18%, transparent);
+  border-radius: 2px;
+}
+
+/* The citation being played, which is the same idea one step along: the mark
+   is where the reading has got to, and the recording is what is happening
+   there. Filled rather than tinted, because a marker is three characters and
+   a tint on three characters is invisible. */
+.refs[data-hearing] .markSaid {
+  color: var(--surface);
+  background: var(--live);
+  border-radius: 2px;
+}
+
+/* Both are followed by a scroll, so they need the same clearance under the
+   sticky header that a citation's own target does. */
+.chunk[data-saying],
+.refs[data-hearing] {
+  scroll-margin-block: 6rem;
+}
+
+/*
  *  A CITATION IS A NUMBER. Every chip this file has drawn put more
  * of the archive's furniture in the way of the sentence: four orange pills in
  * a row, then one pill holding a row of clocks, then a pill naming the

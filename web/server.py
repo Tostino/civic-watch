@@ -33,6 +33,7 @@ import asklog                                    # noqa: E402
 import db                                        # noqa: E402
 import limits                                    # noqa: E402
 import mcp_server                                # noqa: E402
+import say                                       # noqa: E402
 import tools                                     # noqa: E402
 from wire import jsonable                        # noqa: E402
 
@@ -430,6 +431,91 @@ def api_file(request, con):
         "Content-Disposition": f'inline; filename="{name}"',
         "Cache-Control": "public, max-age=86400"})
 
+# ------------------------------------------------------------------- say
+#
+# One sentence of an answer, spoken. See web/say.py for why the voice is local
+# and why the audio is cached rather than streamed from anywhere.
+#
+# THE TEXT IS CHECKED AGAINST THE ANSWER IT CLAIMS TO COME FROM, and that is
+# the whole of the abuse story. Without it this is a free text-to-speech
+# service on a public host, which is a thing people find and use for
+# everything except reading Pasco County meeting answers. With it, the only
+# text this endpoint will ever voice is text this archive already published at
+# a URL of its own, so it can render nothing that was not already readable.
+#
+# A POST, and deliberately not a cacheable GET. The alternative was an
+# addressable /api/say/<answer>/<n>, which needs the server to know which
+# sentence <n> is - and the sentence boundaries are decided in the browser,
+# where they have to be, because the chunk a voice speaks is the chunk the
+# page highlights while it speaks it. That would have been the same splitter
+# written twice in two languages, and the failure when they drifted would be
+# audio quietly one sentence out of step with the highlight. The cache that
+# matters is the server's disk, not the browser's.
+SAY_HEADERS = {"Cache-Control": "private, max-age=3600"}
+
+
+class _Refused(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code, self.message = code, message
+
+
+def _say(answer_id, text):
+    """Verify and render. Blocking, so it runs off the event loop."""
+    con = None
+    try:
+        con = connect()
+        row = con.execute("SELECT answer FROM answers WHERE id = %s",
+                          (answer_id,)).fetchone()
+    finally:
+        if con is not None:
+            con.close()
+    if not row:
+        raise _Refused(404, "no such answer")
+    # Substring, not equality: the caller is reading ONE sentence of it. The
+    # answer is a few kilobytes, so this is a scan of nothing.
+    if text not in (row["answer"] or ""):
+        raise _Refused(
+            400, "that text is not in that answer. This endpoint reads back "
+                 "answers this archive published; it does not voice "
+                 "arbitrary text.")
+    try:
+        return say.render(text)
+    except say.Unavailable as e:
+        raise _Refused(503, f"this archive has no voice loaded: {e}") from None
+
+
+async def api_say(request):
+    ip = limits.client_ip(request)
+    try:
+        release = limits.say_reserve(ip)
+    except limits.Throttled as t:
+        headers = {"Retry-After": str(t.retry_after)} if t.retry_after else None
+        return _json(request, {"error": t.message, "kind": t.kind},
+                     503 if t.kind == "closed" else 429, headers)
+    try:
+        try:
+            body = await request.json()
+        except Exception:                                     # noqa: BLE001
+            return _json(request, {"error": "expected a JSON body"}, 400)
+        answer_id = (body or {}).get("answer") or ""
+        text = (body or {}).get("text") or ""
+        if not isinstance(answer_id, str) or not isinstance(text, str):
+            return _json(request, {"error": "answer and text must be strings"}, 400)
+        if not text.strip():
+            return _json(request, {"error": "nothing to say"}, 400)
+        if len(text) > say.MAX_CHARS:
+            return _json(request, {"error": f"one sentence at a time, up to "
+                                            f"{say.MAX_CHARS} characters"}, 400)
+        try:
+            blob = await anyio.to_thread.run_sync(_say, answer_id, text)
+        except _Refused as r:
+            return _json(request, {"error": r.message}, r.code)
+        return Response(blob, media_type="audio/mpeg", headers=SAY_HEADERS)
+    finally:
+        release()
+
+
 # ------------------------------------------------------------------- ask
 # ------------------------------------------------------------------- ask
 # Headers every event-stream response carries. `no-transform` is the
@@ -790,6 +876,7 @@ def public_app():
             Route("/search", what_this_is), Route("/speakers", what_this_is),
 
             Route("/api/ask", api_ask),
+            Route("/api/say", api_say, methods=["POST"]),
             Route("/api/search", api_search),
             Route("/api/video/{video_id}", api_video),
 

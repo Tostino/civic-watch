@@ -59,6 +59,15 @@ RUN chmod +x /app/entrypoint.sh
 ENV HF_HOME=/models
 RUN mkdir -p /models && chown -R nobody:nogroup /models
 
+# The voice that reads answers aloud, and the audio it renders. Both are
+# volumes for the same reason the embedding cache above is: 338 MB of weights
+# re-downloaded on every container recreation is a slow first reader, and
+# re-rendering every sentence of every answer after a restart is the same
+# waste in CPU. Neither is required - with no model mounted, web/say.py
+# reports no voice and the rest of the archive is unaffected.
+ENV SAY_MODEL_DIR=/voice SAY_CACHE_DIR=/said
+RUN mkdir -p /voice /said && chown -R nobody:nogroup /voice /said
+
 # admin.init() writes a fresh token on every process start and /app is
 # root-owned, so as `nobody` the server died on boot with PermissionError before
 # serving a request. O_CREAT cannot make the file in a directory `nobody` may

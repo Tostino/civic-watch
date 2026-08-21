@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 
 import { ItemCard } from "@/components/ItemCard";
@@ -18,6 +18,8 @@ import {
   shortTitle,
 } from "@/lib/format";
 import type { AskResult, RecordHit, TranscriptHit } from "@/lib/types";
+import { Narrator } from "./Narrator";
+import { speakable, splitSentences, useNarration, type Step } from "./narration";
 import s from "./Answer.module.css";
 
 /**
@@ -38,11 +40,29 @@ export function Answer({ r }: { r: AskResult }) {
   /* Numbered once for the whole answer, because the prose and the two lists
      under it have to agree about what `[4]` is. */
   const marks = marksOf(r.answer, byId, items);
+  /* The same parts, as something to perform. Memoised on the answer text
+     rather than on `marks`, which is rebuilt every render: a new array every
+     render would restart the narration on every tick of the playhead. */
+  const steps = useMemo(
+    () => script(marks.parts, marks.plans),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [r.answer, r.evidence, r.record],
+  );
+  /* The answer's OWN id, which is what makes the archive willing to read it:
+     web/server.py checks each chunk against the answer it claims to come
+     from. A run that could not be saved has no id, so `Narrator` renders
+     nothing rather than a button that cannot work. */
+  const narration = useNarration(steps, r.id);
 
   return (
     <div className={s.answer}>
+      {/* OUTSIDE the article, not inside it. The article is the answer, and a
+          control that acts on the answer is not part of it - it also inherits
+          `--font-record` in there, which is the face the archive's own
+          documents are set in and the wrong one for a button. */}
+      <Narrator narration={narration} />
       <article className={s.prose}>
-        <Prose marks={marks} />
+        <Prose marks={marks} saying={narration.step?.part ?? -1} />
       </article>
 
       {/* no answer without evidence, and the empty result is designed
@@ -299,7 +319,17 @@ function marksOf(
   }
   pushText(text.slice(at));
 
-  return number(parts, byId, items);
+  /* ONE LAST PASS, and only now: the prose is broken into the chunks a voice
+     reads one at a time, which are also the chunks the page can highlight as
+     it reads them. It has to happen after everything above, because the rule
+     that hands a full stop to the citation in front of it decides where a
+     sentence ENDS, and splitting first would have split before that.
+
+     Numbering is untouched by this. `number` walks the parts looking only for
+     citation runs, and this only ever replaces one string with several. */
+  const chunked: Part[] = parts.flatMap(
+    (p): Part[] => (typeof p === "string" ? splitSentences(p) : [p]));
+  return number(chunked, byId, items);
 }
 
 /**
@@ -394,24 +424,194 @@ function number(
   return { parts, plans, item, said, anchor };
 }
 
-function Prose({ marks }: { marks: Marks }) {
+/**
+ * The answer itself.
+ *
+ * `saying` is the part the narration is on, and every part carries an id so
+ * that it can be found and scrolled to. Both are inert when nothing is being
+ * read aloud: a `data-` attribute that is always absent costs a reader
+ * nothing, and the alternative was a second copy of the prose renderer for
+ * the one case where somebody pressed play.
+ */
+function Prose({ marks, saying }: { marks: Marks; saying: number }) {
   return (
     <div className={s.paras}>
       {marks.parts.map((p, i) =>
         typeof p === "string" ? (
-          <Fragment key={`t${i}`}>{p}</Fragment>
+          <span key={`t${i}`} id={partId(i)} data-saying={i === saying || undefined}
+                className={s.chunk}>
+            {p}
+          </span>
         ) : isRun(p) ? (
-          <Refs key={`c${i}`} plan={marks.plans.get(p)!} />
+          <Refs key={`c${i}`} id={partId(i)} hearing={i === saying}
+                plan={marks.plans.get(p)!} />
         ) : (
-          <strong key={`b${i}`}>{p.bold}</strong>
+          <strong key={`b${i}`} id={partId(i)} data-saying={i === saying || undefined}
+                  className={s.chunk}>
+            {p.bold}
+          </strong>
         ),
       )}
     </div>
   );
 }
 
+/** Where a part is on the page. One answer per page, so this is unique. */
+const partId = (i: number) => `say-${i}`;
+
+/**
+ * HOW LONG ONE CLIP MAY RUN in a narration, in seconds.
+ *
+ * A citation is a stretch of evidence and is as long as it needs to be. A
+ * narration is a sequence, and a two-minute clip four sentences in is where
+ * the reader stops following it and starts waiting for it. Measured on this
+ * archive: half of all passages are under 10 seconds and never come near
+ * this, a tenth run past a minute, and folds of consecutive passages go
+ * further still.
+ *
+ * Forty-five seconds is long enough for a commissioner to make an argument
+ * and short enough that the reading picks up again while it is still the
+ * same thought.
+ *
+ * ONLY THE NARRATION IS BOUND BY THIS. Clicking a citation plays the whole
+ * cited stretch, because a click is a decision about that one stretch and a
+ * narration is not.
+ */
+const CLIP_BUDGET = 45;
+
+/**
+ * Where a narrated clip stops, and whether that is short of the citation.
+ *
+ * Whole passages while they fit, and never fewer than one: a passage is a
+ * real unit of the transcript and cutting inside one lands mid-sentence. But
+ * a boundary is not by itself a bound - the longest single passage in this
+ * archive runs forty-five MINUTES - so the budget is enforced after it.
+ */
+function clipEnd(mo: Moment): { to: number; trimmed: boolean } {
+  const from = mo.at.start;
+  const full = mo.of[mo.of.length - 1].end;
+  let to = mo.of[0].end;
+  for (const p of mo.of) {
+    if (p.end - from > CLIP_BUDGET) break;
+    to = p.end;
+  }
+  if (to - from > CLIP_BUDGET) to = from + CLIP_BUDGET;
+  return { to, trimmed: to < full };
+}
+
+/**
+ * THE ANSWER AS A RUNNING ORDER: what to read, and what to play, in the order
+ * it was written.
+ *
+ * This is not a second parse of anything. It walks the parts the page is
+ * already rendering, so the thing narrated and the thing on screen cannot
+ * drift apart - a step's `part` is literally the index of the span it
+ * highlights.
+ *
+ * TWO OMISSIONS, both deliberate:
+ *
+ * - A reference PLAYS ONCE. An answer that returns to the same exchange in
+ *   its last paragraph is making a point about the argument, not asking the
+ *   reader to sit through it twice, and the second hearing is where somebody
+ *   gives up on the whole feature.
+ * - A published item has nothing to play. `[item:N]` is a document; the
+ *   sentence resting on it is read and the narration carries straight on,
+ *   which is the honest treatment of a source with no recording behind it.
+ */
+function script(parts: Part[], plans: Map<Run, Plan>): Step[] {
+  const out: Step[] = [];
+  const heard = new Set<number>();
+  parts.forEach((p, i) => {
+    if (typeof p === "string") {
+      if (speakable(p)) out.push({ kind: "say", part: i, text: p });
+      return;
+    }
+    if (!isRun(p)) {
+      // Bold is prose. It is emphasis, not furniture, and skipping it would
+      // drop whole sentences the writer thought were the important ones.
+      if (speakable(p.bold)) out.push({ kind: "say", part: i, text: p.bold });
+      return;
+    }
+    for (const mk of plans.get(p)?.marks ?? []) {
+      if (mk.kind !== "said" || heard.has(mk.n)) continue;
+      heard.add(mk.n);
+      const mo = momentOf(mk);
+      const cut = clipEnd(mk.moment);
+      out.push({
+        kind: "hear", part: i, n: mk.n, ...sourceOf(mo.hit),
+        from: mo.from, to: cut.to, trimmed: cut.trimmed,
+        /* The times it will ACTUALLY play, not the citation's own. A line
+           reading "3:52:51 to 3:55:02" over a clip that stops at 3:53:36 is
+           the control lying about what the reader is hearing. */
+        what: `${mo.said} · ${mo.where ? `${mo.where}, ` : ""}`
+              + `${clock(mo.from)} to ${clock(cut.to)}`,
+      });
+    }
+  });
+  return out;
+}
+
+/**
+ * WHAT A CITED STRETCH IS, in one place.
+ *
+ * The marker in the prose needs it to label itself, and the narration needs
+ * it to say what is playing and to know where the clip ends. They were about
+ * to be two copies of the same eight lines, and the failure that produces is
+ * quiet: the tooltip and the spoken line would disagree about who is talking
+ * in a way nobody would notice until it mattered.
+ */
+export function momentOf(mk: Extract<Mark, { kind: "said" }>): {
+  hit: TranscriptHit;
+  from: number;
+  to: number;
+  /** Everyone heard in the stretch, as one phrase. */
+  said: string;
+  /** Which recording, when the meeting has more than one. */
+  where: string;
+  /** Speaker, place and both clocks. No number, no verb. */
+  what: string;
+} {
+  const hit = mk.moment.at;
+  /* EVERYONE in the stretch, not whoever starts it. A fold is 15 seconds
+     of silence or less, which can span a change of speaker, and one name
+     over two people is the kind of quiet misattribution this archive is
+     careful about everywhere else. */
+  const who = [
+    ...new Set(
+      mk.moment.of.map((h) => h.speaker_display ?? h.speaker ?? "Unidentified speaker"),
+    ),
+  ];
+  const said =
+    who.length === 1 ? who[0]
+    : who.length === 2 ? `${who[0]} and ${who[1]}`
+    : `${who[0]} and ${who.length - 1} others`;
+  /* WHERE THE EVIDENCE ENDS, taken from the last passage in the fold
+     rather than the first. A reference is a stretch of the recording -
+     that is what folding consecutive passages into a moment decides - and
+     the reader is owed both of its edges, not just the one they are
+     dropped at. */
+  const to = mk.moment.of[mk.moment.of.length - 1].end;
+  const ran = to - hit.start;
+  const long = ran >= 90 ? `, ${Math.round(ran / 60)} min` : "";
+  return {
+    hit,
+    from: hit.start,
+    to,
+    said,
+    where: mk.where,
+    what: `${said} · ${mk.where ? `${mk.where}, ` : ""}${clock(hit.start)} to ${clock(to)}${long}`,
+  };
+}
+
+/** The source a citation opens. Also one place, for the same reason. */
+export const sourceOf = (hit: TranscriptHit) => ({
+  videoId: hit.video_id,
+  title: hit.title ?? "",
+  href: hit.meeting_id ? `/meeting/${hit.meeting_id}` : undefined,
+});
+
 /** One reference: everything the writer cited in one breath, as numbers. */
-function Refs({ plan }: { plan: Plan }) {
+function Refs({ plan, id, hearing }: { plan: Plan; id: string; hearing: boolean }) {
   const player = usePlayer();
   const els: React.ReactNode[] = [];
   for (const mk of plan.marks) {
@@ -427,23 +627,9 @@ function Refs({ plan }: { plan: Plan }) {
         </a>,
       );
     else if (mk.kind === "said") {
-      const hit = mk.moment.at;
-      /* EVERYONE in the stretch, not whoever starts it. A fold is 15 seconds
-         of silence or less, which can span a change of speaker, and one name
-         over two people is the kind of quiet misattribution this archive is
-         careful about everywhere else. */
-      const who = [
-        ...new Set(
-          mk.moment.of.map((h) => h.speaker_display ?? h.speaker ?? "Unidentified speaker"),
-        ),
-      ];
-      const said =
-        who.length === 1 ? who[0]
-        : who.length === 2 ? `${who[0]} and ${who[1]}`
-        : `${who[0]} and ${who.length - 1} others`;
-      const ran = mk.moment.of[mk.moment.of.length - 1].end - hit.start;
-      const long = ran >= 90 ? `, ${Math.round(ran / 60)} min` : "";
-      const what = `${mk.n}. ${said} · ${mk.where ? `${mk.where}, ` : ""}${clock(hit.start)}${long} · play`;
+      const mo = momentOf(mk);
+      const hit = mo.hit;
+      const what = `${mk.n}. ${mo.what} · play`;
       els.push(
         <button
           key={`s${hit.id}`}
@@ -453,13 +639,16 @@ function Refs({ plan }: { plan: Plan }) {
           aria-label={what}
           onClick={() =>
             player.play(
-              {
-                videoId: hit.video_id,
-                title: hit.title ?? "",
-                href: hit.meeting_id ? `/meeting/${hit.meeting_id}` : undefined,
-              },
-              hit.start,
+              sourceOf(hit),
+              mo.from,
               true,
+              /* It stops itself where the citation stops. A marker in the
+                 middle of a paragraph is an aside from the reading, not a
+                 decision to sit through the rest of a six-hour meeting, and
+                 before this the only way back to the sentence was to notice
+                 that the recording had wandered off the subject and go and
+                 stop it by hand. */
+              mo.to,
             )
           }
         >
@@ -494,7 +683,7 @@ function Refs({ plan }: { plan: Plan }) {
      are two or three characters, so there is no reason to let a line break
      inside one reference or before its full stop. */
   return (
-    <span className={s.refs}>
+    <span className={s.refs} id={id} data-hearing={hearing || undefined}>
       {els}
       {plan.tail}
     </span>
@@ -669,11 +858,15 @@ function Quote({
         <button
           type="button"
           className={s.at}
+          /* One quote, so one passage's end - not the fold's. This row is a
+             single passage and plays exactly itself. */
+          title={`Play ${clock(hit.start)} to ${clock(hit.end)}, then stop`}
           onClick={() =>
             player.play(
               { videoId: hit.video_id, title: hit.title ?? "", href: hit.meeting_id ? `/meeting/${hit.meeting_id}` : undefined },
               hit.start,
               true,
+              hit.end,
             )
           }
         >
