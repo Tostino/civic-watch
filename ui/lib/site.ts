@@ -4,12 +4,23 @@
  * Graph tags a shared link renders from - and what its tool endpoint calls
  * itself.
  *
- * SERVER ONLY, all of it. These read environment variables that Next does not
- * expose to the browser, so every one of them is resolved in a server
- * component and passed down as a prop. A client component that called one
- * would render the deployed value on the server and nothing in the browser,
- * which is a hydration mismatch.
+ * THE FUNCTIONS HERE ARE SERVER ONLY. They read environment variables that
+ * Next does not expose to the browser, so every one of them is resolved in a
+ * server component and passed down as a prop. A client component that called
+ * one would render the deployed value on the server and nothing in the
+ * browser, which is a hydration mismatch.
+ *
+ * `REPO` is not one of them. It reads nothing and is the same string in both
+ * places, which is why the header may import it directly.
 */
+
+/** Where this code lives. A property of the project rather than of the archive
+ *  it is serving, so unlike the name and the origin it is not configurable: a
+ *  fork changes it here. Used by the header's link and by /about's footer, and
+ *  it is the second of those that a 320px screen depends on - the bar has no
+ *  room for the first. */
+export const REPO = "https://github.com/Tostino/civic-watch";
+
 const FALLBACK = "http://localhost:3000";
 
 export function siteUrl(): string {

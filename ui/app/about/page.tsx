@@ -6,7 +6,7 @@ import { McpClients } from "@/components/McpClients";
 import { getBodies, getOverview, getTools } from "@/lib/api";
 import { mcpUrl } from "@/lib/mcp";
 import { meetingDate } from "@/lib/format";
-import { mcpName, siteUrl } from "@/lib/site";
+import { REPO, mcpName, siteUrl } from "@/lib/site";
 import s from "./about.module.css";
 
 /**
@@ -301,6 +301,12 @@ export default async function AboutPage() {
         <Link href="/">Browse the meetings</Link>
         <Link href="/search">Search the record</Link>
         <Link href="/ask">Ask a question</Link>
+        {/* The header carries this as a mark, except on the narrowest screens
+            where the bar has no room for it. Here it is words, and it is the
+            only way to the code at that width. */}
+        <a href={REPO} target="_blank" rel="noreferrer">
+          The code, on GitHub
+        </a>
       </footer>
     </article>
   );

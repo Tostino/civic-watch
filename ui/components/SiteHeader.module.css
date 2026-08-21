@@ -101,7 +101,11 @@
   box-shadow: inset 0 0 0 1px var(--rule);
 }
 
-.theme {
+/* The two trailing controls. Neither is a place in the archive - one changes
+   how it looks and the other leaves it entirely - so they are the same quiet
+   square rather than anything that could be mistaken for a nav link. */
+.theme,
+.repo {
   flex: none;
   width: 2rem;
   height: 2rem;
@@ -112,7 +116,8 @@
   font-size: 0.9rem;
 }
 
-.theme:hover {
+.theme:hover,
+.repo:hover {
   color: var(--ink);
   background: var(--surface-2);
 }
@@ -154,5 +159,27 @@
 
   .link {
     padding: 0.35rem 0.4rem;
+  }
+}
+
+/*
+ *  THE NARROWEST TIER GIVES THE CODE LINK UP.
+ *
+ * Measured at 320px, the width WCAG 1.4.10 is judged at: before this link the
+ * row came to exactly 320 against 320, with the brand already clipped to the
+ * mark alone. There was no slack at all, so a 2rem control took it 4px over
+ * AND ate what was left of the brand - the bar rendered with no mark and no
+ * name on the narrowest phones.
+ *
+ * The row needs about 336px with the brand fully collapsed, so this is the
+ * only tier where it does not fit. Hidden here rather than across phones
+ * generally: at 360 and up there is room, and this is the one item in the bar
+ * that leads somewhere other than the archive, which makes it the one to lose
+ * when something has to go. /about links the repository in prose for anyone
+ * who wants it at this width.
+ */
+@media (max-width: 23rem) {
+  .repo {
+    display: none;
   }
 }

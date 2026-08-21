@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { SearchBox } from "./search/SearchBox";
 import { Mark } from "./Mark";
 import { ThemeToggle } from "./ThemeToggle";
+import { REPO } from "@/lib/site";
 import s from "./SiteHeader.module.css";
 
 /**
@@ -35,6 +36,22 @@ const NAV = [
  * 48rem and lets the bar take over.
  */
 const OWNS_A_FIELD = new Set(["/search", "/ask"]);
+
+/**
+ * The code, which is a different offer from anything else in this bar.
+ *
+ * NOT IN `NAV`. Those are places inside the archive and this leaves it, so it
+ * is an <a> rather than a Link, it sits with the theme toggle at the trailing
+ * end rather than among the pages, and it opens in a new tab: a reader who is
+ * three clicks into a meeting should not lose that to a detour into a
+ * repository.
+ *
+ * AN ICON, NOT A LABEL, and that is a constraint rather than a preference. The
+ * bar is a nowrap row of a fixed 3.25rem that /meeting measures its panes
+ * against, and even as an icon it does not fit the narrowest tier: measured,
+ * the row was at exactly 320 of 320 before this existed. It is hidden under
+ * 23rem and /about's footer carries it there instead.
+ */
 
 export function SiteHeader() {
   const path = usePathname();
@@ -84,6 +101,23 @@ export function SiteHeader() {
             );
           })}
         </nav>
+
+        {/* The mark is GitHub's own, drawn at the size the toggle beside it
+            uses and inheriting `currentColor` so it needs no second asset for
+            dark. Labelled rather than titled: it is a control with no text in
+            it, so the accessible name has to come from somewhere. */}
+        <a
+          className={s.repo}
+          href={REPO}
+          target="_blank"
+          rel="noreferrer"
+          title="The code for this archive, on GitHub. Opens in a new tab."
+          aria-label="The code for this archive, on GitHub. Opens in a new tab."
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden focusable="false" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+          </svg>
+        </a>
 
         <ThemeToggle />
       </div>
