@@ -105,6 +105,17 @@ export const getFacets = () => get<Facets>("/api/facets");
  * calls to the same tools the agent uses — not a parallel implementation. When
  * a search behaves oddly on the page, the same tool call reproduces it.
  */
+/**
+ * `from` is the reader's address, and it only matters on the server.
+ *
+ * This route is rendered on the server, which means the request the Python
+ * API sees comes from the UI over loopback and carries nobody's address at
+ * all. Its search ceiling is per address, so without this every reader on the
+ * site would share one bucket and a crawler would spend everyone's quota
+ * rather than its own. Passed rather than read here: `headers()` is only
+ * callable inside a request, and this module is imported by client components
+ * too.
+ */
 export function find(params: {
   q: string;
   limit?: number;
@@ -117,7 +128,7 @@ export function find(params: {
   since?: string;
   until?: string;
   decided?: boolean;
-}) {
+}, from?: string) {
   const p = new URLSearchParams({ q: params.q });
   for (const k of ["body", "outcome", "phase", "case", "speaker", "since", "until"] as const) {
     if (params[k]) p.set(k, params[k]!);
@@ -125,5 +136,6 @@ export function find(params: {
   if (params.limit) p.set("limit", String(params.limit));
   if (params.offset) p.set("offset", String(params.offset));
   if (params.decided !== undefined) p.set("decided", params.decided ? "1" : "0");
-  return get<FindResult>(`/api/find?${p}`);
+  return get<FindResult>(`/api/find?${p}`,
+    from ? { headers: { "X-Forwarded-For": from } } : undefined);
 }

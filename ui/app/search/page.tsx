@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 
 import { Examples } from "@/components/Examples";
@@ -69,6 +70,14 @@ export default async function SearchPage({ searchParams }: Props) {
    * survive a rename. A value the tools reject is a bad request, not a broken
    * archive, and it must not take the whole route down with it. */
   let rejected: string | null = null;
+  /* Its own state rather than `rejected`, which offers to drop the filters -
+     advice that does nothing here and would read as the archive not knowing
+     what went wrong. */
+  let busy: string | null = null;
+  /* Who is asking, for the API's search ceiling. Rendered on the server, this
+     route's calls reach the API over loopback with nobody's address on them,
+     and a per-address limit would then meter every reader as one. */
+  const from = (await headers()).get("x-forwarded-for") ?? undefined;
   const [facts, facets, result] = await Promise.all([
     // Always: <Empty> quotes it too, and it is the one call on this route that
     // is cheap whether or not anybody has typed anything. A failure costs the
@@ -88,9 +97,18 @@ export default async function SearchPage({ searchParams }: Props) {
           since: query.since,
           until: query.until,
           decided: query.decided === undefined ? undefined : query.decided === "1",
-        }).catch((e: unknown) => {
+        }, from).catch((e: unknown) => {
           if (e instanceof ApiError && e.status === 400) {
             rejected = "This link uses a filter the archive does not have.";
+            return null;
+          }
+          /* THE CEILING IS NOT A CRASH. Searching runs the embedding model, so
+             the API meters it, and this used to rethrow: a reader who searched
+             quickly got a 500 and an error page, which says the archive is
+             broken when what happened is that it asked them to wait. */
+          if (e instanceof ApiError && e.status === 429) {
+            busy = "That is more searching than this archive takes from one "
+                 + "place at a time. Give it a moment and try again.";
             return null;
           }
           throw e;
@@ -134,8 +152,10 @@ export default async function SearchPage({ searchParams }: Props) {
         </p>
       ) : null}
 
+      {busy ? <p className={s.dead}>{busy}</p> : null}
+
       {!result ? (
-        rejected ? null : <Empty />
+        rejected || busy ? null : <Empty />
       ) : (
         <div className={s.body}>
           {/* Non-null whenever a result is: both are fetched together, under

@@ -272,10 +272,21 @@ def what_this_is(request):
 @reads
 def api_search(request, con):
     one = _one(request)
-    return _json(request, search(con, one("q", ""), one("kind"),
-                                 one("speaker"),
-                                 min(int(one("limit", 50)), 200),
-                                 int(one("offset", 0))))
+    # Keyword-only and far cheaper than /api/find, but a loop over it is still
+    # a loop, and it shares the ceiling so that neither is a way around it.
+    try:
+        release = limits.search_reserve(limits.client_ip(request))
+    except limits.Throttled as t:
+        return _json(request, {"error": t.message, "kind": t.kind}, 429,
+                     {"Retry-After": str(t.retry_after)} if t.retry_after
+                     else None)
+    try:
+        return _json(request, search(con, one("q", ""), one("kind"),
+                                     one("speaker"),
+                                     min(int(one("limit", 50)), 200),
+                                     int(one("offset", 0))))
+    finally:
+        release()
 
 # Keyed on a VIDEO id. It was called /api/meeting/<id> while /api/agenda/<id>
 # took a MEETING id - two keys, near-identical names, and a trap that should
@@ -353,12 +364,22 @@ def api_find(request, con):
                                   "speaker", "since", "until") if one(k)}
     if one("decided"):
         facets["decided"] = one("decided") == "1"
+    # THE EXPENSIVE READING SURFACE. This is the one that embeds the query,
+    # which on the reader container is a second of CPU. See limits.SEARCH_*.
+    try:
+        release = limits.search_reserve(limits.client_ip(request))
+    except limits.Throttled as t:
+        return _json(request, {"error": t.message, "kind": t.kind}, 429,
+                     {"Retry-After": str(t.retry_after)} if t.retry_after
+                     else None)
     try:
         return _json(request, tools.search(
             con, one("q", ""), min(int(one("limit", 25)), 100),
             int(one("offset", 0)), **facets))
     except tools.ToolError as e:
         return _json(request, {"error": str(e)}, 400)
+    finally:
+        release()
 
 @reads
 def api_facets(request, con):

@@ -350,3 +350,92 @@ def _mcp_state():
         return {"running": _mcp_running, "max_concurrent": MCP_MAX_CONCURRENT,
                 "tracked_ips": len(_mcp_hits), "per_ip": MCP_PER_IP,
                 "heavy_per_ip": MCP_SEARCH_PER_IP, "window": MCP_WINDOW}
+
+
+# ---------------------------------------------------------------- searching
+#
+# THE READING SURFACE THAT COSTS REAL CPU. /api/find runs the embedding model
+# to rank paraphrase, and in the container that is on the CPU: measured at
+# 1.28s of CPU time per query at torch's default thread count, 0.93s at the
+# four the image now pins it to. Nothing else a reader can reach costs a
+# fraction of that. /api/search is keyword-only and cheap by comparison, and
+# is metered here only because an unbounded loop over it is still a loop.
+#
+# TWO CEILINGS, AND THE SECOND IS THE ONE THAT ALWAYS BITES.
+#
+# The per-address window is the fair one, and it can only work where the
+# address is known. In the deployed container the UI renders /search on the
+# server and calls this API over loopback WITHOUT the reader's address, so
+# every page-load search arrives as 127.0.0.1. A per-address ceiling applied
+# to that would not throttle a crawler, it would throttle everybody at once,
+# together, in one bucket. So the page now forwards the reader's address and
+# this refuses to meter anything that still arrives without one - see
+# `search_reserve`.
+#
+# The concurrency ceiling has no such dependency: it bounds how much of the
+# machine this endpoint can hold at any instant no matter who is asking or
+# whether we can tell. Four concurrent searches against four torch threads is
+# sixteen, which leaves a sixteen-core box able to do something else. That is
+# the ceiling that turns "the API held 4.4 cores for five hours" into a bound.
+SEARCH_WINDOW = int(os.environ.get("SEARCH_WINDOW") or 60)
+SEARCH_PER_IP = int(os.environ.get("SEARCH_PER_IP") or 60)
+SEARCH_MAX_CONCURRENT = int(os.environ.get("SEARCH_MAX_CONCURRENT") or 4)
+
+_search_lock = threading.Lock()
+_search_hits = {}
+_search_running = 0
+
+
+def search_reserve(ip):
+    """Claim a slot for one search, or raise Throttled.
+
+    Returns a release() to call in a finally, like the others here.
+    """
+    now = time.monotonic()
+    # An address we were not given. The UI forwards the reader's, so this is
+    # something calling the API directly on the loopback interface it binds -
+    # and metering it would put unrelated callers in one bucket. The
+    # concurrency ceiling below still applies, which is the one that bounds
+    # the machine.
+    anonymous = ip in ("127.0.0.1", "::1", "unknown")
+    with _search_lock:
+        global _search_running
+        for dead in [i for i, q in _search_hits.items()
+                     if not q or now - q[-1] > SEARCH_WINDOW]:
+            del _search_hits[dead]
+        if len(_search_hits) > MAX_TRACKED_IPS:
+            for i in sorted(_search_hits, key=lambda i: _search_hits[i][-1])[
+                    :len(_search_hits) - MAX_TRACKED_IPS]:
+                del _search_hits[i]
+
+        if not anonymous and SEARCH_PER_IP > 0:
+            seen = _search_hits.setdefault(ip, deque())
+            while seen and now - seen[0] > SEARCH_WINDOW:
+                seen.popleft()
+            if len(seen) >= SEARCH_PER_IP:
+                wait = int(SEARCH_WINDOW - (now - seen[0])) + 1
+                raise Throttled(
+                    f"That is {SEARCH_PER_IP} searches in "
+                    f"{_plain(SEARCH_WINDOW)} from this address, which is the "
+                    f"limit. Try again in {_plain(wait)}.",
+                    retry_after=wait, kind="rate")
+            seen.append(now)
+
+        if _search_running >= SEARCH_MAX_CONCURRENT:
+            raise Throttled(
+                "This archive is running as many searches at once as it can. "
+                "Try again in a moment.", retry_after=2, kind="busy")
+        _search_running += 1
+
+    done = False
+
+    def release():
+        nonlocal done
+        with _search_lock:
+            global _search_running
+            if not done:
+                done = True
+                _search_running = max(0, _search_running - 1)
+
+    return release
+
