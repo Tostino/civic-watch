@@ -119,10 +119,42 @@ export function Narrator({ narration: n }: { narration: Narration }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [running, n, player]);
 
+  /**
+   * WHAT AN ASSISTIVE VOICE IS TOLD, which is much less than what is on
+   * screen.
+   *
+   * The line naming what is playing used to BE the live region, and it
+   * changes on every step - so a screen reader, or macOS's Speak
+   * Announcements with no screen reader at all, read the whole reference out
+   * loud every time a recording started: "Playing the recording, unidentified
+   * speaker, January 24 2023 morning, 41:10 to 41:55, the citation runs on
+   * past this" - on top of the recording, which had just begun saying the
+   * same thing in the speaker's own voice.
+   *
+   * THE RULE IS THAT THIS SPEAKS ONLY WHEN NOTHING ELSE IS. Reading aloud and
+   * playing a recording both announce themselves, in the most direct way
+   * there is: sound is coming out. Talking over either one to say that sound
+   * is coming out is worse than saying nothing. What is left is the states
+   * with no sound of their own - a hold, a stop, and anything that went
+   * wrong - and those are exactly the ones a reader cannot otherwise tell
+   * apart, because all three are silence.
+   *
+   * The line on screen keeps every word of its detail. It is still there to
+   * be read by anyone who goes looking for it; it just no longer shouts.
+   */
+  const announce = n.trouble
+    ? n.trouble
+    : n.paused
+      ? "Paused."
+      : "";
+
   if (!n.supported) return null;
 
   return (
     <div className={s.bar} data-running={running || undefined}>
+      <p className="sr-only" aria-live="polite">
+        {announce}
+      </p>
       {running ? (
         <>
           {/* Transport order, so the pair either side of pause reads as one
@@ -166,7 +198,8 @@ export function Narrator({ narration: n }: { narration: Narration }) {
                 </button>
               </span>
             ) : null}
-          <p className={s.doing} aria-live="polite">
+          {/* NOT A LIVE REGION. See `announce` above for why. */}
+          <p className={s.doing}>
             {n.phase === "listening" && n.step?.kind === "hear" ? (
               <>
                 {/* A CLIP CAN BE HELD TOO. This line said "Playing the
