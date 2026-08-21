@@ -262,10 +262,9 @@ corpus before it got used. The labelled ground-truth files stay out of git.
 
 ## Documents
 
-* `COPY.md` has the copy conventions. The numbered list at the top is mine and
-holds. The rest is a model inferring the rules from copy a model wrote, which is
-circular, and it has been wrong more than once: check it against the pages, not
-the pages against it.
+* `COPY.md` has the copy conventions. The numbered list at the top is mine; the
+rest is a model inferring the rules from copy a model wrote, so check it against
+the pages, not the pages against it.
 * `deploy/postgres-unraid.md` and `deploy/nginx-proxy-manager.md` cover the
 database and the edge, both of which are set up by hand.
 
