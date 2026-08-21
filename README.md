@@ -24,7 +24,11 @@ all of that and survives a full rebuild.
 
 None of it is exact, and the archive tries not to pretend otherwise. Every
 passage carries how well its name is known, which is a different question from
-whether it has one.
+whether it has one, and the three levels aren't close to equal: a person stated
+this name, or a voice was matched at that meeting, or all we have is the name
+that voice goes by across the whole archive. Before `tools.speaker_sure()`
+existed every surface printed all three identically, which meant an answer could
+say "Oakley moved" on the strength of the weakest one.
 
 This has only ever run against one county, and Pasco is baked in deeper than it
 should be. The catalog stage knows about a YouTube channel, the portal
@@ -43,7 +47,6 @@ the agent should carry over.
   * [Running it](#running-it)
   * [Pages](#pages)
   * [Keeping it current](#keeping-it-current)
-  * [A rant on reading votes out of a transcript](#a-rant-on-reading-votes-out-of-a-transcript)
   * [What it gets wrong](#what-it-gets-wrong)
   * [Who is asking](#who-is-asking)
   * [Redaction](#redaction)
@@ -177,43 +180,6 @@ rows, `bin/rebuild.sh` drops all the derived tables and builds them again from
 the same inputs in about twenty minutes, without re-downloading a video or
 re-running ASR.
 
-## A rant on reading votes out of a transcript
-
-Say someone asks whether the board approved a particular rezoning. There are
-two ways to answer that, and they are not equally good.
-
-The first is to search the transcript, find the chair calling the roll, and
-read off the names and the ayes. This works. It gives you a confident answer
-with a quote and a timestamp attached, and it's the obvious thing to build.
-
-The second is to read the outcome out of the minutes the board approved, and go
-to the transcript only for what people said about the thing before they voted
-on it.
-
-I think the first one is wrong often enough that you shouldn't build it. Names
-in this archive come out of diarization, then voice matching, then sometimes a
-model reading the surrounding text, and every one of those steps has an error
-rate. A roll call is close to the worst case for all three: it's fast, the
-names are read by one person while the votes come from several others, and
-people talk over each other. So the roll call is exactly the passage where
-attribution lands on the wrong name, and it's also exactly where being wrong
-does the most damage, because "Commissioner So-and-so voted against it" is the
-sort of sentence that gets repeated.
-
-The minutes just don't have that problem. The county wrote them, the board
-approved them, and they say who voted which way.
-
-So the rule here is that an outcome comes from the record and an argument comes
-from the transcript. That isn't only a convention, either.
-`tools.speaker_sure()` tags every passage with how well its name is actually
-known, and the three levels are quite different: a person stated this name, or
-a voice was matched at that meeting, or all we have is the name that voice goes
-by across the whole archive. Before that existed, every surface printed all
-three identically, which meant an answer could say "Oakley moved" on the
-strength of the weakest one. A count the transcript states out loud, something
-like "four nays, three ayes", is fine to repeat, because that's a thing that
-was said rather than a name this project attached to a voice.
-
 ## What it gets wrong
 
 `/about` reports the current numbers, and `bin/audit.py` will tell you which
@@ -236,6 +202,13 @@ items derived from the transcript.
 * Binding transcript spans to agenda items works well on public hearings and
 resolutions, less well on the consent agenda, and worst on the regular agenda.
 Board reports carry no agenda code at all and never will.
+* A roll call is the worst passage in the archive for attribution and the most
+damaging one to get wrong. It's fast, the names are read by one person while the
+votes come from several others, and people talk over each other, so it's exactly
+where a name lands on the wrong voice. It's also the sentence most likely to get
+repeated, because "Commissioner So-and-so voted against it" is a quotable thing
+to say. That's why the tool instructions forbid reporting a named person's vote
+from a transcript at all.
 
 Everything the agent says is bounded by that list, which is why the pages tell
 you what they're showing you and where it came from.
@@ -289,9 +262,10 @@ corpus before it got used. The labelled ground-truth files stay out of git.
 
 ## Documents
 
-* `COPY.md` has the copy conventions, but only the numbered list at the top is
-mine. The rest got reverse-engineered by an assistant from copy an assistant
-wrote, and it's been wrong more than once.
+* `COPY.md` has the copy conventions. The numbered list at the top is mine and
+holds. The rest is a model inferring the rules from copy a model wrote, which is
+circular, and it has been wrong more than once: check it against the pages, not
+the pages against it.
 * `deploy/postgres-unraid.md` and `deploy/nginx-proxy-manager.md` cover the
 database and the edge, both of which are set up by hand.
 
@@ -301,3 +275,12 @@ Pasco County publishes the authoritative agendas and minutes. This archive
 mirrors those documents and adds a transcript layer the county didn't publish
 and doesn't vouch for, and every page that makes a claim tells you which of the
 two it came from.
+
+So the standing rule is that an outcome comes from the record and an argument
+comes from the transcript. Answering "did the board approve this?" out of the
+transcript is the obvious thing to build, and I think it's wrong often enough
+that you shouldn't: the minutes were written by the county and approved by the
+board, and they say who voted which way, while a name in the transcript is
+something this project attached to a voice. A count the transcript states out
+loud, something like "four nays, three ayes", is fine to repeat, because that's
+a thing that was said rather than a name anybody attached.
