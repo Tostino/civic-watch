@@ -5,6 +5,17 @@ import { siteUrl } from "@/lib/site";
 /**
  * What a crawler may read. This archive exists to make a public record
  * findable, so the reading surfaces are open on purpose.
+ *
+ * `/search` IS NOT ONE OF THEM, and that is about cost rather than secrecy.
+ * Every query runs the embedding model, which in the container is on the CPU
+ * and measured at 1.28 seconds of CPU time per search - and the query space is
+ * unbounded, so one indexed search link becomes as many as a crawler cares to
+ * invent. Measured on the box: the API held about 4.4 cores for five hours,
+ * which is roughly two searches a second and nothing like a reader.
+ *
+ * Nothing findable is lost. A result page is a list of pointers to
+ * /meeting, /item and /case, and those are what the sitemap offers and what
+ * carries the actual words. Search result pages are thin duplicates of them.
 */
 /**
  * Rendered per request, which this file needs and its neighbours get for free.
@@ -27,7 +38,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/api", "/ask/"],
+      disallow: ["/admin", "/api", "/ask/", "/search"],
     },
     sitemap: `${siteUrl()}/sitemap.xml`,
   };

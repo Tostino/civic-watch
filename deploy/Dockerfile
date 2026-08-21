@@ -81,6 +81,24 @@ RUN touch /app/.admin_token && chown nobody:nogroup /app/.admin_token \
 # "dense retrieval".
 ENV CIVIC_EMBED_DEVICE=cpu
 
+# AND IT DOES NOT GET THE WHOLE MACHINE FOR ONE QUERY.
+#
+# Unset, torch sizes its pool to the host's cores — 16 on the box this runs
+# on — and spends them on a 0.6B forward pass that does not scale anywhere
+# near that far. Measured, per search: 16 threads finish in 80ms but burn
+# 1.28s of CPU; 4 finish in 233ms and burn 0.93s. So the cap costs 150ms of
+# latency and returns a quarter of the CPU.
+#
+# The larger win is under load rather than per request. At the default, two
+# concurrent searches put 32 threads on 16 cores and fight; capped, four run
+# genuinely in parallel. This is a container that shares a box with an array
+# and everything else on it, and one endpoint should not be able to take the
+# whole thing.
+# OMP_NUM_THREADS and not TORCH_NUM_THREADS: the second reads like the right
+# name and does nothing at all. Checked both - with only TORCH_NUM_THREADS set,
+# torch.get_num_threads() still came back 16.
+ENV OMP_NUM_THREADS=4
+
 # Next talks to the API over loopback inside this container. The API binds
 # 127.0.0.1 only (see entrypoint.sh), so /api/admin is not on the network at
 # all, and ui/proxy.ts 404s the console independently of any peer address or
