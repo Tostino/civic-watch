@@ -224,6 +224,31 @@ async function fetchChunk(answer: string, text: string, signal: AbortSignal) {
   return URL.createObjectURL(await res.blob());
 }
 
+/**
+ * HOW LONG A STEP MAY TAKE TO MAKE A SOUND before it is treated as stuck, in
+ * milliseconds.
+ *
+ * NOTHING HERE HAD A DEADLINE, and two of the ways it waits can wait for
+ * ever. Found by watching it in a browser rather than by reading it:
+ *
+ *  - A sentence is started with `HTMLAudioElement.play()`, whose promise
+ *    simply never settles if the media cannot begin. Not an error, no
+ *    rejection, no event - so the control sat on "Getting the voice"
+ *    indefinitely with nothing to press but Stop.
+ *  - A clip is waited on with the player's stop point, and that is announced
+ *    only when the head REACHES it. A recording that never starts never
+ *    arrives anywhere, so the bar went on saying "Playing the recording" over
+ *    a stopped video, offering to pause something that was not running, and
+ *    the narration behind it was wedged for good.
+ *
+ * Both are reachable with nothing broken: an embed the browser declines to
+ * autoplay, a tab left in the background, a network that drops the video and
+ * not the page. Generous, because the point is to catch a wait that will
+ * never end rather than to hurry a slow one - a cold voice is well under two
+ * seconds and a video that has not begun in twelve is not going to.
+ */
+const START_BY = { voice: 10_000, clip: 12_000 };
+
 export type Phase = "off" | "fetching" | "reading" | "listening";
 
 export interface Narration {
@@ -247,6 +272,13 @@ export interface Narration {
   stop(): void;
   /** Past the current step. On a clip, that means "I have heard enough". */
   skip(): void;
+  /** Back one step. Onto a clip, that means play it again. */
+  back(): void;
+  /**
+   * Read from a PART of the answer - an index into what the page renders,
+   * not into the running order. That is what a reader points at.
+   */
+  readFrom(part: number): void;
   togglePause(): void;
 }
 
@@ -460,6 +492,30 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
     [player, halt],
   );
 
+  /**
+   * THE BAR MUST NOT DISAGREE WITH THE PLAYER.
+   *
+   * A clip can be held from two places: this control, and the dock's own
+   * button under the picture the reader is actually looking at. Only the
+   * first ever told the narration, so pausing at the dock left the line above
+   * the answer reading "Playing the recording" over a stopped video - and
+   * then the next press of space, which the bar thought was a pause, played
+   * it instead.
+   *
+   * MIRRORED ONLY ONCE THE CLIP HAS BEEN SEEN TO PLAY. The iframe reports
+   * itself playing a few hundred milliseconds after it is told to, and a bar
+   * that believed that gap flashed "Paused" at the top of every recording.
+   */
+  const rolling = useRef(false);
+  useEffect(() => {
+    if (phase !== "listening") {
+      rolling.current = false;
+      return;
+    }
+    if (player.playing) rolling.current = true;
+    if (rolling.current) setPaused(!player.playing);
+  }, [phase, player.playing]);
+
   const start = useCallback(() => {
     shush();
     token.current = null;
@@ -468,19 +524,115 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
     perform(0);
   }, [perform, shush]);
 
+  /**
+   * Move the reading to a step, from wherever it is - including from a stop.
+   *
+   * EVERY WAY OF MOVING GOES THROUGH HERE, because two things have to be
+   * undone before the next step can start and it is easy to remember only
+   * one: the audio in flight together with the callbacks that would fire
+   * after it (`shush`, which invalidates the run they are stamped with), and
+   * the clip the player is still holding. Skipping the second left a
+   * recording talking underneath the voice.
+   */
+  const jump = useCallback(
+    (i: number) => {
+      const wasListening = token.current != null;
+      shush();
+      token.current = null;
+      setPaused(false);
+      setTrouble(null);
+      /* Leaving the recording where the reader stopped listening, paused. The
+       * alternative - closing it - takes away the one thing they might want
+       * next, which is to hear the rest of what they just cut short. */
+      if (wasListening && player.playing) player.toggle();
+      perform(Math.max(0, i));
+    },
+    [perform, player, shush],
+  );
+
   const skip = useCallback(() => {
     if (atRef.current < 0) return;
-    const next = atRef.current + 1;
-    const wasListening = token.current != null;
-    shush();
-    token.current = null;
-    setPaused(false);
-    /* Leaving the recording where the reader stopped listening, paused. The
-     * alternative - closing it - takes away the one thing they might want
-     * next, which is to hear the rest of what they just cut short. */
-    if (wasListening && player.playing) player.toggle();
-    perform(next);
-  }, [perform, player, shush]);
+    jump(atRef.current + 1);
+  }, [jump]);
+
+  /** For the deadline below, which is declared before `skip` exists. */
+  const skipRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    skipRef.current = skip;
+  }, [skip]);
+
+  /**
+   * Back one step, OVER CLIPS AS WELL AS SENTENCES - and stepping back into a
+   * clip plays it again.
+   *
+   * That is not a case to be avoided. "Say that again" is the likeliest
+   * reason anybody reaches for this at all, and a rule that stepped politely
+   * over recordings would make the one thing worth re-hearing the one thing
+   * there is no way back to.
+   */
+  const back = useCallback(() => {
+    if (atRef.current < 0) return;
+    jump(atRef.current - 1);
+  }, [jump]);
+
+  /**
+   * Read from a part of the answer, whether or not it is reading now.
+   *
+   * A PART IS NOT A STEP. The page knows where a reader pointed as a position
+   * in the prose, and plenty of parts have no step of their own: a citation
+   * already heard earlier in the answer, a run of whitespace between two
+   * paragraphs. So this takes the first step at or after the part, which is
+   * the sentence a reader pointing at any of those meant.
+   */
+  const readFrom = useCallback(
+    (part: number) => {
+      const i = steps.findIndex((st) => st.part >= part);
+      if (i < 0) return;
+      jump(i);
+    },
+    [jump, steps],
+  );
+
+  /**
+   * THE DEADLINE. See START_BY for the two ways this used to wait for ever.
+   *
+   * The two failures are treated differently, because they are different:
+   *
+   *  - THE VOICE NOT STARTING ENDS THE NARRATION. There is no second voice to
+   *    fall back to - that is a decision, not an omission - so the honest
+   *    thing is to say so and stop.
+   *  - A RECORDING NOT STARTING DOES NOT END IT. The answer is still worth
+   *    hearing, and the archive's argument should not be held hostage by one
+   *    embed a browser would not play, so the reading carries on past the
+   *    clip and says what it went without.
+   *
+   * A CLIP THE READER PAUSED IS NOT A CLIP THAT FAILED, which is what
+   * `rolling` is doing here: once a recording has been seen to play, holding
+   * it is the reader's business and no deadline applies to it.
+   */
+  useEffect(() => {
+    if (paused) return;
+    if (phase === "listening" && (player.playing || rolling.current)) return;
+    if (phase !== "fetching" && phase !== "listening") return;
+    const voice = phase === "fetching";
+    const mine = run.current;
+    const late = window.setTimeout(() => {
+      if (run.current !== mine) return;
+      if (voice) {
+        setTrouble("The archive's voice would not start playing here. Nothing"
+                   + " was lost - the answer is above, in full, to be read.");
+        halt();
+        return;
+      }
+      /* AFTER the skip, never before: moving on clears whatever the last
+         attempt had to say, so a message set first would be wiped by the very
+         step it was explaining. */
+      skipRef.current();
+      setTrouble("That recording would not start, so the reading carried on"
+                 + " without it. Its citation still opens the whole stretch.");
+    }, voice ? START_BY.voice : START_BY.clip);
+    return () => window.clearTimeout(late);
+  }, [phase, at, paused, player.playing, halt]);
 
   const togglePause = useCallback(() => {
     if (phase === "off") return;
@@ -511,7 +663,8 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
 
   return useMemo(
     () => ({ supported, trouble, phase, paused, at, step,
-             start, stop: halt, skip, togglePause }),
-    [supported, trouble, phase, paused, at, step, start, halt, skip, togglePause],
+             start, stop: halt, skip, back, readFrom, togglePause }),
+    [supported, trouble, phase, paused, at, step, start, halt, skip, back,
+     readFrom, togglePause],
   );
 }

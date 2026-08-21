@@ -18,12 +18,34 @@
 
 /* Running, it earns a rule under it: the prose beneath is being performed
  * rather than just sitting there, and the reader should be able to see at a
- * glance which state the page is in. */
+ * glance which state the page is in.
+ *
+ * AND IT FOLLOWS THE READING. The narration scrolls the page to keep the
+ * sentence being spoken in view, so within half a minute the control that
+ * started it is off the top of the window - and the two buttons a reader
+ * wants while it runs are precisely the ones that have gone: the one that
+ * cuts a long recording short and the one that stops the whole thing. Docked
+ * under the site header, it is where the hand reaches for it.
+ *
+ * ONLY WHILE RUNNING, which is why this is here and not on `.bar`. Idle, this
+ * is a button and a paragraph explaining what it does, and a paragraph that
+ * pinned itself to the top of the window and rode down the page with the
+ * reader would be an advertisement. */
 .bar[data-running] {
+  position: sticky;
+  /* Exactly the header's height, so nothing shows through the seam between
+     them. Under the header (50) and under the player dock, over the prose it
+     is covering. */
+  top: var(--header);
+  z-index: 20;
   padding: var(--sp-2) var(--sp-3);
   background: var(--live-soft);
   border-inline-start: 3px solid var(--live);
   border-radius: var(--radius-sm);
+  /* Prose passing UNDERNEATH a panel needs an edge, or the two read as one
+     surface and the sentence half-covered by the bar looks like a rendering
+     fault rather than a thing scrolling behind it. */
+  box-shadow: 0 6px 14px -10px color-mix(in srgb, var(--ink) 55%, transparent);
 }
 
 .key {
@@ -52,6 +74,30 @@
   font-size: 0.9em;
 }
 
+/* Back a sentence. A glyph, because it is one of a pair with the pause
+   button beside it and a word there would break the transport into a row of
+   labels; the skip control keeps its words because "Heard enough" is the
+   thing it does and no arrow says that. */
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.7rem;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.step:hover {
+  color: var(--live);
+  border-color: var(--live);
+}
+
 .minor {
   flex: none;
   padding: 0.3rem 0.5rem;
@@ -70,15 +116,51 @@
   color: var(--ink);
 }
 
+/* Takes the middle so the trailing buttons stay put as the label changes
+   length. A control whose buttons move under the pointer while it is running
+   is a control that gets mis-clicked. */
+.middle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.nudges {
+  display: flex;
+  flex: none;
+  gap: 0.25rem;
+}
+
+/* MOVING INSIDE A RECORDING, with a pointer. `← →` do this from a keyboard
+   and the dock's scrub bar does it with a drag, but a drag wants a target to
+   aim at and the bar is a few pixels tall - which on a phone is no target at
+   all. These are the same ten seconds, as something to press. */
+.nudge {
+  flex: none;
+  padding: 0.2rem 0.4rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nudge:hover {
+  color: var(--live);
+  border-color: var(--live);
+}
+
 .doing {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
   min-width: 0;
-  /* Takes the middle so the two trailing buttons stay put as the label
-     changes length. A control whose buttons move under the pointer while it
-     is running is a control that gets mis-clicked. */
-  flex: 1 1 12rem;
+  flex: 1 1 auto;
   font-size: var(--text-2xs);
   line-height: var(--leading-normal);
 }
@@ -119,4 +201,86 @@
 .part {
   color: var(--ink-3);
   font-style: italic;
+}
+
+/* The shortcuts, in the idle state that has room to say them. Its own line,
+   because it is a reference rather than a sentence: a reader wants to find
+   one key in it, not read it. */
+.keys {
+  display: block;
+  margin-block-start: 0.25rem;
+  color: var(--ink-4, var(--ink-3));
+}
+
+.keys kbd {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  padding: 0 0.25em;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/*
+ *  ON A NARROW SCREEN the bar becomes two lines rather than three.
+ *
+ * At 375px there is not room for the transport and the label side by side, so
+ * the label took the middle of the row and pushed "Stop" onto a line of its
+ * own - a control three rows deep, pinned under the header, holding a fifth
+ * of a phone screen away from the answer it is reading.
+ *
+ * Sent to the end of the flex order and given the whole width, it lands
+ * BELOW the buttons instead of between them. Which also gives it the full
+ * measure to wrap in, so the line naming the speaker gets shorter rather than
+ * longer: it is the one thing here that must not be cut, because it says who
+ * is talking and whether the citation runs on past the clip.
+ */
+@media (max-width: 34rem) {
+  .bar[data-running] .middle {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+
+/*
+ *  A FINGER IS NOT A POINTER, and this bar was built for one.
+ *
+ * Measured on a 375px screen with a recording playing: every control was
+ * between 27 and 32 pixels tall against a 44-pixel floor, and "Stop" sat
+ * eight pixels from "Heard enough" - the one that ends the whole narration
+ * beside the one a reader reaches for most, which is a mis-tap that costs
+ * them their place.
+ *
+ * So on a touch screen the targets grow to the floor and Stop is sent to the
+ * far edge, where nothing else is. Nothing is hidden and nothing moves: it is
+ * the same control with room to be hit.
+ */
+@media (pointer: coarse) {
+  .key,
+  .minor,
+  .step,
+  .nudge {
+    min-height: 44px;
+  }
+
+  .step,
+  .nudge {
+    min-width: 44px;
+  }
+
+  .minor {
+    padding-inline: 0.6rem;
+  }
+
+  /* Away from "Heard enough", against the edge of the bar. */
+  .stop {
+    margin-inline-start: auto;
+  }
+
+  /* The keys are a machine this reader does not have. */
+  .forKeys {
+    display: none;
+  }
 }

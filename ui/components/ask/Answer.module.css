@@ -87,6 +87,33 @@
   border-radius: 2px;
 }
 
+/*
+ *  READ FROM HERE, as a hover state and nothing else.
+ *
+ * The affordance has to be findable by a reader whose pointer is over the
+ * prose anyway, and invisible to one who is only reading: an answer with a
+ * hundred underlined sentences in it has stopped being an answer. So there is
+ * no cursor change either - the I-beam is right, because selecting these
+ * words is still the commoner thing to do with them and both gestures work.
+ *
+ * Never over the sentence being spoken. That one already carries the stronger
+ * tint, and a weaker one landing on top of it made the highlight flicker as
+ * the pointer crossed the line the voice was on.
+ */
+/* A POINTER THAT CAN HOVER, or none of this happens. A touch screen has no
+   hover to give: it fakes one on tap and then LEAVES it, so a reader who
+   tapped a sentence to read from there would be left with that sentence
+   tinted for as long as they stayed on the page - a second highlight
+   competing with the one that marks where the voice actually is. On touch the
+   tap does the work and needs no advertisement. */
+@media (hover: hover) {
+  .paras[data-live] .chunk:not([data-saying]):hover {
+    background: color-mix(in srgb, var(--live) 8%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 8%, transparent);
+    border-radius: 2px;
+  }
+}
+
 /* The citation being played, which is the same idea one step along: the mark
    is where the reading has got to, and the recording is what is happening
    there. Filled rather than tinted, because a marker is three characters and

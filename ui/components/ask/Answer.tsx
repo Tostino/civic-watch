@@ -62,7 +62,8 @@ export function Answer({ r }: { r: AskResult }) {
           documents are set in and the wrong one for a button. */}
       <Narrator narration={narration} />
       <article className={s.prose}>
-        <Prose marks={marks} saying={narration.step?.part ?? -1} />
+        <Prose marks={marks} saying={narration.step?.part ?? -1}
+               onRead={narration.supported ? narration.readFrom : undefined} />
       </article>
 
       {/* no answer without evidence, and the empty result is designed
@@ -433,12 +434,67 @@ function number(
  * nothing, and the alternative was a second copy of the prose renderer for
  * the one case where somebody pressed play.
  */
-function Prose({ marks, saying }: { marks: Marks; saying: number }) {
+function Prose({
+  marks,
+  saying,
+  onRead,
+}: {
+  marks: Marks;
+  saying: number;
+  /** Read from this part. Absent when the answer cannot be read at all. */
+  onRead?: (part: number) => void;
+}) {
+  /**
+   * READ FROM HERE. Pointing at a sentence is how a reader says which one
+   * they meant, and it is the only way into the middle of an answer that does
+   * not involve pressing skip eleven times.
+   *
+   * Delegated from the container rather than bound to each span: an answer is
+   * a hundred chunks, and a hundred handlers would be a hundred closures
+   * rebuilt on every tick of the playhead.
+   *
+   * A CLICK THAT ENDS A SELECTION IS NOT A CLICK. Dragging across three
+   * sentences to quote them finishes with the pointer released inside one of
+   * them, and starting to read there would be the page talking over somebody
+   * who was copying it out. Nor does this touch the citations: a marker is
+   * already a control, and it plays its whole stretch rather than the
+   * narration's trimmed clip.
+   */
+  const onClick =
+    onRead &&
+    ((e: React.MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("a, button")) return;
+      if (window.getSelection()?.isCollapsed === false) return;
+      const el = t.closest<HTMLElement>("[data-part]");
+      if (el?.dataset.part) onRead(Number(el.dataset.part));
+    });
+  /**
+   * THE CLAIM A RECORDING IS BACKING, lit for as long as it plays.
+   *
+   * While a clip runs the narration is standing on the citation, which is
+   * three characters wide - so the tint that had been marking the reader's
+   * place through the whole answer vanished, leaving a chip the size of "[4]"
+   * and, if they had scrolled at all, nothing. Forty-five seconds later the
+   * highlight came back somewhere else.
+   *
+   * A citation belongs to the sentence in front of it. Keeping that sentence
+   * lit turns the clip into evidence FOR something visible rather than an
+   * interruption, and the reader's place stops flickering out every time the
+   * archive opens its mouth.
+   */
+  const backing =
+    saying > 0 && isRun(marks.parts[saying]) && !isRun(marks.parts[saying - 1])
+      ? saying - 1
+      : -1;
+  const lit = (i: number) => i === saying || i === backing || undefined;
   return (
-    <div className={s.paras}>
+    <div className={s.paras} onClick={onClick || undefined}
+         data-live={onRead ? "" : undefined}>
       {marks.parts.map((p, i) =>
         typeof p === "string" ? (
-          <span key={`t${i}`} id={partId(i)} data-saying={i === saying || undefined}
+          <span key={`t${i}`} id={partId(i)} data-part={i}
+                data-saying={lit(i)}
                 className={s.chunk}>
             {p}
           </span>
@@ -446,7 +502,8 @@ function Prose({ marks, saying }: { marks: Marks; saying: number }) {
           <Refs key={`c${i}`} id={partId(i)} hearing={i === saying}
                 plan={marks.plans.get(p)!} />
         ) : (
-          <strong key={`b${i}`} id={partId(i)} data-saying={i === saying || undefined}
+          <strong key={`b${i}`} id={partId(i)} data-part={i}
+                  data-saying={lit(i)}
                   className={s.chunk}>
             {p.bold}
           </strong>
