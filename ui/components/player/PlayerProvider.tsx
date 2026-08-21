@@ -72,6 +72,17 @@ export interface Segment {
   state: "armed" | "reached" | "cancelled";
 }
 
+/**
+ * HOW FAR BEHIND A CITED STRETCH a seek may land and still count as listening
+ * to it rather than leaving it, in seconds.
+ *
+ * Sized to the shortcut it exists for. `j` moves ten seconds, so this is
+ * three presses of it from the first frame of the evidence: long enough to
+ * back up over the run-in to a quote, short enough that nothing else in a
+ * six-hour recording is inside it.
+ */
+const NUDGE = 30;
+
 export interface Source {
   videoId: string;
   /** What is playing, for the dock's own label. */
@@ -383,11 +394,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [arm, disarm, ready, source]);
 
   const seek = useCallback((seconds: number) => {
-    // The reader has taken the wheel. Whatever a citation said about where
-    // its evidence ended is no longer a statement about where they are.
-    disarm("cancelled");
-    playerRef.current?.seekTo(Math.max(0, seconds), true);
-    setPosition(Math.max(0, seconds));
+    const at = Math.max(0, seconds);
+    /* LANDING PAST THE STOP POINT, or well short of the stretch, is the
+     * reader taking the wheel: whatever a citation said about where its
+     * evidence ended is no longer a statement about where they are.
+     *
+     * MOVING ABOUT INSIDE THE STRETCH IS NOT. Going back ten seconds to catch
+     * a word that went past is the commonest thing anybody does to a clip,
+     * and cancelling for it ended the narration mid-argument and left the
+     * recording running on into the next agenda item.
+     *
+     * The grace in front is what makes that true at the START of a clip,
+     * where the nudge is likeliest and lands BEFORE the first frame of the
+     * evidence - three seconds in, back ten, and a rule that accepted only
+     * the stretch itself threw the narration away. It has to be bounded
+     * rather than open, because "before the stop point" also describes the
+     * half hour of meeting in front of the clip, and inheriting a stop point
+     * from back there would play thirty minutes nobody asked for.
+     */
+    const seg = segRef.current;
+    const inside = seg?.state === "armed" && at >= seg.from - NUDGE && at < seg.at;
+    if (!inside) disarm("cancelled");
+    playerRef.current?.seekTo(at, true);
+    setPosition(at);
   }, [disarm]);
 
   const toggle = useCallback(() => {

@@ -41,15 +41,23 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
     [p],
   );
 
-  // A global shortcut, but never while someone is typing.
+  /* Global shortcuts, but never while somebody is typing.
+   *
+   * `j k l`, because that is what every video player on the internet uses and
+   * a reader who knows them from one should not have to learn a second set
+   * here. Ten seconds is the nudge that catches a word that went past, and it
+   * no longer cancels a citation it lands inside - see `seek` in the
+   * provider. The scrub bar's own arrow keys, once it has focus, do the same
+   * thing and a minute with shift. */
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== "k" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       if (!p.source) return;
-      e.preventDefault();
-      p.toggle();
+      if (e.key === "k") { e.preventDefault(); p.toggle(); }
+      else if (e.key === "j") { e.preventDefault(); p.seek(p.position - 10); }
+      else if (e.key === "l") { e.preventDefault(); p.seek(p.position + 10); }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
