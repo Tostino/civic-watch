@@ -1,5 +1,5 @@
 # The reader API's dependencies, pinned to what is running on the workstation
-# today (`emb-venv`, verified 2026-08-14). torch is NOT here — it is installed
+# today (`emb-venv`, verified 2026-08-21). torch is NOT here — it is installed
 # separately from PyTorch's CPU index in Dockerfile.api, because the version on
 # PyPI carries CUDA this container will never use.
 #
@@ -8,10 +8,12 @@
 psycopg[binary]==3.3.4
 pgvector==0.5.0
 numpy==2.5.2
-sentence-transformers==5.7.0
-transformers==5.15.0
-huggingface-hub==1.27.0
+sentence-transformers==6.0.0
+transformers==5.15.1
+huggingface-hub==1.28.0
 safetensors==0.8.0
+# Held here by transformers, which requires <=0.23.0, and 0.23.0 was never
+# published - the line goes 0.22.2 straight to 0.23.1. This is the ceiling.
 tokenizers==0.22.2
 scikit-learn==1.9.0
 scipy==1.18.0
@@ -26,7 +28,7 @@ scipy==1.18.0
 # nothing but pydantic models, and it is the one transitive dependency here
 # whose major version has moved under a project before.
 starlette==1.6.0
-uvicorn==0.52.3
+uvicorn==0.52.4
 mcp==2.0.0
 mcp-types==2.0.0
 pydantic==2.13.4

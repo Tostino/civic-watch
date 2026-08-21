@@ -17,7 +17,7 @@
 # Debian-based on purpose, matching the runtime below: the standalone bundle can
 # carry native artifacts, and building on alpine/musl to run on glibc is a trap
 # that surfaces at runtime rather than at build.
-FROM node:22-slim AS uibuild
+FROM node:24-slim AS uibuild
 WORKDIR /build
 COPY ui/package.json ui/package-lock.json ./
 RUN npm ci
