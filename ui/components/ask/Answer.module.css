@@ -117,10 +117,34 @@
 /* The citation being played, which is the same idea one step along: the mark
    is where the reading has got to, and the recording is what is happening
    there. Filled rather than tinted, because a marker is three characters and
-   a tint on three characters is invisible. */
-.refs[data-hearing] .markSaid {
+   a tint on three characters is invisible.
+
+   ON THE ONE THAT IS PLAYING, not on the run it sits in. A run is everything
+   cited in one breath and often holds three numbers; lighting all of them
+   said "one of these is playing" when the archive knows exactly which. */
+.markSaid[data-playing] {
   color: var(--surface);
   background: var(--live);
+  border-radius: 2px;
+}
+
+/*
+ *  ALREADY PLAYED, and still marked so.
+ *
+ * A reference plays once. An answer that comes back to the same exchange in
+ * its last paragraph gets read straight past - which is right, and was
+ * invisible: from the reader's chair a narration that skips a citation
+ * without stopping looks like one that has lost its place.
+ *
+ * The same tint the spoken sentence carries, deliberately. One vocabulary for
+ * one idea - this is where the reading has been - so a cooled marker beside a
+ * lit sentence reads as a place the narration has already been rather than as
+ * a second kind of thing. The halo is what makes it survive at three
+ * characters wide.
+ */
+.markSaid[data-heard] {
+  background: color-mix(in srgb, var(--live) 18%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 18%, transparent);
   border-radius: 2px;
 }
 

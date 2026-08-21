@@ -267,6 +267,15 @@ export interface Narration {
   paused: boolean;
   /** Index into `steps`, or -1. The page highlights what this points at. */
   at: number;
+  /**
+   * Reference numbers this reading has ACTUALLY played.
+   *
+   * Not "everything before `at`", which is the cheap way to get this and is
+   * wrong the moment a reader clicks a sentence halfway down an answer: every
+   * citation above it would claim to have been played when none of them had.
+   * Only a step that ran puts a number in here.
+   */
+  heard: ReadonlySet<number>;
   step: Step | null;
   start(): void;
   stop(): void;
@@ -298,6 +307,19 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
   const [paused, setPaused] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
   const [at, setAt] = useState(-1);
+  /**
+   * WHAT HAS BEEN PLAYED, so the page can show why it is not played again.
+   *
+   * A reference plays once - an answer that returns to the same exchange is
+   * making a point about the argument, not asking for it twice - and until
+   * now the second mention was walked past in silence, which from the
+   * reader's chair looks exactly like a narration that has lost its place.
+   *
+   * Kept across a stop, because a reader who stops and picks the answer up
+   * again HAS heard those recordings; cleared by `start`, which is the one
+   * control that means "from the top".
+   */
+  const [heard, setHeard] = useState<ReadonlySet<number>>(() => new Set());
 
   /** Bumped by anything that invalidates callbacks already in flight. */
   const run = useRef(0);
@@ -450,6 +472,7 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
       }
 
       setPhase("listening");
+      setHeard((was) => (was.has(step.n) ? was : new Set(was).add(step.n)));
       // Cover for the sentence on the far side of the clip.
       warm(i + 1);
       token.current = player.play(
@@ -521,6 +544,7 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
     token.current = null;
     setPaused(false);
     setTrouble(null);
+    setHeard(new Set());
     perform(0);
   }, [perform, shush]);
 
@@ -662,9 +686,9 @@ export function useNarration(steps: Step[], answer: string | undefined): Narrati
   const supported = Boolean(answer);
 
   return useMemo(
-    () => ({ supported, trouble, phase, paused, at, step,
+    () => ({ supported, trouble, phase, paused, at, step, heard,
              start, stop: halt, skip, back, readFrom, togglePause }),
-    [supported, trouble, phase, paused, at, step, start, halt, skip, back,
-     readFrom, togglePause],
+    [supported, trouble, phase, paused, at, step, heard, start, halt, skip,
+     back, readFrom, togglePause],
   );
 }

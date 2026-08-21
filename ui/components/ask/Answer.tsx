@@ -63,6 +63,8 @@ export function Answer({ r }: { r: AskResult }) {
       <Narrator narration={narration} />
       <article className={s.prose}>
         <Prose marks={marks} saying={narration.step?.part ?? -1}
+               playing={narration.step?.kind === "hear" ? narration.step.n : null}
+               heard={narration.heard}
                onRead={narration.supported ? narration.readFrom : undefined} />
       </article>
 
@@ -437,10 +439,16 @@ function number(
 function Prose({
   marks,
   saying,
+  playing,
+  heard,
   onRead,
 }: {
   marks: Marks;
   saying: number;
+  /** The reference number sounding right now, if one is. */
+  playing: number | null;
+  /** Reference numbers this reading has already played. */
+  heard: ReadonlySet<number>;
   /** Read from this part. Absent when the answer cannot be read at all. */
   onRead?: (part: number) => void;
 }) {
@@ -500,6 +508,7 @@ function Prose({
           </span>
         ) : isRun(p) ? (
           <Refs key={`c${i}`} id={partId(i)} hearing={i === saying}
+                playing={playing} heard={heard}
                 plan={marks.plans.get(p)!} />
         ) : (
           <strong key={`b${i}`} id={partId(i)} data-part={i}
@@ -668,7 +677,13 @@ export const sourceOf = (hit: TranscriptHit) => ({
 });
 
 /** One reference: everything the writer cited in one breath, as numbers. */
-function Refs({ plan, id, hearing }: { plan: Plan; id: string; hearing: boolean }) {
+function Refs({ plan, id, hearing, playing, heard }: {
+  plan: Plan;
+  id: string;
+  hearing: boolean;
+  playing: number | null;
+  heard: ReadonlySet<number>;
+}) {
   const player = usePlayer();
   const els: React.ReactNode[] = [];
   for (const mk of plan.marks) {
@@ -686,12 +701,20 @@ function Refs({ plan, id, hearing }: { plan: Plan; id: string; hearing: boolean 
     else if (mk.kind === "said") {
       const mo = momentOf(mk);
       const hit = mo.hit;
-      const what = `${mk.n}. ${mo.what} · play`;
+      /* PLAYED, and said in words as well as in colour. A reader who watches
+         the reading walk past a citation without stopping is owed the reason,
+         and the marker is the thing they will point at to ask. */
+      const done = heard.has(mk.n) && mk.n !== playing;
+      const what = `${mk.n}. ${mo.what} · `
+        + (done ? "played earlier in this reading; press to hear it again"
+                : "play");
       els.push(
         <button
           key={`s${hit.id}`}
           type="button"
           className={`${s.mark} ${s.markSaid}`}
+          data-playing={mk.n === playing || undefined}
+          data-heard={done || undefined}
           title={what}
           aria-label={what}
           onClick={() =>
