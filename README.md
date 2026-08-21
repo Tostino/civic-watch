@@ -182,36 +182,34 @@ re-running ASR.
 
 ## What it gets wrong
 
-`/about` reports the current numbers, and `bin/audit.py` will tell you which
-invariants are failing today. Here's the shape of the problem.
+`/about` has the current numbers and `bin/audit.py` says which invariants are
+failing today. Neither of them catches what's below.
 
-* The audit checks consistency, not correctness. It'll tell you a span is
-orphaned, or that an outcome disagrees with the sentence it came from. It can't
-tell you a boundary is in the right place, or that a voice belongs to the
+* The audit checks consistency, not correctness. It catches an orphaned span,
+or an outcome that disagrees with the sentence it came from. It has no opinion
+on whether a boundary is in the right place, or whether a voice belongs to the
 person named on it.
-* Speaker precision hasn't been measured recently, and it's genuinely hard to
-measure, because the human labels and the published rosters are both inputs to
-the assignment. Scoring against either one is circular. What gets measured
-instead is coverage: how many utterances cluster, how many resolve to a name,
-and how many land outside the named person's term of office.
-* A large share of utterances resolve to no name at all and show up as a group
-label. It's the first thing most people notice.
-* Some of the older agendas are image-only scans and the portal can't extract
-text from them, so those meetings have no published agenda and lean entirely on
-items derived from the transcript.
-* Binding transcript spans to agenda items works well on public hearings and
-resolutions, less well on the consent agenda, and worst on the regular agenda.
-Board reports carry no agenda code at all and never will.
-* A roll call is the worst passage in the archive for attribution and the most
-damaging one to get wrong. It's fast, the names are read by one person while the
-votes come from several others, and people talk over each other, so it's exactly
-where a name lands on the wrong voice. It's also the sentence most likely to get
-repeated, because "Commissioner So-and-so voted against it" is a quotable thing
-to say. That's why the tool instructions forbid reporting a named person's vote
-from a transcript at all.
+* I haven't measured speaker precision recently, and it's hard to measure
+properly. The hand labels and the published rosters both feed the assignment,
+so scoring against either one is circular. I measure coverage instead: how many
+utterances cluster, how many get a name, and how many land outside the named
+person's term of office.
+* Plenty of utterances get no name at all and show up as a group label. That's
+the first thing most people notice.
+* Some of the older agendas are image-only scans the portal can't pull text
+from. Those meetings have no published agenda and run entirely on items derived
+from the transcript.
+* Binding transcript spans to agenda items works on public hearings and
+resolutions, is patchier on the consent agenda, and is worst on the regular
+agenda. Board reports carry no agenda code, so they never bind at all.
+* Roll calls are the worst case for getting a name wrong. They're fast, one
+person reads the names while the votes come from several others, and people
+talk over each other. It's also where being wrong does the most damage, so the
+tool instructions don't allow reporting a named person's vote from a transcript
+at all.
 
-Everything the agent says is bounded by that list, which is why the pages tell
-you what they're showing you and where it came from.
+Everything the agent says sits inside that list. That's why every page says
+what it's showing and where it came from.
 
 ## Who is asking
 
