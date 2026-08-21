@@ -102,7 +102,7 @@ type Held = {
   offices: Record<string, Office>;
 };
 
-export function Captions() {
+export function Captions({ onResize }: { onResize?: () => void }) {
   const p = usePlayer();
   const [held, setHeld] = useState<Held | null>(null);
   /**
@@ -236,6 +236,25 @@ export function Captions() {
    * both reshuffled by every clustering run and both read as names - see
    * SpeakerChip. This strip was handing `local_label` straight to the chip. */
   const tags = voiceTags(lines);
+
+  /**
+   * TELL THE DOCK IT HAS CHANGED SIZE.
+   *
+   * The dock publishes the room it takes at the foot of the window so pages
+   * can lay themselves out clear of it, and it watched itself with a
+   * ResizeObserver to know when. That missed this strip: the lines arrive
+   * from a fetch, so the growth happens in a re-render of THIS component and
+   * the dock never renders at all. It was publishing 257px while standing in
+   * front of 393, and the difference was 136px of answer hidden behind it on
+   * a phone.
+   */
+  useEffect(() => {
+    onResize?.();
+    /* `held` rather than `lines`, which is a conditional recomputed on every
+       tick of the playhead - this only needs to fire when a window of
+       transcript actually lands, which is the only thing that changes the
+       strip's height. */
+  }, [onResize, held, missing]);
 
   if (!p.source) return null;
 

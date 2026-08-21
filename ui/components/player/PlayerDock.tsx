@@ -178,7 +178,7 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
           wrong over the top of the video where nothing can be done about it.
           Collapsed, there is no picture and no room; the reader asked for the
           smallest thing that still plays. */}
-      {p.expanded ? <Captions /> : null}
+      {p.expanded ? <Captions onResize={publish} /> : null}
 
       <div className={s.transport} {...place.moveProps}>
         {placement === "sheet" ? null : (

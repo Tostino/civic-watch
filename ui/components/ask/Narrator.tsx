@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { usePlayer } from "@/components/player/PlayerProvider";
 import type { Narration } from "./narration";
@@ -16,6 +16,12 @@ import s from "./Narrator.module.css";
  * inside the clip rather than ending the narration.
  */
 const SEEK = 10;
+
+/**
+ * How far under the bar a passage too tall for the band is parked, in pixels.
+ * Enough to read as sitting below the control rather than jammed against it.
+ */
+const PEEK = 8;
 
 /**
  * The keys, named once. Every control below prints the one it answers to, so
@@ -47,17 +53,88 @@ function Key({ is }: { is: string }) {
 export function Narrator({ narration: n }: { narration: Narration }) {
   const player = usePlayer();
   const running = n.phase !== "off";
+  /** Measured rather than assumed: this bar is two rows tall on a phone. */
+  const barRef = useRef<HTMLDivElement | null>(null);
 
-  /* FOLLOW THE READING. A narration that scrolls off the top of the window is
+  /**
+   * FOLLOW THE READING. A narration that scrolls off the top of the window is
    * a podcast, and the reader has lost the one thing this offers over one:
-   * seeing which sentence the archive is standing on. */
-  useEffect(() => {
+   * seeing which sentence the archive is standing on.
+   *
+   * INTO THE BAND THEY CAN SEE, not into the middle of the window. This was
+   * `scrollIntoView({block: "center"})`, which centres in the VIEWPORT - and
+   * the viewport is not what is visible here. This bar is stuck to the top of
+   * it and the player takes the foot of it, and on a 812px phone showing a
+   * recording those two leave 227 pixels between them. A sentence centred in
+   * the window at 406 began below the middle of that band and ran on behind
+   * the player, so the reader was being shown the top half of what was being
+   * read to them.
+   */
+  const place = useCallback(() => {
     if (!running || n.at < 0) return;
     const el = document.getElementById(`say-${n.step?.part ?? -1}`);
     if (!el) return;
+    /* WHERE THE BAR SITS ONCE STUCK, not where it happens to be. Measuring
+       its current rect looks right and is wrong in the one case that matters:
+       before the page has scrolled down to the answer the bar is still far
+       below the fold, the band comes out negative, and the reading never gets
+       scrolled to at all. Sticky elements report their offset in `top`, so
+       this is the bar's own contract with the page rather than a guess. */
+    const bar = barRef.current;
+    const top = bar
+      ? (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight
+      : 0;
+    /* What the player says it is standing in front of. Zero when it is a lane
+       beside the page rather than a sheet across the foot of it, which is
+       exactly right: a lane obstructs width, and `--dock-lane` is how the
+       page is already told about that. */
+    const room =
+      parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--dock-h"),
+      ) || 0;
+    const band = window.innerHeight - room - top;
+    if (band <= 0) return;
+    const r = el.getBoundingClientRect();
+    /* Centred in the band while it fits. Against the top of it when it does
+       not, because a passage too tall to show at once is read from its
+       beginning - centring one of those hides its first line and its last. */
+    const want = r.height < band ? top + (band - r.height) / 2 : top + PEEK;
+    const by = Math.round(r.top - want);
+    if (Math.abs(by) < 4) return;
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
+    window.scrollBy({ top: by, behavior: still ? "auto" : "smooth" });
   }, [running, n.at, n.step?.part]);
+
+  useEffect(() => {
+    place();
+  }, [place]);
+
+  /**
+   * AND AGAIN WHENEVER THE BAND MOVES.
+   *
+   * Placing the reading once, when the step changes, was placing it against a
+   * window whose shape was about to change: the player opens, its caption
+   * strip arrives from a fetch a moment later, and the room it stands in
+   * front of goes from 257 pixels to 393. The sentence had been centred
+   * perfectly in a band that no longer existed, and its last two lines were
+   * behind the player.
+   *
+   * The dock publishes that room as `--dock-h` on the root element, so
+   * watching the root's style attribute is watching the obstruction itself
+   * rather than guessing at what might have moved it - and a resize covers
+   * the other way it changes, which is the reader turning the phone over.
+   */
+  useEffect(() => {
+    if (!running) return;
+    const root = document.documentElement;
+    const mo = new MutationObserver(place);
+    mo.observe(root, { attributes: true, attributeFilter: ["style"] });
+    window.addEventListener("resize", place);
+    return () => {
+      mo.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, [running, place]);
 
   /**
    * The keys, and NOT ONE THE PAGE ALREADY USES TO MOVE.
@@ -159,7 +236,17 @@ export function Narrator({ narration: n }: { narration: Narration }) {
   if (!n.supported) return null;
 
   return (
-    <div className={s.bar} data-running={running || undefined}>
+    <div
+      className={s.bar}
+      ref={barRef}
+      data-running={running || undefined}
+      /* WHETHER THE PLAYER IS SAYING ALL THIS ALREADY. With the picture open
+         the strip under it names the speaker and the transport carries the
+         clock, so on a phone this bar was the third place to print them - and
+         the third place cost 80 pixels of the answer. Collapsed, the strip is
+         not rendered and this is the only place left, so it stays. */
+      data-captioned={player.expanded && player.source ? "" : undefined}
+    >
       <p className="sr-only" aria-live="polite">
         {announce}
       </p>
@@ -219,16 +306,14 @@ export function Narrator({ narration: n }: { narration: Narration }) {
                 <span className={s.playing}>
                   {n.paused ? "The recording is paused" : "Playing the recording"}
                 </span>
-                <span className={s.who}>
-                  {n.step.what}
-                  {/* Never silently. The citation is longer than this clip,
-                      and the reader is owed that before they conclude they
-                      have heard it all. Its marker in the prose plays the
-                      whole stretch. */}
-                  {n.step.trimmed ? (
-                    <span className={s.part}> · the citation runs on past this</span>
-                  ) : null}
-                </span>
+                <span className={s.who}>{n.step.what}</span>
+                {/* OUTSIDE `.who`, which a phone hides. Never silently: the
+                    citation is longer than this clip, and the reader is owed
+                    that before they conclude they have heard it all. Its
+                    marker in the prose plays the whole stretch. */}
+                {n.step.trimmed ? (
+                  <span className={s.part}>the citation runs on past this</span>
+                ) : null}
               </>
             ) : (
               <span className={s.playing}>

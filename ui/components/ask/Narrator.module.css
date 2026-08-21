@@ -278,6 +278,17 @@
     flex-basis: 100%;
   }
 
+  /* SAID ALREADY, TWICE, BELOW. With the picture open the strip under it
+     names the speaker and the transport carries the clock, so printing both
+     here made this the third place - and on a 375px screen the wrap took 80
+     pixels off the band the answer is read in. What is left is the state
+     ("Playing the recording"), the note that a citation runs on past its
+     clip, and anything that went wrong: the three things nothing else says.
+     Collapsed, there is no strip and this is the only place left. */
+  .bar[data-captioned] .who {
+    display: none;
+  }
+
   /* NO ROOM TO PRINT THEM. A narrow window still has a keyboard - this is a
      desktop split in half, not a phone - but six controls each carrying a key
      took the bar from two rows to five, which is a worse trade than a
