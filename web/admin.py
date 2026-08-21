@@ -12,11 +12,13 @@ from http.cookies import SimpleCookie
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "bin"))
 
-COOKIE = "pasco_admin"
+import db                                                    # noqa: E402
+
+COOKIE = "civic_admin"
 # Where corrections re-embed. The web server already holds the embedding model
 # on this device (tools.warm), and vec_cache means most corrections re-embed
 # nothing at all.
-DEVICE = os.environ.get("PASCO_EMBED_DEVICE") or "cuda:1"
+DEVICE = db.embed_device()
 
 _token = None
 _token_path = None

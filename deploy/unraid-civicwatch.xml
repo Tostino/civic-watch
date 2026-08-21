@@ -66,8 +66,8 @@
           Description="Rendered speech, kept between restarts. An answer is immutable, so its audio is rendered once and every listener after the first pays nothing; unmapped, that work is redone after every container recreation. About 700 KB per answer. Same ownership requirement as the two above."
           Type="Path" Display="always" Required="false">/mnt/user/appdata/civicwatch/said</Config>
 
-  <Config Name="PASCO_DSN" Target="PASCO_DSN" Default=""
-          Description="Postgres connection string, e.g. postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings"
+  <Config Name="CIVIC_DSN" Target="CIVIC_DSN" Default=""
+          Description="Postgres connection string, e.g. postgresql://civic:PASSWORD@10.0.0.6:5432/civic_meetings. Was called PASCO_DSN, which the image still accepts: on an existing container, add this one and remove the old at your leisure, in either order."
           Type="Variable" Display="always" Required="true" Mask="true"/>
 
   <Config Name="SITE_URL" Target="SITE_URL" Default="https://pasco.watch"

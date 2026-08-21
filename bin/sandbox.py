@@ -14,7 +14,7 @@ archive - it only reads.
     bin/sandbox.py --compare        diff the derived layers against production
     bin/sandbox.py --drop           remove it
 
-    PASCO_DSN="$(bin/sandbox.py --dsn)" bash bin/rebuild.sh --yes
+    CIVIC_DSN="$(bin/sandbox.py --dsn)" bash bin/rebuild.sh --yes
 
 WHAT IS COPIED, and it is exactly `rebuild.sh`'s KEEP list restricted to the
 fixture meetings: utterances, videos, the human corrections, and the county's
@@ -38,7 +38,12 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import db                                                    # noqa: E402
 
-SANDBOX_DB = "pasco_sandbox"
+SANDBOX_DB = "civic_sandbox"
+# What it was called before the code stopped naming itself after one county.
+# --drop removes this too, so a sandbox built by the old code is cleaned up by
+# the new rather than sitting on the server as a few hundred megabytes nothing
+# refers to any more. Nothing else looks at it: --build makes SANDBOX_DB.
+OLD_SANDBOX_DB = "pasco_sandbox"
 
 # meeting_id -> why it is in the set. If a fixture ever stops being the case it
 # describes, the note is how you find that out.
@@ -203,7 +208,7 @@ def build():
     dst.commit()
 
     print(f"\nReady. Run the pipeline against it with:\n\n"
-          f'    PASCO_DSN="$(bin/sandbox.py --dsn)" bash bin/rebuild.sh --yes\n')
+          f'    CIVIC_DSN="$(bin/sandbox.py --dsn)" bash bin/rebuild.sh --yes\n')
 
 
 def _bind(value, blank):
@@ -305,17 +310,23 @@ def main():
     g.add_argument("--compare", action="store_true")
     g.add_argument("--drop", action="store_true")
     g.add_argument("--dsn", action="store_true", help="print the sandbox DSN")
+    g.add_argument("--name", action="store_true",
+                   help="print the sandbox database name (rebuild.sh asks, to "
+                        "know whether it is about to truncate production)")
     a = ap.parse_args()
     if a.dsn:
         print(dsn_for(SANDBOX_DB))
+    elif a.name:
+        print(SANDBOX_DB)
     elif a.build:
         build()
     elif a.compare:
         compare()
     elif a.drop:
         with admin() as c:
-            c.execute(f'DROP DATABASE IF EXISTS "{SANDBOX_DB}"')
-        print(f"dropped {SANDBOX_DB}")
+            for name in (SANDBOX_DB, OLD_SANDBOX_DB):
+                c.execute(f'DROP DATABASE IF EXISTS "{name}"')
+                print(f"dropped {name}")
     return 0
 
 

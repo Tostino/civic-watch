@@ -56,8 +56,8 @@ Unraid → DOCKER → ADD CONTAINER, Advanced view.
 | Port | container `5432` → host `5432` |
 | **Path** | container **`/var/lib/postgresql`** → host `/mnt/user/appdata/civicwatch-postgres` |
 | Variable | `POSTGRES_PASSWORD` = *a real password* |
-| Variable | `POSTGRES_USER` = `pasco` |
-| Variable | `POSTGRES_DB` = `pasco_meetings` |
+| Variable | `POSTGRES_USER` = `civic` |
+| Variable | `POSTGRES_DB` = `civic_meetings` |
 | Variable | `TZ` = `America/New_York` |
 | Extra Parameters | `--shm-size=4g` |
 | Post Arguments | `-c shared_buffers=2GB -c effective_cache_size=4GB -c maintenance_work_mem=2GB -c work_mem=32MB -c timezone=America/New_York -c log_timezone=America/New_York` |
@@ -109,7 +109,7 @@ connection via `set_config`, so it travels with the code.
 (snakeoil certs, and meaningless today because it only listens on loopback) and
 the Debian cluster-management furniture. Once it listens on the LAN, the DSN
 password crosses the wire — if you want that encrypted, that is a certificate
-into the container and `sslmode=require` in `PASCO_DSN`, and it is a fair thing
+into the container and `sslmode=require` in `CIVIC_DSN`, and it is a fair thing
 to add later rather than now.
 
 ---
@@ -125,7 +125,7 @@ resolves to 17.10 while `psql` resolves to 18.4, so name the path explicitly:
 
 ```bash
 source ./env.local.sh
-/usr/lib/postgresql/18/bin/pg_dump "$PASCO_DSN" -Fc -f pasco-$(date +%F).dump
+/usr/lib/postgresql/18/bin/pg_dump "$CIVIC_DSN" -Fc -f civic-$(date +%F).dump
 ```
 
 Dumping a 17 server with an 18 client is the supported direction; the reverse
@@ -135,8 +135,8 @@ Restore, with the container up:
 
 ```bash
 /usr/lib/postgresql/18/bin/pg_restore \
-  -d "postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings" \
-  -j 4 --no-owner --no-privileges pasco-YYYY-MM-DD.dump
+  -d "postgresql://civic:PASSWORD@10.0.0.6:5432/civic_meetings" \
+  -j 4 --no-owner --no-privileges civic-YYYY-MM-DD.dump
 ```
 
 `-j 4` parallelises the index builds, which is where the time goes. Expect the
@@ -145,17 +145,17 @@ HNSW build to dominate.
 Then verify, from the workstation:
 
 ```bash
-psql "postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings" -c "
+psql "postgresql://civic:PASSWORD@10.0.0.6:5432/civic_meetings" -c "
   select (select count(*) from utterances)  as utterances,   -- 298,737
          (select count(*) from passages)    as passages,     -- 166,998
          (select count(*) from redaction)   as redactions,   -- 3,440
          (select extversion from pg_extension where extname='vector') as vector;"
 ```
 
-Point `PASCO_DSN` at the new host and run the real check:
+Point `CIVIC_DSN` at the new host and run the real check:
 
 ```bash
-PASCO_DSN="$UNRAID_DSN" ./emb-venv/bin/python bin/audit.py
+CIVIC_DSN="$UNRAID_DSN" ./emb-venv/bin/python bin/audit.py
 ```
 
 The bar is that the target returns **the same result as the source**, not that

@@ -36,7 +36,7 @@ in except the two secrets:
 
 | you supply | |
 |---|---|
-| `PASCO_DSN` | `postgresql://pasco:PASSWORD@10.0.0.6:5432/pasco_meetings` |
+| `CIVIC_DSN` | `postgresql://civic:PASSWORD@10.0.0.6:5432/civic_meetings` |
 | `LLM_API_KEY` | your inference key — `/api/ask` only; everything else works without it |
 
 Both are masked in the UI. `INFERENCE_API_BASE` and `LLM_MODEL_AGENT` are under
@@ -165,7 +165,7 @@ curl -s https://pasco.watch/robots.txt
 Must say `Sitemap: https://pasco.watch/sitemap.xml`. `localhost:3000` means
 `SITE_URL` did not reach the container.
 
-Then, from the workstation with `PASCO_DSN` repointed:
+Then, from the workstation with `CIVIC_DSN` repointed:
 
 ```
 ./emb-venv/bin/python bin/audit.py

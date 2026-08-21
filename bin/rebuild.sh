@@ -18,7 +18,7 @@ cd "$(dirname "$0")/.."
 # unconditionally. Without these three lines the invocation printed in
 # bin/sandbox.py -
 #
-#     PASCO_DSN="$(bin/sandbox.py --dsn)" bash bin/rebuild.sh --yes
+#     CIVIC_DSN="$(bin/sandbox.py --dsn)" bash bin/rebuild.sh --yes
 #
 # - sets the sandbox DSN, has it silently overwritten one line later, and then
 # truncates every derived table in the REAL archive. The script whose entire
@@ -26,9 +26,15 @@ cd "$(dirname "$0")/.."
 # destroyed it.
 source bin/_env.sh
 
-TARGET=$(pasco_target)
+TARGET=$(db_target)
 echo "target database: $TARGET"
-[ "$TARGET" = "pasco_meetings" ] && echo "  *** THIS IS PRODUCTION ***"
+# ANYTHING THAT IS NOT THE SANDBOX IS TREATED AS PRODUCTION. This used to name
+# the production database, which meant the warning was one rename away from
+# going quiet - and a guard that stops warning without saying so is worse than
+# no guard, because the operator is still reading for it. Asked the other way
+# round it can only fail safe: a database nobody has heard of gets the warning.
+SANDBOX=$($PY bin/sandbox.py --name)
+[ "$TARGET" != "$SANDBOX" ] && echo "  *** THIS IS PRODUCTION ***"
 
 APPLY=0
 SKIP_LLM=0

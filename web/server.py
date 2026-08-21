@@ -434,7 +434,7 @@ def api_file(request, con):
     req = urllib.request.Request(
         archive.FILE.format(file_id=file_id),
         headers={"Accept": "application/pdf",
-                 "User-Agent": "pasco-meeting-archive/1.0 "
+                 "User-Agent": "civic-watch/1.0 "
                                "(research; contact via repo)"})
     try:
         with urllib.request.urlopen(req, timeout=90) as r:

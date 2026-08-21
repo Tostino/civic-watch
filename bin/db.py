@@ -23,13 +23,34 @@ class MissingConfig(RuntimeError):
     """Required configuration is absent from the environment."""
 
 
+# The old, county-specific spelling of each setting. `civic-watch` is the name
+# of the code and Pasco Watch is only its first instance, so nothing the code
+# reads from the environment should carry one county's name - but a deployment
+# that is already running does, and an image that stopped recognising
+# PASCO_DSN would take the site down the moment it was pulled, before anyone
+# had a chance to edit the container template. Both names work; the new one
+# wins. Delete this map once no deployment sets the old spelling.
+WAS = {"CIVIC_DSN": "PASCO_DSN", "CIVIC_EMBED_DEVICE": "PASCO_EMBED_DEVICE"}
+
+
+def env(name):
+    """One setting, under its current name or the one it used to have."""
+    return os.environ.get(name) or os.environ.get(WAS.get(name, name)) or None
+
+
 def dsn():
-    d = os.environ.get("PASCO_DSN")
+    d = env("CIVIC_DSN")
     if not d:
         raise MissingConfig(
-            "PASCO_DSN is not set. Source the local env file first:\n"
+            "CIVIC_DSN is not set. Source the local env file first:\n"
             "  source ./env.local.sh")
     return d
+
+
+def embed_device():
+    """Where a query or a correction re-embeds. `cuda:1` is the workstation;
+       the reader container sets this to `cpu` and has no GPU at all."""
+    return env("CIVIC_EMBED_DEVICE") or "cuda:1"
 
 
 class Row(Mapping):

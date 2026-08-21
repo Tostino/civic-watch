@@ -79,7 +79,7 @@ RUN touch /app/.admin_token && chown nobody:nogroup /app/.admin_token \
 # back to cuda:1, the model fails to load, and tools.warm() degrades to
 # BM25-only search. Startup says READY or UNAVAILABLE either way — grep
 # "dense retrieval".
-ENV PASCO_EMBED_DEVICE=cpu
+ENV CIVIC_EMBED_DEVICE=cpu
 
 # Next talks to the API over loopback inside this container. The API binds
 # 127.0.0.1 only (see entrypoint.sh), so /api/admin is not on the network at

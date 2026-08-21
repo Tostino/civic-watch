@@ -114,7 +114,7 @@ at all, which is usually the grim part of a project like this.
 ## Running it
 
 ```bash
-source ./env.local.sh                  # PASCO_DSN and LLM_API_KEY, gitignored, mode 600
+source ./env.local.sh                  # CIVIC_DSN and LLM_API_KEY, gitignored, mode 600
 
 bash bin/run.sh                        # ingest fleet: download, diarize, ASR
 ./emb-venv/bin/python bin/status.py    # progress
@@ -129,9 +129,12 @@ and then refuses every question, because the inference key only reaches the
 process through `bin/_env.sh`. It ran that way here for weeks before anyone
 noticed.
 
-`PASCO_DSN` is what decides which database is real, and `bin/db.py` won't read
+`CIVIC_DSN` is what decides which database is real, and `bin/db.py` won't read
 anything else, so a script run without it raises instead of quietly finding
-some local cluster and doing the work there.
+some local cluster and doing the work there. It was called `PASCO_DSN` until
+2026-08-21, as was `CIVIC_EMBED_DEVICE`; both old names are still honoured, in
+`bin/db.py` and `bin/_env.sh`, so a running deployment survives an image pull
+it has not been reconfigured for. Nothing else reads them.
 
 ## Pages
 

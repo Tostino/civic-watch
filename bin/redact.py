@@ -22,7 +22,7 @@ import db                                                    # noqa: E402
 import index_passages                                        # noqa: E402
 
 MARKER = "[address removed]"
-DEVICE = os.environ.get("PASCO_EMBED_DEVICE") or "cuda:1"
+DEVICE = db.embed_device()
 
 SUFFIX = (r"(street|st|road|rd|avenue|ave|drive|dr|lane|ln|boulevard|blvd"
           r"|court|ct|circle|cir|way|trail|trl|place|pl|highway|hwy"

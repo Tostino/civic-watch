@@ -1,5 +1,4 @@
 """Hybrid retrieval over the passage index, in Postgres."""
-import os
 import re
 
 import numpy as np
@@ -10,8 +9,8 @@ import threads
 MODEL_ID = "microsoft/harrier-oss-v1-0.6b"
 
 # Where the query encoder runs. `cuda:1` is this workstation; the reader
-# container sets `PASCO_EMBED_DEVICE=cpu` and has no GPU at all.
-DEVICE = os.environ.get("PASCO_EMBED_DEVICE") or "cuda:1"
+# container sets `CIVIC_EMBED_DEVICE=cpu` and has no GPU at all.
+DEVICE = db.embed_device()
 # HNSW is approximate, so this is the dial that trades recall for latency.
 # Measured against an exact scan over 65k passages, at the depths that actually
 # reach the reader: ef=500 gives 97.5% recall@40, ef=1000 gives 98.6% at 19 ms

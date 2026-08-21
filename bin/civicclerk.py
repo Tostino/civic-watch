@@ -20,7 +20,7 @@ PAUSE = 0.25              # be a polite guest on a county web server
 def fetch(url, as_json=True, retries=3):
     req = urllib.request.Request(url, headers={
         "Accept": "application/json" if as_json else "text/plain",
-        "User-Agent": "pasco-meeting-archive/1.0 (research; contact via repo)"})
+        "User-Agent": "civic-watch/1.0 (research; contact via repo)"})
     last = None
     for attempt in range(retries):
         try:

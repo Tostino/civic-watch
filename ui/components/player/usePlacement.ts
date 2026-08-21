@@ -13,7 +13,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 export type DockMode = "lane" | "float";
 export type Placement = DockMode | "sheet";
 
-const KEY = "pasco.player.dock";
+const KEY = "civicwatch.player.dock";
+/* What the key was called when the code was named after one county. Read, never
+   written: a reader who had floated the dock keeps it where they put it, and
+   the next drag writes it back under the current name. */
+const WAS = "pasco.player.dock";
 
 /** Under this, a column is more than the window can spare: the meeting page
  *  spends 21rem of its width on the agenda spine before the transcript gets
@@ -104,7 +108,7 @@ function parse(raw: string | null): Stored {
 function readStored(): Stored {
   let raw: string | null = null;
   try {
-    raw = window.localStorage.getItem(KEY);
+    raw = window.localStorage.getItem(KEY) ?? window.localStorage.getItem(WAS);
   } catch {
     /* A browser that refuses storage still gets a working player. */
   }

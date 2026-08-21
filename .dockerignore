@@ -7,7 +7,7 @@
 ui/.env.local
 ui/.env*.local
 
-# env.local.sh carries PASCO_DSN and LLM_API_KEY. It is gitignored, but the
+# env.local.sh carries CIVIC_DSN and LLM_API_KEY. It is gitignored, but the
 # Docker context is not git — an unignored secret still gets sent to the daemon
 # and can land in a layer.
 env.local.sh
