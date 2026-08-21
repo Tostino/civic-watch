@@ -142,13 +142,16 @@ Restore, with the container up:
 `-j 4` parallelises the index builds, which is where the time goes. Expect the
 HNSW build to dominate.
 
-Then verify, from the workstation:
+Then verify, from the workstation. The numbers in the comments are what these
+were on 2026-08-21 and they are only there for scale: the archive grows, so the
+check is that the destination matches the SOURCE you dumped, not that it matches
+a number written down here. Run the same select against both.
 
 ```bash
 psql "postgresql://civic:PASSWORD@10.0.0.6:5432/civic_meetings" -c "
   select (select count(*) from utterances)  as utterances,   -- 298,737
-         (select count(*) from passages)    as passages,     -- 166,998
-         (select count(*) from redaction)   as redactions,   -- 3,440
+         (select count(*) from passages)    as passages,     -- 167,043
+         (select count(*) from redaction)   as redactions,   -- 3,443
          (select extversion from pg_extension where extname='vector') as vector;"
 ```
 

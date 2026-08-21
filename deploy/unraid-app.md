@@ -42,6 +42,17 @@ in except the two secrets:
 Both are masked in the UI. `INFERENCE_API_BASE` and `LLM_MODEL_AGENT` are under
 *Show more settings*, also `/api/ask` only.
 
+`MCP_NAME` and `MCP_TITLE` carry this instance's values in the template, and
+they are worth checking rather than assuming. They are not secrets and nothing
+fails without them, which is the problem: unset, the tool endpoint announces
+itself as `civic-watch` / "Civic Watch", and `/about` starts telling readers to
+register it under that name instead of the one their client already has.
+
+`CIVIC_DSN` was called `PASCO_DSN` before 2026-08-21 and the image still reads
+either, so a container that has not been reconfigured survives the pull. The
+database and role it points at were renamed at the same time, and that part is
+not backwards compatible: the DSN has to say `civic` and `civic_meetings`.
+
 The template sets `--init` as an Extra Parameter, which gives the container a
 real PID 1 for signal handling and zombie reaping — that matters because this
 image runs two processes.

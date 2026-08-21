@@ -126,6 +126,9 @@ bin/serve.sh                           # reader API on :8765
 npm --prefix ui run dev                # UI on :3000, proxying /api to :8765
 ```
 
+The UI wants Node 24, which is what `deploy/Dockerfile` builds it with and what
+`ui/.nvmrc` says, so `nvm use` in `ui/` lands on the right one.
+
 Start the API through `bin/serve.sh` instead of calling `server.py` yourself.
 If you call it directly it comes up fine, serves the whole archive correctly,
 and then refuses every question, because the inference key only reaches the
@@ -150,8 +153,17 @@ it has not been reconfigured for. Nothing else reads them.
 /ask           the agent, streaming its real tool calls
 /ask/:id       one kept answer, so a run can be sent to somebody
 /about         what the archive holds and where it falls short, counted live
+/mcp           the same archive as tools, for a client that speaks MCP
 /admin         curation console: queues, corrections, redactions, ops
 ```
+
+`/mcp` is public and unauthenticated the same way the pages are. What it calls
+itself in the handshake comes from `MCP_NAME` and `MCP_TITLE`, because that name
+belongs to the archive being served and not to this code; unset, it answers to
+`civic-watch` and "Civic Watch". `/about` prints whatever `MCP_NAME` says in the
+commands it hands a reader, so the name they register under is the name the
+handshake announces. Setting one and not the other is the way to get those two
+out of step.
 
 The admin console isn't reachable from the internet, and what does that is
 which port answered rather than anything in the request itself. Curation binds
