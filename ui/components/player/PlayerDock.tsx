@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef } from "react";
 import { clock } from "@/lib/format";
+import { Captions } from "./Captions";
 import { usePlayer } from "./PlayerProvider";
 import { MAX_W, MIN_W, usePlacement } from "./usePlacement";
 import s from "./PlayerDock.module.css";
@@ -170,6 +171,14 @@ export function PlayerDock({ hostRef }: { hostRef: React.RefObject<HTMLDivElemen
           </div>
         ) : null}
       </div>
+
+      {/* UNDER THE PICTURE, and above the transport. The archive's own words
+          for what is being said, in place of the embed's captions - which are
+          refused in the provider, because they get this county's vocabulary
+          wrong over the top of the video where nothing can be done about it.
+          Collapsed, there is no picture and no room; the reader asked for the
+          smallest thing that still plays. */}
+      {p.expanded ? <Captions /> : null}
 
       <div className={s.transport} {...place.moveProps}>
         {placement === "sheet" ? null : (

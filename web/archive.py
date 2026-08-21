@@ -890,7 +890,7 @@ def meeting(con, meeting_id):
     return out
 
 # -------------------------------------------------------------- transcript
-LINES = """
+_LINES = """
     SELECT u.video_id, u.idx, u.start, u."end", u.text,
            u.cluster AS voice, u.local_label,
            us.name, us.display_name, us.human,
@@ -906,8 +906,14 @@ LINES = """
     LEFT JOIN item_spans sp
            ON sp.video_id = u.video_id
           AND u.idx BETWEEN sp.start_idx AND sp.end_idx
-    WHERE u.video_id = %s AND u.idx BETWEEN %s AND %s
+    WHERE u.video_id = %s AND {span}
     ORDER BY u.idx"""
+
+# By position in the recording, which is what a caption under the player has:
+# a clock, not an index. Overlap rather than containment, so the line being
+# spoken across the edge of the window is in it.
+LINES = _LINES.format(span="u.idx BETWEEN %s AND %s")
+LINES_BETWEEN = _LINES.format(span='u."end" >= %s AND u.start <= %s')
 
 def _offices(con, meeting_id):
     """surname -> the office they held AT THIS MEETING."""
@@ -917,15 +923,40 @@ def _offices(con, meeting_id):
         FROM meeting_roster r JOIN people p ON p.id = r.person_id
         WHERE r.meeting_id = %s""", (meeting_id,))}
 
-def transcript(con, video_id):
+# How wide a window of a recording anybody may ask for in one request, in
+# seconds. A whole meeting is up to 390kB of text - /meeting wants exactly
+# that, because it is showing all of it, and asks with no window at all. The
+# strip under the player wants about a minute, and paying a third of a
+# megabyte to caption ninety seconds of a citation is the kind of thing that
+# is invisible on a desk and ruinous on a phone.
+MAX_SPAN = 1800
+
+def transcript(con, video_id, span=None):
+    """One recording's lines: all of them, or the ones inside a time window.
+
+    `span` is `(from, to)` in seconds, and a line is in it if it OVERLAPS it -
+    the sentence being spoken as the window opens is part of what is being
+    said, and a rule about containment would drop precisely the line a caption
+    exists to show.
+    """
     v = con.execute(
         "SELECT id, title, duration, session_seq, meeting_id, upload_date "
         "FROM videos WHERE id = %s", (video_id,)).fetchone()
     if not v:
         return None
-    lines = [line(r) for r in con.execute(LINES, (video_id, 0, 2 ** 31 - 1))]
-    return {"video": dict(v), "lines": lines,
-            "offices": _offices(con, v["meeting_id"])}
+    if span is None:
+        rows = con.execute(LINES, (video_id, 0, 2 ** 31 - 1))
+    else:
+        a, b = span
+        rows = con.execute(LINES_BETWEEN, (video_id, a, b))
+    out = {"video": dict(v), "lines": [line(r) for r in rows],
+           "offices": _offices(con, v["meeting_id"])}
+    # WHAT WAS ACTUALLY ASKED FOR, handed back, so the caller knows what it
+    # holds rather than inferring it from the lines it got - which is
+    # unanswerable when a window is silent and returns none.
+    if span is not None:
+        out["span"] = [span[0], span[1]]
+    return out
 
 # --------------------------------------------------------------- agenda item
 MAX_ITEM_LINES = 2000

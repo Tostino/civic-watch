@@ -28,6 +28,46 @@ import { PlayerDock } from "./PlayerDock";
  * locally - rather than to a broken frame.
  */
 
+/**
+ * YOUTUBE'S CAPTIONS, OFF.
+ *
+ * The county's uploads carry auto-generated captions, and they get this
+ * county's vocabulary wrong in exactly the ways bin/lexicon.py exists to fix:
+ * Withlacoochee, Aripeka, DeCubellis, severability. They are burned over the
+ * lower third of the picture, where nothing can be done about them, and the
+ * archive is showing its OWN transcript of the same words underneath - so
+ * they are two claims about one sentence, one of them worse, stacked.
+ *
+ * `cc_load_policy: 0` asks, and is only a default: a viewer whose YouTube
+ * account has captions switched on gets them anyway. Unloading the module is
+ * what actually refuses. Both names, because the player has been through two
+ * of them and which one answers depends on which player it is; both are
+ * harmless when unrecognised. And on every state change, not just once,
+ * because loading a video into the player brings its captions back with it.
+ */
+function hush(p: YTPlayer | null) {
+  if (!p) return;
+  /* BOTH MECHANISMS, and both module names. The IFrame API has been through
+   * two players and two vocabularies for this, none of it in the current
+   * documentation, and which pair answers depends on which player YouTube
+   * served. Unloading the module refuses captions outright; clearing the
+   * track turns off whichever one was already showing. Each is a no-op where
+   * it is not recognised, so asking for all four costs four postMessages and
+   * removes the guesswork. */
+  for (const mod of ["captions", "cc"]) {
+    try {
+      p.unloadModule?.(mod);
+    } catch {
+      /* Not worth a word to the reader: their own transcript is underneath. */
+    }
+    try {
+      p.setOption?.(mod, "track", {});
+    } catch {
+      /* as above */
+    }
+  }
+}
+
 type YTPlayer = {
   playVideo(): void;
   pauseVideo(): void;
@@ -36,6 +76,12 @@ type YTPlayer = {
   getDuration(): number;
   loadVideoById(o: { videoId: string; startSeconds?: number }): void;
   cueVideoById(o: { videoId: string; startSeconds?: number }): void;
+  /* Refusing YouTube's captions. Neither is in the current IFrame API
+   * documentation and neither is guaranteed to exist on the player that gets
+   * served, so both are optional and `hush` treats a missing one as a no-op
+   * rather than as a failure. */
+  unloadModule?(module: string): void;
+  setOption?(module: string, option: string, value: unknown): void;
   destroy(): void;
 };
 
@@ -287,10 +333,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         if (cancelled || !hostRef.current || playerRef.current || !window.YT) return;
         playerRef.current = new window.YT.Player(hostRef.current, {
           host: "https://www.youtube-nocookie.com",
-          playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
+          playerVars: {
+            rel: 0, modestbranding: 1, playsinline: 1,
+            /* NOT ON BY DEFAULT. This asks; `hush` below insists. */
+            cc_load_policy: 0,
+          },
           events: {
             onReady: () => {
               if (cancelled) return;
+              hush(playerRef.current);
               setReady(true);
               const p = pendingRef.current;
               if (p && playerRef.current) {
@@ -306,6 +357,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
             },
             onStateChange: (e: { data: number }) => {
               if (cancelled || !window.YT) return;
+              hush(playerRef.current);
               setPlaying(e.data === window.YT.PlayerState.PLAYING);
               const d = playerRef.current?.getDuration?.() ?? 0;
               if (d) setDuration(d);

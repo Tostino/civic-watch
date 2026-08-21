@@ -1,0 +1,52 @@
+/* The archive's own words, under the recording. See Captions.tsx for why they
+ * are not YouTube's, and why this is one line rather than a list. */
+
+.strip {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 0.3rem;
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--rule);
+}
+
+/*
+ *  A FIXED HEIGHT, so nothing moves.
+ *
+ * The dock is a card the reader can drag anywhere and narrow to eighteen
+ * rems, and it is often sitting beside prose that is being read. A strip that
+ * grew and shrank with the length of each utterance would resize it, and
+ * reflow whatever it is docked against, several times a minute.
+ *
+ * Four lines holds the great majority of what this archive's speakers say in
+ * one breath - the mean utterance is 173 characters, which is under three
+ * lines at the width this card opens at. Longer ones are clamped rather than
+ * scrolled: a scrollbar inside a caption is furniture, and the whole line is
+ * one click away on the meeting page.
+ */
+.said {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  /* Held open at its full height whether or not there are words in it, so a
+     gap in the transcript is a quiet pause rather than a jump. */
+  min-height: calc(4 * var(--leading-normal) * 1em);
+  margin: 0;
+  /* A caption is read at a glance while listening, so it is a step up from
+     the dock's other text rather than the smallest thing on the card. */
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+/* Not an error. A recording with no transcript is an ordinary state of this
+   archive - 1,036 hours are transcribed and the recordings go back further -
+   and it is a different fact from silence in the room. */
+.none {
+  margin: 0;
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  color: var(--ink-4, var(--ink-3));
+}

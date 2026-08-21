@@ -371,7 +371,25 @@ def api_meeting(request, con):
 
 @reads
 def api_transcript(request, con):
-    d = archive.transcript(con, request.path_params["video_id"])
+    """A recording's lines. `from`/`to` in seconds asks for a window of them.
+
+    NO WINDOW MEANS ALL OF IT, which is what /meeting asks for and is right
+    there: it draws the whole transcript. The window is for the strip under
+    the player, which needs about a minute and would otherwise pay for a
+    third of a megabyte of text to caption it.
+    """
+    span = None
+    q = request.query_params
+    if "from" in q or "to" in q:
+        try:
+            a = max(0.0, float(q.get("from") or 0))
+            b = float(q.get("to") or (a + archive.MAX_SPAN))
+        except ValueError:
+            return _json(request, {"error": "from and to are seconds"}, 400)
+        # Clamped rather than refused: a caller asking for too much gets the
+        # window it may have, and the `span` in the reply says what that was.
+        span = (a, max(a, min(b, a + archive.MAX_SPAN)))
+    d = archive.transcript(con, request.path_params["video_id"], span)
     return _json(request, d) if d else _json(request, {}, 404)
 
 # A kept run of the agent (web/answers.py), which is what a shared /ask/<id>
