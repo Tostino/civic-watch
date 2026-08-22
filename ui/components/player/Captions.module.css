@@ -83,11 +83,13 @@
   padding-block: 0.15rem 0.05rem;
 }
 
-/* Behind the pinned name, and therefore only ever partly readable. Held back
-   until it is clear of it, so a name arrives whole or not at all. Its space is
-   kept, so nothing below it shifts while it passes. */
-.who[data-under] {
-  visibility: hidden;
+/* The name arriving at the edge, while it is still on its way there: drawn
+   over the one it is replacing rather than under it. Opaque, or the two would
+   be legible through each other, which is worse than either alone. */
+.who[data-over] {
+  position: relative;
+  z-index: 2;
+  background: var(--surface);
 }
 
 /*
@@ -107,6 +109,9 @@
   inset-inline: 0;
   top: 0;
   z-index: 1;
+  /* Lifted by however far the arriving name still has to come, so the two
+     stay edge to edge on the way out. Zero the rest of the time. */
+  transform: translateY(var(--push, 0px));
   display: flex;
   min-width: 0;
   margin: 0;

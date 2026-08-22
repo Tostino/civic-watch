@@ -205,27 +205,9 @@ export function Captions({ onResize }: { onResize?: () => void }) {
   const readPinned = useCallback(() => {
     const b = box.current;
     if (!b) return;
-    /*
-     *  AND NO NAME IS EVER HALF OF ITSELF.
-     *
-     * A row passing under the pinned name is partly covered for as long as it
-     * takes to clear it - which for a text line is ordinary scrolling and for
-     * a name is a fragment of somebody's name, the thing this whole change is
-     * about. Emerging looks exactly as broken as leaving did.
-     *
-     * So a name row that intersects the band the pinned one occupies is
-     * hidden outright. `visibility`, not `display`: it keeps its space, so
-     * nothing under it moves as it passes, and it arrives whole.
-     */
-    const band = pinnedEl.current?.offsetHeight ?? 0;
+    const rows = [...b.querySelectorAll<HTMLElement>("[data-turn]")];
     let found: number | null = null;
-    for (const el of b.querySelectorAll<HTMLElement>("[data-turn]")) {
-      const top = el.offsetTop - b.offsetTop;
-      const hidden = top < b.scrollTop + band && top + el.offsetHeight > b.scrollTop;
-      if (hidden) el.setAttribute("data-under", "");
-      else el.removeAttribute("data-under");
-    }
-    for (const el of b.querySelectorAll<HTMLElement>("[data-turn]")) {
+    for (const el of rows) {
       /*
        * `<=`, and it is the whole correctness of this thing. The name that
        * owns the top edge is the last one at OR above it. Written `<`, the
@@ -239,6 +221,34 @@ export function Captions({ onResize }: { onResize?: () => void }) {
         found = Number(el.dataset.turn);
       } else break;
     }
+    /*
+     *  THE ARRIVING NAME PUSHES THE LEAVING ONE OUT, rather than waiting for
+     *  it to be gone.
+     *
+     * The next turn's name row comes up the box towards the edge. Once it is
+     * within a name's height of it, two things happen together: it is drawn
+     * OVER the pinned name, and the pinned name is lifted by exactly the
+     * distance still between them. So their edges stay flush and the pair
+     * travels as one plate sliding off the top, the way a sectioned list has
+     * always done it.
+     *
+     * The alternative, which this replaces, was to hide the arriving row
+     * until it was clear of the pinned one. That never showed half a name
+     * either, and it made a name blink into place instead of arriving.
+     */
+    const H = pinnedEl.current?.offsetHeight ?? 0;
+    const next = rows[(found ?? -1) + 1];
+    let push = 0;
+    for (const el of rows) el.removeAttribute("data-over");
+    if (next) {
+      const gap = next.offsetTop - b.offsetTop - b.scrollTop;
+      if (gap < H) {
+        push = gap - H;
+        next.setAttribute("data-over", "");
+      }
+    }
+    pinnedEl.current?.style.setProperty("--push", `${push}px`);
+
     if (found !== pinned.current) {
       pinned.current = found;
       setPinnedTurn(found);
