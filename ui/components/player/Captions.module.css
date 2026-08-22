@@ -35,9 +35,27 @@
   overscroll-behavior: contain;
 }
 
+/*
+ *  THE TURN IS A GROUPING, NOT A BOX.
+ *
+ * A sticky element cannot leave its own parent, so with the name inside a
+ * `.turn` div it was evicted the moment that turn scrolled out - pushed up
+ * over its own height while the NEXT turn's name was still below the top
+ * edge, waiting to arrive. For those pixels the strip showed half a name
+ * with nothing over it, which is the sliver of somebody else's name above
+ * the one that is pinned. Measured, it was 21 of 51 scroll positions.
+ *
+ * `display: contents` takes the div out of the layout while leaving the
+ * grouping in the markup, so every name is a direct child of the scroller
+ * and each one is pushed out by the NEXT name rather than by the end of its
+ * own turn. That is the ordinary sticky-list handover, and it has no gap:
+ * there is a name against the top edge at every scroll position.
+ */
 .turn {
-  margin-block-end: 0.4rem;
+  display: contents;
 }
+
+
 
 /*
  *  WHOSE WORDS THESE ARE, for as long as they are on screen.
@@ -58,10 +76,35 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  margin: 0 0 0.15rem;
-  padding-block: var(--sp-2) 0.15rem;
+  /*
+   *  A ROW THE SIZE OF THE NAME IN IT.
+   *
+   * This is a <p> around an inline-flex chip, so it was laying out a 24px
+   * LINE BOX for a 16.8px chip and then adding 10px of padding: 34px of row
+   * to say a name, against 17px for a line of what was actually said. Three
+   * speakers in a nine-rem box spent 103 of its 144 pixels on their own
+   * names. The chip was never the problem - it is 12px against the speech's
+   * 11px, which is the right relationship - the line box around it was.
+   *
+   * `flex` removes the line box: the chip's own height becomes the row's.
+   */
+  display: flex;
+  min-width: 0;
+  /* The leading 0.4rem is the gap BETWEEN turns, which used to be the
+     `.turn` div's own margin and needs somewhere to live now that the div
+     has no box. It belongs in this shorthand rather than in a rule of its
+     own: written separately above, this very shorthand reset it to zero and
+     the strip lost every gap between speakers without complaint. */
+  margin: 0.4rem 0 0.15rem;
+  padding-block: 0.25rem 0.1rem;
   /* The card's own surface, so lines pass behind it rather than through it. */
   background: var(--surface);
+}
+
+/* The first turn has nothing above it to be separated from, and the strip's
+   own top padding is already on the name. */
+.turn:first-child .who {
+  margin-block-start: 0;
 }
 
 /*
