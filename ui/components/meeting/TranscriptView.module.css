@@ -309,7 +309,26 @@
   */
   .scroll {
     flex: none;
-    height: 70vh;
+    /*
+     * THE REST OF THE WINDOW, not a fraction of it. `70vh` left the last 30%
+     * of the screen empty by construction: scrolled to the end of the page
+     * the transcript stopped 192px short of the bottom, mid-sentence, with
+     * nothing under it and nowhere left to scroll.
+     *
+     * `dvh` rather than `vh` because they are not the same thing on a phone.
+     * `vh` is the window with the browser's own chrome hidden, so sizing to
+     * it overflows by the height of the address bar for as long as the bar is
+     * showing. `dvh` is what is visible now.
+     *
+     * Minus the header, which is sticky and always over this; minus the dock,
+     * which is fixed to the bottom and covers this whenever a recording is
+     * open; and minus `.split`'s bottom gutter, which is still under the
+     * panel. Leave that last one out and the page has exactly that much
+     * scroll left after the transcript already fills the window, which it
+     * spends pulling the first line up behind the header. See the matching
+     * note in MeetingView.module.css at the same breakpoint.
+     */
+    height: calc(100dvh - var(--header) - var(--dock-h, 0px) - var(--sp-4));
     min-height: 20rem;
   }
 }

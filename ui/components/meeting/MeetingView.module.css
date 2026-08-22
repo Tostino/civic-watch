@@ -396,6 +396,48 @@
   }
 }
 
+/*
+ *  WHERE THE TRANSCRIPT BECOMES A WINDOW-HEIGHT SCROLLER.
+ *
+ * 52rem, and it MUST match TranscriptView.module.css, which is the file that
+ * decides it. They were 40 and 52 for one measurement: between the two the
+ * transcript sized itself to the window while the page still carried a
+ * desktop gutter under it, so at 700px it overshot by 32px at BOTH ends -
+ * dead space below and the first line pulled up behind the header.
+ */
+@media (max-width: 52rem) {
+  /*
+   *  ROOM FOR THE DOCK, WHEN THERE IS A DOCK.
+   *
+   * This was a flat 11rem, reserved whether or not anything was playing. The
+   * dock is `position: fixed` and parks itself off the bottom of the window
+   * when it is holding nothing, so on a phone with no recording open that was
+   * 176px of black under the transcript that no amount of scrolling could
+   * reach past - measured at 393x874, 22% of the screen.
+   *
+   * `--dock-h` is the dock's own measurement of how much of the window it is
+   * actually covering, published by the dock and 0px when it is covering
+   * nothing. Which is the number this always wanted.
+   */
+  .page {
+    padding-bottom: var(--dock-h, 0px);
+  }
+
+  /*
+   * `.split` KEEPS ITS GUTTER, and the transcript subtracts it instead.
+   *
+   * Zeroing it here did align the transcript perfectly and left the RECORD
+   * panel touching the bottom edge of the window with nothing under it, which
+   * is the same fault in the other direction. The gutter is right for
+   * ordinary flow; what was wrong was the transcript sizing itself as though
+   * the gutter were not there, and then spending the leftover scroll pulling
+   * its own first line up behind the header.
+   *
+   * So the number lives in one place and TranscriptView subtracts it. If this
+   * changes, that has to change with it.
+   */
+}
+
 @media (max-width: 40rem) {
   .mastheadInner {
     padding: var(--sp-4) var(--sp-3) var(--sp-3);
@@ -409,7 +451,4 @@
     gap: var(--sp-1) var(--sp-4);
   }
 
-  .page {
-    padding-bottom: 11rem;
-  }
 }
