@@ -54,7 +54,15 @@
 
 .scroll {
   flex: 1;
-  min-height: 18rem;
+  /*
+   * A FLOOR THAT CANNOT EXCEED THE WINDOW. Flat, this was 18rem, and on a
+   * short window it outgrew the pane it sits in: at 882x344 the pane came to
+   * 244px and this held itself at 288, so 28px of the top of the transcript
+   * sat behind the sticky header. Same fault as the one in the phone rule
+   * below and the one MeetingView caps `--pane-h` with, in the third of the
+   * three places that gets to decide this height.
+   */
+  min-height: min(18rem, calc(100dvh - var(--header) - var(--sp-6)));
   /* Only when the dock is over this pane - floating at the foot of the window,
    * or a sheet across the bottom - does the scrollable content need padding to
    * keep its last lines reachable. In its own lane the dock covers nothing and
@@ -329,6 +337,18 @@
      * note in MeetingView.module.css at the same breakpoint.
      */
     height: calc(100dvh - var(--header) - var(--dock-h, 0px) - var(--sp-4));
-    min-height: 20rem;
+    /*
+     * THE FLOOR MAY NOT BE TALLER THAN THE ROOM. A flat `20rem` here was
+     * fine in portrait, where the window is always taller than that, and
+     * wrong the moment a phone is turned on its side: at 800x360 the band
+     * between the header and the gutter is 292px, the floor made the panel
+     * 320, and the extra 28 went UP behind the sticky header, taking the
+     * line the reader was on with it. 667x375 lost 13px the same way.
+     *
+     * Clamped, it still keeps a short panel from collapsing to nothing when
+     * the dock is open and the window is small, and it can no longer push
+     * the top of the panel out of sight to do it.
+     */
+    min-height: min(20rem, calc(100dvh - var(--header) - var(--sp-4)));
   }
 }

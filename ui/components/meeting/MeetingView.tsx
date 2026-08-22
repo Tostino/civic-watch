@@ -288,7 +288,28 @@ export function MeetingView({
         parseFloat(cs.paddingBottom || "0") +
         (article ? parseFloat(getComputedStyle(article).paddingBottom || "0") : 0);
       const room = window.innerHeight - top - inset;
-      el.style.setProperty("--pane-h", `${Math.round(Math.max(288, room))}px`);
+      /*
+       * A FLOOR NEEDS A CEILING. The 288 keeps a pane usable when a tall
+       * masthead has eaten the window, and on its own it will happily return
+       * a pane taller than the window can ever show: at 882x344 - a foldable
+       * on its side, or any window dragged short - the room is 244, the floor
+       * made it 288, and the 44 it did not have went UP behind the sticky
+       * header once the page scrolled, taking the top of the transcript with
+       * it. Measured 28px of it hidden.
+       *
+       * `most` is the tallest a pane could ever be and still be seen whole:
+       * the window, less the header it would sit under, less the insets. Like
+       * the rest of this measurement it is read from boxes AROUND the panes,
+       * so it cannot feed its own output back in.
+       */
+      const probe = document.createElement("div");
+      probe.style.cssText = "position:absolute;visibility:hidden;height:var(--header)";
+      el.appendChild(probe);
+      const headerH = probe.getBoundingClientRect().height;
+      probe.remove();
+      const most = window.innerHeight - headerH - inset;
+      const pane = Math.max(0, Math.min(Math.max(288, room), most));
+      el.style.setProperty("--pane-h", `${Math.round(pane)}px`);
     };
     measure();
     const ro = new ResizeObserver(measure);
