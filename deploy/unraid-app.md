@@ -42,6 +42,16 @@ in except the two secrets:
 Both are masked in the UI. `INFERENCE_API_BASE` and `LLM_MODEL_AGENT` are under
 *Show more settings*, also `/api/ask` only.
 
+**`ASK_TRUST_PROXY=1` now decides whether SEARCHING is metered too, not just
+asking.** `SEARCH_PER_IP` counts per address, and the address only exists when
+that is on: with it off, every reader arrives as the proxy and the ceiling
+either never fires or fires on all of them at once. `SEARCH_MAX_CONCURRENT` is
+the one that does not care - it bounds how much of the box this endpoint can
+hold whoever is asking, and it is the dial to reach for first if the container
+is eating the machine. Searching runs the embedding model on the CPU here, at
+about a second of CPU per query, and it is the most expensive thing a reader
+can reach.
+
 `MCP_NAME` and `MCP_TITLE` carry this instance's values in the template, and
 they are worth checking rather than assuming. They are not secrets and nothing
 fails without them, which is the problem: unset, the tool endpoint announces

@@ -102,6 +102,14 @@
           Description="Questions per address per 10 minutes."
           Type="Variable" Display="advanced" Required="false" Mask="false">6</Config>
 
+  <Config Name="SEARCH_PER_IP" Target="SEARCH_PER_IP" Default="60"
+          Description="Searches per address per minute. Searching runs the embedding model on the CPU here, which is the most expensive thing a reader can reach. Counts only where the address is known, which needs ASK_TRUST_PROXY=1. 60 is generous for reading."
+          Type="Variable" Display="advanced" Required="false" Mask="false">60</Config>
+
+  <Config Name="SEARCH_MAX_CONCURRENT" Target="SEARCH_MAX_CONCURRENT" Default="4"
+          Description="Searches running at once, across everybody. This is the ceiling that bounds CPU no matter who is asking or whether the address is known, so it is the one to lower if the container is eating the box. 4 against 4 threads each is 16 cores at the very worst."
+          Type="Variable" Display="advanced" Required="false" Mask="false">4</Config>
+
   <Config Name="LLM_API_KEY" Target="LLM_API_KEY" Default=""
           Description="Inference key. Used ONLY by /api/ask. Search, browse and the published record are local and work without it."
           Type="Variable" Display="always" Required="false" Mask="true"/>
