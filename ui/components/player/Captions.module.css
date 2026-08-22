@@ -95,8 +95,11 @@
      has no box. It belongs in this shorthand rather than in a rule of its
      own: written separately above, this very shorthand reset it to zero and
      the strip lost every gap between speakers without complaint. */
-  margin: 0.4rem 0 0.15rem;
-  padding-block: 0.25rem 0.1rem;
+  margin: 0.3rem 0 0.1rem;
+  /* Enough above the name to keep it off the edge it is pinned against, and
+     no more: the box's own top padding is zero precisely so this can be the
+     only gap there, and every pixel here is one the words below do not get. */
+  padding-block: 0.15rem 0.05rem;
   /* The card's own surface, so lines pass behind it rather than through it. */
   background: var(--surface);
 }
