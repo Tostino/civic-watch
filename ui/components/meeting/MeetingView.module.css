@@ -419,8 +419,12 @@
    * actually covering, published by the dock and 0px when it is covering
    * nothing. Which is the number this always wanted.
    */
+  /* Zero, not `--dock-h`: `main` now reserves that for every route, and
+     having it here as well counted the dock twice - which the transcript
+     would have felt immediately, since its height is the window less the
+     header, the dock and the one gutter below it. */
   .page {
-    padding-bottom: var(--dock-h, 0px);
+    padding-bottom: 0;
   }
 
   /*

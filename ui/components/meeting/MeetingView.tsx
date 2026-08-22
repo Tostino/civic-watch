@@ -283,10 +283,16 @@ export function MeetingView({
       const top = el.getBoundingClientRect().top + window.scrollY;
       const cs = getComputedStyle(el);
       const article = el.parentElement;
+      const main = article?.parentElement ?? null;
       const inset =
         parseFloat(cs.paddingTop || "0") +
         parseFloat(cs.paddingBottom || "0") +
-        (article ? parseFloat(getComputedStyle(article).paddingBottom || "0") : 0);
+        (article ? parseFloat(getComputedStyle(article).paddingBottom || "0") : 0) +
+        /* `main` reserves the dock's room now (globals.css), and it is one
+           more box between these panes and the bottom of the window. Left
+           out, a dock across the bottom would make every pane that much too
+           tall and put the page back to scrolling to reveal nothing. */
+        (main ? parseFloat(getComputedStyle(main).paddingBottom || "0") : 0);
       const room = window.innerHeight - top - inset;
       /*
        * A FLOOR NEEDS A CEILING. The 288 keeps a pane usable when a tall

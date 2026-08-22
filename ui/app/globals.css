@@ -44,6 +44,22 @@ body {
  * broken header rather than as a panel beside the page. */
 main {
   padding-inline-end: var(--dock-lane, 0px);
+  /*
+   *  AND ROOM UNDER IT FOR A DOCK ACROSS THE BOTTOM.
+   *
+   * The lane has been padded for here since the dock could sit beside the
+   * page; the bottom never was, and only the meeting page had thought to do
+   * it for itself. So on every other route a recording hid the end of what
+   * the reader was reading: measured on /ask with a clip open, the last 265px
+   * of the answer sat behind the dock with the page already scrolled as far
+   * as it goes, which is not "behind a panel" but gone.
+   *
+   * `--dock-h` is the right variable to trust globally because the dock only
+   * publishes it when it is genuinely against the bottom of the window - a
+   * lane dock and a floating card in the middle both report 0 - so this is
+   * zero on every layout that does not need it. See PlayerDock's `publish`.
+   */
+  padding-block-end: var(--dock-h, 0px);
   transition: padding-inline-end var(--normal) var(--ease);
 }
 
