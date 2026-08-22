@@ -283,7 +283,6 @@ export function getReview(video: string, opts: { name?: string; label?: string }
 
 export const adminLogin = (token: string) =>
   post<{ authenticated: boolean }>("/api/admin/login", { token });
-export const adminLogout = () => post<{ authenticated: boolean }>("/api/admin/logout", {});
 
 export const correct = (body: {
   video_id: string;

@@ -195,43 +195,6 @@ def search(query, limit=40, spread=None, speaker=None, kind=None,
             con.close()
 
 
-def decisions_in_play(con, passages, max_segments=8, per_segment=4):
-    """Fetch the decision moments of the agenda items already retrieved."""
-    hits = {}
-    for p in passages:
-        if p.get("agenda_item_id"):
-            hits[p["agenda_item_id"]] = hits.get(p["agenda_item_id"], 0) + 1
-    live = [s for s, n in sorted(hits.items(), key=lambda kv: -kv[1])
-            if n > 1][:max_segments]
-    if not live:
-        return []
-    have = {p["id"] for p in passages}
-    rows = con.execute("""
-        SELECT * FROM (
-            SELECT p.id, p.video_id, p.start, p."end", p.speaker,
-                   display_name(p.speaker) AS speaker_display, p.text,
-                   p.start_idx, p.end_idx,
-                   p.phase, p.agenda_item_id,
-                   ai.title AS item, ai.code, ai.case_id, ai.outcome,
-                   v.title, v.upload_date, v.kind,
-                   ROW_NUMBER() OVER (PARTITION BY p.agenda_item_id
-                                      ORDER BY p.start DESC) AS rn
-            FROM passages p
-            JOIN videos v ON v.id = p.video_id
-            LEFT JOIN agenda_items ai ON ai.id = p.agenda_item_id
-            WHERE p.agenda_item_id = ANY(%s) AND p.speaker = '(exchange)'
-        ) t WHERE rn <= %s""", (live, per_segment)).fetchall()
-    out = []
-    for r in rows:
-        if r["id"] in have:
-            continue
-        d = dict(r)
-        d.pop("rn", None)
-        d["score"] = 0.0        # fetched by structure, not ranked by relevance
-        out.append(d)
-    return out
-
-
 ITEM_FTS = """to_tsvector('english',
     coalesce(ai.title,'') || ' ' || coalesce(ai.case_id,'') || ' ' ||
     coalesce(ai.department,'') || ' ' || coalesce(ai.outcome_text,''))"""
@@ -417,56 +380,6 @@ def search_items(con, query, limit=10, body=None, outcome=None, phase=None,
         loosened = bool(total)
 
     return {"total": total, "items": rows, "loosened": loosened}
-
-
-def items_for(con, passages, limit=18):
-    """The OFFICIAL record behind the passages that were retrieved."""
-    hits = {}
-    for p in passages:
-        if p.get("agenda_item_id"):
-            hits[p["agenda_item_id"]] = hits.get(p["agenda_item_id"], 0) + 1
-    if not hits:
-        return []
-    # Follow the case to every other meeting that took it up, INCLUDING meetings
-    # we hold no recording of. The meeting that finally decides a rezoning is
-    # often one we have no video for, so an items-from-passages rule can never
-    # reach it: asked about a rezoning that WAS approved, the agent answered
-    # "continued, no final approval recorded". The published record does not
-    # depend on whether a camera was running.
-    rows = con.execute("""
-        WITH seed AS (SELECT id FROM agenda_items WHERE id = ANY(%s)),
-             threads AS (
-                 SELECT DISTINCT ai.case_id FROM agenda_items ai
-                 JOIN seed ON seed.id = ai.id WHERE ai.case_id IS NOT NULL)
-        SELECT ai.id, ai.code, ai.title, ai.search_title, ai.case_id,
-               ai.section, ai.phase, ai.department, ai.recommendation,
-               ai.outcome_text, ai.outcome, ai.outcome_source, ai.source,
-               m.id AS meeting_id, m.date, m.body, m.title AS meeting_title,
-               EXISTS (SELECT 1 FROM item_spans sp
-                       WHERE sp.agenda_item_id = ai.id) AS has_recording
-        FROM agenda_items ai
-        JOIN meetings m ON m.id = ai.meeting_id
-        WHERE ai.id IN (SELECT id FROM seed)
-           OR ai.case_id IN (SELECT case_id FROM threads)""",
-        (list(hits),)).fetchall()
-    out = [dict(r) for r in rows]
-    for d in out:
-        d["passages"] = hits.get(d["id"], 0)
-    # What DECIDED the matter outranks what deferred it. A case routinely
-    # carries five continuances and one approval; ranking by discussion volume
-    # alone buries the approval under the continuances, which is the one thing
-    # the reader actually asked for.
-    TERMINAL = {"approved", "adopted", "denied", "withdrawn"}
-
-    def rank(d):
-        if d["source"] != "agenda":
-            return 3
-        if d["outcome"] in TERMINAL:
-            return 0
-        return 1 if d["outcome"] else 2
-
-    out.sort(key=lambda d: (rank(d), -d["passages"], d["date"] or ""))
-    return out[:limit]
 
 
 if __name__ == "__main__":

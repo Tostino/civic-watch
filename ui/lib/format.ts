@@ -1,4 +1,4 @@
-import type { Item, Outcome, RosterEntry } from "./types";
+import type { Outcome, RosterEntry } from "./types";
 
 /** Media time. Hours only when there are hours - most meetings run past one. */
 export function clock(seconds: number | null | undefined): string {
@@ -234,10 +234,6 @@ export function shortBody(body: string): string {
   if (/planning/i.test(body)) return "Planning";
   return body;
 }
-
-/** Where an item sits in the recordings, if anywhere. */
-export const itemStart = (item: Item): { video_id: string; start: number } | null =>
-  item.spans.length ? { video_id: item.spans[0].video_id, start: item.spans[0].start } : null;
 
 /** "Morning session" / "Afternoon session" - about half of all meeting-days
  *  are two recordings on one continuous agenda. */

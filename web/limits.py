@@ -358,8 +358,7 @@ def _mcp_state():
 # to rank paraphrase, and in the container that is on the CPU: measured at
 # 1.28s of CPU time per query at torch's default thread count, 0.93s at the
 # four the image now pins it to. Nothing else a reader can reach costs a
-# fraction of that. /api/search is keyword-only and cheap by comparison, and
-# is metered here only because an unbounded loop over it is still a loop.
+# fraction of that.
 #
 # TWO CEILINGS, AND THE SECOND IS THE ONE THAT ALWAYS BITES.
 #

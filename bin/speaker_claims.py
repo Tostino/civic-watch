@@ -148,10 +148,6 @@ def runs_by_cluster(con):
     return out
 
 
-def _norm(s):
-    return " ".join((s or "").split()).strip().lower()
-
-
 # A claim mirrors how its producer behaves. `speaker_override` keeps history,
 # so an override is an event and accumulates; every other table - including
 # `speaker_label`, which is deleted and re-inserted - holds one current answer,

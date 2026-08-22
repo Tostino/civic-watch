@@ -40,65 +40,6 @@ from wire import jsonable                        # noqa: E402
 def connect(write=False):
     return db.connect(autocommit=not write)
 
-# ------------------------------------------------------------------ search
-def search(con, q, kind=None, speaker=None, limit=50, offset=0):
-    """Keyword search over utterances.
-
-    websearch_to_tsquery accepts what people actually type - quoted phrases,
-    OR, a leading minus to exclude - and never raises on malformed input, so
-    the FTS5 escape/retry dance this replaced is simply gone."""
-    if not (q or "").strip():
-        return {"total": 0, "results": []}
-    return _search(con, q, kind, speaker, limit, offset)
-
-def _search(con, match, kind, speaker, limit, offset):
-    where, args = ["u.tsv @@ q.tsq"], [match]
-    if kind and kind != "all":
-        where.append("v.kind = %s")
-        args.append(kind)
-    if speaker:
-        where.append("us.name = %s")
-        args.append(speaker)
-    clause = " AND ".join(where)
-    # The agenda item comes along because a hit often cannot be placed without
-    # it - "all in favor say aye" is meaningless until you know what was being
-    # voted on, and the words themselves never say.
-    base = """FROM utterances u
-              CROSS JOIN (SELECT websearch_to_tsquery('english', %s) AS tsq) q
-              JOIN videos v ON v.id = u.video_id
-              JOIN utterance_speaker us
-                     ON us.video_id = u.video_id AND us.idx = u.idx
-              LEFT JOIN item_spans sp
-                     ON sp.video_id = u.video_id
-                    AND u.idx BETWEEN sp.start_idx AND sp.end_idx
-              LEFT JOIN agenda_items s ON s.id = sp.agenda_item_id"""
-    total = con.execute(f"SELECT COUNT(*) {base} WHERE {clause}",
-                        args).fetchone()[0]
-    # An unnamed voice is shown by its CLUSTER, not its per-meeting diarization
-    # label: "Speaker 9" here and "Speaker 15" there are the same person, and
-    # showing both implies they are not. The cluster id is stable across the
-    # archive and is what the workbench operates on, so it doubles as a link.
-    rows = con.execute(f"""
-        SELECT u.video_id, u.start, u.idx, u.cluster,
-               -- Name from the resolver, so this page agrees with the rebuilt
-               -- one. The 'Group N' fallback stays HERE and only here: this is
-               -- a curation surface where the cluster id is the thing you act
-               -- on. No reader-facing page may render it.
-               COALESCE(us.name, 'Group ' || u.cluster, u.speaker) AS speaker,
-               (us.name IS NOT NULL) AS named,
-               ts_headline('english', u.text, q.tsq,
-                   'StartSel=<mark>, StopSel=</mark>, MaxWords=28, MinWords=10,'
-                   ' ShortWord=2, MaxFragments=2, FragmentDelimiter=" … "')
-                   AS snip,
-               s.title AS item, s.phase,
-               s.id AS agenda_item_id, s.code, s.case_id, s.outcome,
-               v.title, v.upload_date, v.kind, v.duration
-        {base} WHERE {clause}
-        ORDER BY ts_rank_cd(u.tsv, q.tsq) DESC, u.video_id, u.idx
-        LIMIT %s OFFSET %s""",
-        args + [limit, offset]).fetchall()
-    return {"total": total, "results": [dict(r) for r in rows]}
-
 def transcript(con, video_id):
     v = con.execute("SELECT * FROM videos WHERE id=%s", (video_id,)).fetchone()
     if not v:
@@ -268,25 +209,6 @@ def redirect_case(request):
 def what_this_is(request):
     return _json(request, {"error": "this is the archive's JSON API; the "
                                     "site is served by the UI"}, 404)
-
-@reads
-def api_search(request, con):
-    one = _one(request)
-    # Keyword-only and far cheaper than /api/find, but a loop over it is still
-    # a loop, and it shares the ceiling so that neither is a way around it.
-    try:
-        release = limits.search_reserve(limits.client_ip(request))
-    except limits.Throttled as t:
-        return _json(request, {"error": t.message, "kind": t.kind}, 429,
-                     {"Retry-After": str(t.retry_after)} if t.retry_after
-                     else None)
-    try:
-        return _json(request, search(con, one("q", ""), one("kind"),
-                                     one("speaker"),
-                                     min(int(one("limit", 50)), 200),
-                                     int(one("offset", 0))))
-    finally:
-        release()
 
 # Keyed on a VIDEO id. It was called /api/meeting/<id> while /api/agenda/<id>
 # took a MEETING id - two keys, near-identical names, and a trap that should
@@ -916,7 +838,6 @@ def public_app():
 
             Route("/api/ask", api_ask),
             Route("/api/say", api_say, methods=["POST"]),
-            Route("/api/search", api_search),
             Route("/api/video/{video_id}", api_video),
 
             Route("/api/meetings", api_meetings),
