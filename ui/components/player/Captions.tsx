@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SpeakerChip, voiceTags } from "@/components/SpeakerChip";
 import { groupTurns } from "@/lib/turns";
@@ -115,6 +115,24 @@ export function Captions({ onResize }: { onResize?: () => void }) {
   const [missing, setMissing] = useState(false);
   const asked = useRef<string | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
+  /**
+   *  WHOSE NAME BELONGS AT THE TOP EDGE, when it is not on screen itself.
+   *
+   * `null` means the top turn's own name is still visible in the box and is
+   * doing the job; a number means it has scrolled above the edge and this
+   * strip has to say who is still talking.
+   *
+   * A ref beside the state because this is read on every scroll event and
+   * only worth a render when the answer CHANGES, which is once per turn
+   * rather than once per frame.
+   */
+  const pinned = useRef<number | null>(null);
+  const pinnedEl = useRef<HTMLParagraphElement | null>(null);
+  const [pinnedTurn, setPinnedTurn] = useState<number | null>(null);
+  /* Always rendered rather than only once the list's own name has gone past.
+     Appearing and disappearing was a second thing that could be wrong at a
+     boundary, and it buys nothing: at the top of the list this sits exactly
+     over the row it is repeating, which is the same pixels either way. */
   /** Whether the box is still following the recording, or the reader has it. */
   const follow = useRef(true);
 
@@ -179,6 +197,54 @@ export function Captions({ onResize }: { onResize?: () => void }) {
     else break;
   }
 
+  /* The last turn whose own name has gone above the top edge. Same content
+     coordinates as `parkAt`: a name's `offsetTop` less the box's is its
+     distance down the scrolling content, which is what `scrollTop` counts.
+     Stable, so the effects below can depend on it and the scroll handler can
+     call it without rebuilding anything. */
+  const readPinned = useCallback(() => {
+    const b = box.current;
+    if (!b) return;
+    /*
+     *  AND NO NAME IS EVER HALF OF ITSELF.
+     *
+     * A row passing under the pinned name is partly covered for as long as it
+     * takes to clear it - which for a text line is ordinary scrolling and for
+     * a name is a fragment of somebody's name, the thing this whole change is
+     * about. Emerging looks exactly as broken as leaving did.
+     *
+     * So a name row that intersects the band the pinned one occupies is
+     * hidden outright. `visibility`, not `display`: it keeps its space, so
+     * nothing under it moves as it passes, and it arrives whole.
+     */
+    const band = pinnedEl.current?.offsetHeight ?? 0;
+    let found: number | null = null;
+    for (const el of b.querySelectorAll<HTMLElement>("[data-turn]")) {
+      const top = el.offsetTop - b.offsetTop;
+      const hidden = top < b.scrollTop + band && top + el.offsetHeight > b.scrollTop;
+      if (hidden) el.setAttribute("data-under", "");
+      else el.removeAttribute("data-under");
+    }
+    for (const el of b.querySelectorAll<HTMLElement>("[data-turn]")) {
+      /*
+       * `<=`, and it is the whole correctness of this thing. The name that
+       * owns the top edge is the last one at OR above it. Written `<`, the
+       * pixel where a new speaker's name lands exactly on the edge is a pixel
+       * where this covers that name and goes on showing the speaker before
+       * them - a name over somebody else's words, which is the one mistake
+       * this archive is most careful about. Eight positions in five hundred,
+       * every one of them a turn boundary.
+       */
+      if (el.offsetTop - b.offsetTop <= b.scrollTop + 0.5) {
+        found = Number(el.dataset.turn);
+      } else break;
+    }
+    if (found !== pinned.current) {
+      pinned.current = found;
+      setPinnedTurn(found);
+    }
+  }, []);
+
   /* FOLLOW THE PLAYHEAD, inside this box only, and with room above.
    *
    * `scrollIntoView` is the obvious call and the wrong one twice over: it
@@ -192,7 +258,10 @@ export function Captions({ onResize }: { onResize?: () => void }) {
     const el = b?.querySelector<HTMLElement>("[data-now]");
     if (!b || !el || !follow.current) return;
     b.scrollTop = parkAt(b, el);
-  }, [now, videoId, lines.length]);
+    /* This moved the box without a scroll event the reader caused, and the
+       name at the edge is a function of where the box is, not of who did it. */
+    readPinned();
+  }, [now, videoId, lines.length, readPinned]);
 
   /* A NEW RECORDING IS A FRESH START. Whatever the reader was reading in the
    * last one, they are not reading it now, and carrying "they have taken the
@@ -220,10 +289,12 @@ export function Captions({ onResize }: { onResize?: () => void }) {
    */
   const onScroll = () => {
     const b = box.current;
+    readPinned();
     const el = b?.querySelector<HTMLElement>("[data-now]");
     if (!b || !el) return;
     follow.current = Math.abs(b.scrollTop - parkAt(b, el)) < NEAR;
   };
+
 
   /* THE ARCHIVE'S OWN GROUPING, not another one. `sameTurn` also compares
    * `basis` - how the name was arrived at - so two runs a hand-rolled
@@ -256,6 +327,30 @@ export function Captions({ onResize }: { onResize?: () => void }) {
        strip's height. */
   }, [onResize, held, missing]);
 
+  /* A new window of transcript moves every offset in the box, so whoever was
+     at the edge may not be any more. */
+  useEffect(() => {
+    readPinned();
+  }, [readPinned, held, missing]);
+
+  /* One speaker's chip, built the same way whether it is sitting in the list
+     or pinned to the edge - so the pinned one cannot drift into saying
+     something slightly different from the line it stands for. */
+  const chipFor = (l: Line) => (
+    <SpeakerChip
+      who={l.who}
+      /* The roster keys on surname, and a full name has to fall back to it -
+         the same two-step every other view does. */
+      office={
+        (l.name
+          ? (held?.offices[l.name] ?? held?.offices[l.name.split(" ").pop() ?? ""])
+          : null) ?? null
+      }
+      voiceTag={l.voice != null ? (tags.get(l.voice) ?? null) : null}
+      size="sm"
+    />
+  );
+
   if (!p.source) return null;
 
   return (
@@ -266,8 +361,23 @@ export function Captions({ onResize }: { onResize?: () => void }) {
           for it.
         </p>
       ) : (
-        <div className={s.box} ref={box} onScroll={onScroll}>
-          {turns.map((run) => (
+        <>
+          {/*
+            THE ONE NAME AT THE EDGE.
+            Shown only once the top turn's own name has scrolled above it, so
+            the two are never both on screen saying the same thing - and being
+            one element that changes its text rather than two sticky rows
+            handing over, there is no moment where a name is half of itself.
+            `aria-hidden`: the name it repeats is still in the list below, and
+            a screen reader following the transcript should hear it once.
+          */}
+          {pinnedTurn != null && turns[pinnedTurn] ? (
+            <p className={s.pinned} ref={pinnedEl} aria-hidden>
+              {chipFor(turns[pinnedTurn][0])}
+            </p>
+          ) : null}
+          <div className={s.box} ref={box} onScroll={onScroll}>
+          {turns.map((run, i) => (
             <div key={run[0].idx} className={s.turn}>
               {/* STUCK TO THE TOP FOR AS LONG AS THEY ARE TALKING. A name on
                   every line is a column of chips, so it is drawn once per
@@ -277,20 +387,8 @@ export function Captions({ onResize }: { onResize?: () => void }) {
                   inside its own turn, it stays until the next speaker's name
                   pushes it out, which also means scrolling back through the
                   transcript always says whose words are on screen. */}
-              <p className={s.who}>
-                <SpeakerChip
-                  who={run[0].who}
-                  /* The roster keys on surname, and a full name has to fall
-                     back to it - the same two-step every other view does. */
-                  office={
-                    (run[0].name
-                      ? (held?.offices[run[0].name] ??
-                         held?.offices[run[0].name.split(" ").pop() ?? ""])
-                      : null) ?? null
-                  }
-                  voiceTag={run[0].voice != null ? (tags.get(run[0].voice) ?? null) : null}
-                  size="sm"
-                />
+              <p className={s.who} data-turn={i}>
+                {chipFor(run[0])}
               </p>
               {run.map((l) => (
                 /* A line is a place in the recording, so pressing it goes
@@ -314,9 +412,10 @@ export function Captions({ onResize }: { onResize?: () => void }) {
                   {l.text}
                 </button>
               ))}
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

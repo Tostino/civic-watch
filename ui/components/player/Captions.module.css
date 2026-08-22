@@ -4,6 +4,8 @@
 
 .strip {
   border-top: 1px solid var(--rule);
+  /* The pinned name is positioned against this. */
+  position: relative;
 }
 
 /*
@@ -58,36 +60,18 @@
 
 
 /*
- *  WHOSE WORDS THESE ARE, for as long as they are on screen.
+ *  WHOSE WORDS THESE ARE, once per turn, in the flow.
  *
- * Drawn once per turn and left in the flow, the name scrolled away the
- * instant anybody said more than fits in the box - which in county business
- * is most of the time - and the reader was left watching a paragraph with
- * nobody attached to it. This is the one thing a caption must never be
- * ambiguous about, in an archive whose whole discipline is not putting words
- * in the wrong mouth.
+ * This used to be `position: sticky` so it would hold the top of the box for
+ * as long as its speaker was talking. That is the right behaviour and the
+ * wrong mechanism: two sticky names necessarily share the top edge while one
+ * replaces the other, and what showed there was half of the outgoing one.
+ * Measured, three scroll positions in ten.
  *
- * Sticky inside its own turn rather than pinned to the strip, so it is the
- * name of whatever is on screen and not just of whatever is playing: scroll
- * back two minutes and the name at the top is the person who was talking two
- * minutes ago.
+ * The holding is done by `.pinned` below instead - one element that changes
+ * its text - and this is left to scroll like the words it belongs to.
  */
 .who {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  /*
-   *  A ROW THE SIZE OF THE NAME IN IT.
-   *
-   * This is a <p> around an inline-flex chip, so it was laying out a 24px
-   * LINE BOX for a 16.8px chip and then adding 10px of padding: 34px of row
-   * to say a name, against 17px for a line of what was actually said. Three
-   * speakers in a nine-rem box spent 103 of its 144 pixels on their own
-   * names. The chip was never the problem - it is 12px against the speech's
-   * 11px, which is the right relationship - the line box around it was.
-   *
-   * `flex` removes the line box: the chip's own height becomes the row's.
-   */
   display: flex;
   min-width: 0;
   /* The leading 0.4rem is the gap BETWEEN turns, which used to be the
@@ -95,12 +79,40 @@
      has no box. It belongs in this shorthand rather than in a rule of its
      own: written separately above, this very shorthand reset it to zero and
      the strip lost every gap between speakers without complaint. */
-  margin: 0.3rem 0 0.1rem;
-  /* Enough above the name to keep it off the edge it is pinned against, and
-     no more: the box's own top padding is zero precisely so this can be the
-     only gap there, and every pixel here is one the words below do not get. */
+  margin: 0.4rem 0 0.15rem;
   padding-block: 0.15rem 0.05rem;
-  /* The card's own surface, so lines pass behind it rather than through it. */
+}
+
+/* Behind the pinned name, and therefore only ever partly readable. Held back
+   until it is clear of it, so a name arrives whole or not at all. Its space is
+   kept, so nothing below it shifts while it passes. */
+.who[data-under] {
+  visibility: hidden;
+}
+
+/*
+ *  THE SAME NAME, HELD AT THE EDGE once its own row has gone past it.
+ *
+ * Over the box rather than inside it: shown only when it is needed, and an
+ * element that comes and goes inside a scrolling list moves everything under
+ * it by its own height, which reads as the transcript jumping every time a
+ * speaker changes.
+ *
+ * It covers the top row of words, which is what any pinned header does and
+ * what the sticky name it replaces did. What it does NOT do is share the
+ * edge with a second name.
+ */
+.pinned {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  /* The box's own inline padding, so this name starts where the ones in the
+     list start rather than a few pixels off. */
+  padding: 0.15rem var(--sp-3) 0.05rem;
   background: var(--surface);
 }
 
