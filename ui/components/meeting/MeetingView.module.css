@@ -291,6 +291,20 @@
   flex-direction: column;
 }
 
+/*
+ *  AN AUTHOR `display` BEATS THE `hidden` ATTRIBUTE, so this has to say so.
+ *
+ * Both panels are in the document now and the inactive one carries `hidden`,
+ * which a browser honours with `[hidden] { display: none }` from its OWN
+ * stylesheet - and any author rule setting `display` outranks that. So the
+ * record panel was marked hidden, reported hidden, and rendered anyway,
+ * stacked under the transcript. Every rule below that sets `display` on a
+ * tabpanel needs this beside it.
+ */
+.main > [role="tabpanel"][hidden] {
+  display: none;
+}
+
 .main > [role="tabpanel"] {
   flex: 1;
   min-height: 0;
@@ -389,6 +403,11 @@
 
   .main > [role="tabpanel"] {
     display: block;
+  }
+
+  /* Same again: this one sets `display` too. */
+  .main > [role="tabpanel"][hidden] {
+    display: none;
   }
 
   .main > [aria-labelledby="tab-record"] {

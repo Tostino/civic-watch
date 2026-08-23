@@ -559,8 +559,33 @@ export function MeetingView({
             </button>
           </div>
 
-          {view === "transcript" && video ? (
-            <div id="panel-transcript" role="tabpanel" aria-labelledby="tab-transcript">
+          {/*
+            *  BOTH PANELS EXIST; ONE IS HIDDEN.
+            *
+            * They used to be an either/or, and the record panel is the one
+            * that carries a link to every item and every case on the page.
+            * With a recording present the transcript is the default, so on
+            * those meetings the record panel was never rendered at all - and
+            * a crawler reading /meeting/428 found `tab-record` and not one
+            * `/item/` href. Twenty-six thousand item pages and twenty
+            * thousand case pages were reachable from nothing, here or in the
+            * sitemap.
+            *
+            * `hidden` rather than unmounting, which is also what the tab
+            * pattern asks for: a tabpanel that is not current is present and
+            * hidden, not absent.
+            *
+            * The TRANSCRIPT still mounts only when it is showing. Its
+            * virtualiser measures the element it scrolls, and measuring a
+            * `display: none` box gives it a height of zero to render into.
+            */}
+          <div
+            id="panel-transcript"
+            role="tabpanel"
+            aria-labelledby="tab-transcript"
+            hidden={!(view === "transcript" && video)}
+          >
+            {view === "transcript" && video ? (
               <TranscriptView
                 key={video.id}
                 video={video}
@@ -572,19 +597,24 @@ export function MeetingView({
                 onSelectItem={selectItem}
                 onReading={setReadingItem}
               />
-            </div>
-          ) : (
-            <div id="panel-record" role="tabpanel" aria-labelledby="tab-record">
-              <RecordView
-                meeting={meeting}
-                items={items}
-                hasAgenda={hasAgenda}
-                hasRecording={hasRecording}
-                activeItem={activeItem}
-                onSeek={seek}
-              />
-            </div>
-          )}
+            ) : null}
+          </div>
+
+          <div
+            id="panel-record"
+            role="tabpanel"
+            aria-labelledby="tab-record"
+            hidden={view === "transcript" && !!video}
+          >
+            <RecordView
+              meeting={meeting}
+              items={items}
+              hasAgenda={hasAgenda}
+              hasRecording={hasRecording}
+              activeItem={activeItem}
+              onSeek={seek}
+            />
+          </div>
         </div>
       </div>
     </article>
