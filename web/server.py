@@ -276,8 +276,12 @@ def api_tools(request, con):
     # refuse without that number being typed into the copy twice. The manifest
     # needs a connection for the same reason: the counts inside those
     # descriptions are measured, not typed (tools.facts).
+    # `dense` is what is WRONG and stays null when nothing is. `dense_state` is
+    # what the dense arm is doing, which null could never say: see
+    # tools.dense_state.
     return _json(request, {"tools": tools.manifest(con),
                            "dense": tools._dense_error,
+                           "dense_state": tools.dense_state(),
                            "mcp": {"path": "/mcp", **limits.mcp_public()}})
 
 @reads

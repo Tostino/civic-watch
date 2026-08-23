@@ -778,7 +778,18 @@ export interface Facts {
 
 export interface ToolsManifest {
   tools: { name: string; description: string }[];
+  /** What is wrong with the dense arm, and null when nothing is. */
   dense: string | null;
+  /** What the dense arm is DOING, which `dense: null` cannot say: it reads the
+   *  same for a model loaded before the port opened and for one nothing ever
+   *  tried to load. Absent when web/server.py predates the field. */
+  dense_state?: {
+    state: "cold" | "loading" | "ready" | "failed";
+    /** Seconds startup spent loading the weights, or null if startup did not.
+     *  Null next to "ready" means a reader paid for the load instead. */
+    warmed_in: number | null;
+    error: string | null;
+  };
   mcp: {
     path: string;
     /** Tool calls allowed from one address per `window` seconds. */

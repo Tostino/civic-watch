@@ -20,6 +20,14 @@ _retrieve = None
 # than swallowed.
 _dense_error = None
 
+# How long warm() took, or None if warm() has not finished. Kept apart from
+# _dense_error because THE ABSENCE OF AN ERROR IS NOT PROOF OF A LOAD, and for
+# an afternoon it was read as though it were: /api/tools reported `dense: null`
+# on a server whose first search cost 6.9 seconds, and null is what this
+# reports both when the model loaded perfectly and when nothing ever tried.
+# The two look identical from outside and mean opposite things.
+_warmed = None
+
 
 def retrieve():
     global _retrieve, _dense_error
@@ -32,14 +40,15 @@ def retrieve():
 def warm(device=None):
     """Load the embedding model. Called at startup so the first reader does
     not pay for it; a failure here is not fatal, it costs the dense arm."""
-    global _dense_error
+    global _dense_error, _warmed
     t0 = time.time()
     try:
         r = retrieve()
         r.model(device)
         _dense_error = None
+        _warmed = round(time.time() - t0, 1)
         print(f"[tools] dense retrieval READY - {r.MODEL_ID} on "
-              f"{device or r.DEVICE} in {time.time() - t0:.1f}s",
+              f"{device or r.DEVICE} in {_warmed}s",
               file=sys.stderr)
     except Exception as e:                                   # noqa: BLE001
         _dense_error = f"{type(e).__name__}: {e}"
@@ -47,6 +56,39 @@ def warm(device=None):
               f"[tools] search will answer on BM25 alone; paraphrase queries "
               f"will find nothing", file=sys.stderr)
     return _dense_error
+
+
+def dense_state():
+    """What the dense arm IS, right now, observed rather than remembered.
+
+    `state` is read off the very module object a search will use, not off a
+    flag somebody set earlier, so it cannot drift from the truth the way a
+    flag can. Which matters here more than it usually would: the question this
+    exists to answer is "the weights are meant to be loaded before the port
+    opens, so why did the first search take seven seconds", and every layer
+    that reports what it INTENDED rather than what is in memory is a layer
+    that can lie to that question.
+
+      cold     nothing has imported `retrieve`. warm() did not run.
+      loading  the module is there and the weights are not, so warm() either
+               is still going or never got as far as the model.
+      ready    a model object is in memory. The next search pays nothing.
+      failed   warm() raised, and `error` says what. Search still answers, on
+               keywords alone.
+
+    `warmed_in` is the seconds warm() took. None beside `ready` is the
+    interesting case: something loaded the model, and it was not the startup
+    path - which is to say, a reader paid for it.
+    """
+    if _dense_error:
+        state = "failed"
+    elif _retrieve is None:
+        state = "cold"
+    elif getattr(_retrieve, "_model", None) is None:
+        state = "loading"
+    else:
+        state = "ready"
+    return {"state": state, "warmed_in": _warmed, "error": _dense_error}
 
 
 # ------------------------------------------------------------------- shared
