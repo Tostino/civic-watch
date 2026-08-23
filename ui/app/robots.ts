@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { getIndexable } from "@/lib/api";
 import { siteUrl } from "@/lib/site";
 
 /**
@@ -33,13 +34,39 @@ import { siteUrl } from "@/lib/site";
  */
 export const dynamic = "force-dynamic";
 
-export default function robots(): MetadataRoute.Robots {
+const CHUNK = 5_000;
+const pages = (n: number) => Math.max(1, Math.ceil(n / CHUNK));
+
+/**
+ * EVERY SITEMAP FILE, NAMED HERE.
+ *
+ * app/sitemap.ts splits the archive across /sitemap/0.xml … /sitemap/N.xml,
+ * and Next publishes no index over them - /sitemap.xml simply 404s once the
+ * sitemap is split, which is the URL this file used to give out. A route
+ * handler at that address cannot fix it either: the metadata route already
+ * claims the path and Next refuses to build with both.
+ *
+ * So the list goes here, which the protocol allows and every crawler reads.
+ * The count is derived the same way app/sitemap.ts derives it, from the same
+ * totals, so the two cannot disagree about how many files there are.
+ */
+async function sitemaps(base: string): Promise<string[]> {
+  const [items, cases] = await Promise.all([
+    getIndexable("item", 1, 0).catch(() => ({ total: 0 })),
+    getIndexable("case", 1, 0).catch(() => ({ total: 0 })),
+  ]);
+  const n = 1 + pages(items.total) + pages(cases.total);
+  return Array.from({ length: n }, (_, i) => `${base}/sitemap/${i}.xml`);
+}
+
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const base = siteUrl();
   return {
     rules: {
       userAgent: "*",
       allow: "/",
       disallow: ["/admin", "/api", "/ask/", "/search"],
     },
-    sitemap: `${siteUrl()}/sitemap.xml`,
+    sitemap: await sitemaps(base),
   };
 }

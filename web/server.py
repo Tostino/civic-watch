@@ -229,6 +229,17 @@ def api_meetings(request, con):
         int(one("offset", 0)), one("month")))
 
 @reads
+def api_indexable(request, con):
+    """Every item or case id, for the sitemap. See archive.indexable."""
+    one = _one(request)
+    try:
+        return _json(request, archive.indexable(
+            con, one("kind", "item"),
+            min(int(one("limit", 5000)), 20000), int(one("offset", 0))))
+    except ValueError as e:
+        return _json(request, {"error": str(e)}, 400)
+
+@reads
 def api_bodies(request, con):
     return _json(request, archive.bodies(con))
 
@@ -842,6 +853,7 @@ def public_app():
 
             Route("/api/meetings", api_meetings),
             Route("/api/bodies", api_bodies),
+            Route("/api/indexable", api_indexable),
             Route("/api/overview", api_overview),
             Route("/api/highlights", api_highlights),
             Route("/api/issues", api_issues),

@@ -47,6 +47,11 @@ export const getCase = (id: string) =>
 
 export const getBodies = () => get<Body[]>(`/api/bodies`);
 
+/** Ids and dates only, for the sitemap. See web/archive.py `indexable`. */
+export const getIndexable = (kind: "item" | "case", limit: number, offset: number) =>
+  get<{ total: number; offset: number; rows: { id: string; date: string | null }[] }>(
+    `/api/indexable?kind=${kind}&limit=${limit}&offset=${offset}`);
+
 /** The tool surface and what the MCP endpoint will refuse. Costs no database
  *  work, so /about can ask for it alongside the counts. */
 export const getTools = () => get<ToolsManifest>(`/api/tools`);

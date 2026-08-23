@@ -1200,3 +1200,34 @@ def case(con, case_id):
                                for h in heard) > sum(len(h["lines"])
                                                      for h in heard),
     }
+
+def indexable(con, kind, limit, offset):
+    """Ids and last-changed dates, for the sitemap and nothing else.
+
+    NOT `search` OR `find`. Those rank, project and join; this walks a primary
+    key in order so a crawler's forty thousand URLs cost one index scan per
+    page rather than forty thousand row builds. It returns no titles because
+    the sitemap has no use for them.
+    """
+    if kind == "item":
+        rows = con.execute("""
+            SELECT ai.id::text AS id, m.date
+              FROM agenda_items ai JOIN meetings m ON m.id = ai.meeting_id
+             ORDER BY ai.id
+             LIMIT %s OFFSET %s""", (limit, offset)).fetchall()
+        total = con.execute("SELECT count(*) FROM agenda_items").fetchone()[0]
+    elif kind == "case":
+        rows = con.execute("""
+            SELECT ai.case_id AS id, max(m.date) AS date
+              FROM agenda_items ai JOIN meetings m ON m.id = ai.meeting_id
+             WHERE ai.case_id IS NOT NULL
+             GROUP BY ai.case_id
+             ORDER BY ai.case_id
+             LIMIT %s OFFSET %s""", (limit, offset)).fetchall()
+        total = con.execute(
+            "SELECT count(DISTINCT case_id) FROM agenda_items "
+            "WHERE case_id IS NOT NULL").fetchone()[0]
+    else:
+        raise ValueError(f"no such kind: {kind}")
+    return {"total": total, "offset": offset,
+            "rows": [{"id": r[0], "date": str(r[1]) if r[1] else None} for r in rows]}
