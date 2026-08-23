@@ -17,10 +17,22 @@ not against the dev server, whose headers and bundles are both different.
 |---|---|---|
 | 1. Defer the YouTube player | done | `/about`, `/search`, `/`, `/meeting/:id` load with **0 YouTube requests and no iframe**. Clicking a citation builds the player and the recording plays: no autoplay was lost. |
 | 2. Stop the admin probe | done | `/search` with hits, `/meeting/:id` and `/ask` make **no request to `/api/admin/*`** and log no console error. |
-| 3. Caching | partly | Documents and RSC payloads no longer carry `no-store`; `/admin` still does; `/_next/static` keeps `immutable`. Whether the browser then grants bfcache is unresolved. See below. |
+| 3. Caching | shipped, did not work | Documents and RSC payloads no longer carry `no-store`; `/admin` still does; `/_next/static` keeps `immutable`. The back/forward cache is still refused. See below. |
 | 4. Contrast and ARIA | done | `.sessionLen` measures **5.87:1 light and 5.93:1 dark** on the selected chip, from 4.46. The `aria-expanded` is off the grid row. |
 | 5. Touch targets | part | The time axis clears 24px at every width. The timeline bands and the answer's inline controls are untouched and still need the design decision. |
 | 6. Cleanup | not started | |
+
+**Measured on production after the deploy**, in a real browser rather than in
+the harness: `/about` is **326 KiB across 16 requests**, against 1,378 KiB in
+the table below. No iframe and no request to any Google host on `/`, `/about`,
+`/search` or a meeting page; none to `/api/admin/*` anywhere; no console error
+on any of them. Pressing a citation builds the player and the recording plays,
+at 375px as well as at desktop width. The month cells and the fold row measure
+24px, and the length of a recording on a selected chip measures 5.93:1.
+
+The one thing that did NOT take: **the back/forward cache is still refused on
+production**, tested the same way and with the same result as locally. The
+header was necessary and is not sufficient.
 
 ## How this was measured, and what the numbers are worth
 
@@ -147,7 +159,8 @@ Verified at the wire on a production build: documents, RSC payloads and
 The one response still stamped `no-store` is Next's own 404, which it writes
 itself and `headers()` does not reach.
 
-**And it is still not enough, which is worth knowing before anyone celebrates.**
+**And it is not enough. This has now been confirmed on production**, not only
+locally: `/search` marked, `/about`, back, and the mark is gone.
 Tested by marking `window` on a page, navigating away, and going back: if the
 mark survives, the document came out of the back/forward cache. On the same
 server, on the same origin, under the same header, a plain HTML file in
