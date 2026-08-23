@@ -7,17 +7,16 @@ once the numbers are side by side.
 
 ## What has been done since, 23 August 2026
 
-Items 1, 2 and 4 of the plan below are implemented, and most of 5. Item 3 is
-implemented at the wire and is **not confirmed to have worked**; the paragraph
-under finding 2 says exactly what was and was not established. Everything here
-was verified against a production build of this branch, served by `next start`,
-not against the dev server, whose headers and bundles are both different.
+Items 1, 2, 3 and 4 of the plan below are done, and most of 5. **The sixteen
+runs have been repeated against the deployed site** with the same tool, the same
+flags and the same eight URLs, so every number below is a like-for-like
+comparison rather than an estimate.
 
 | plan item | state | what was verified |
 |---|---|---|
 | 1. Defer the YouTube player | done | `/about`, `/search`, `/`, `/meeting/:id` load with **0 YouTube requests and no iframe**. Clicking a citation builds the player and the recording plays: no autoplay was lost. |
 | 2. Stop the admin probe | done | `/search` with hits, `/meeting/:id` and `/ask` make **no request to `/api/admin/*`** and log no console error. |
-| 3. Caching | shipped, did not work | Documents and RSC payloads no longer carry `no-store`; `/admin` still does; `/_next/static` keeps `immutable`. The back/forward cache is still refused. See below. |
+| 3. Caching | done | `bf-cache` scores **1 with zero blocking reasons on all sixteen runs**, against 0 with two reasons on all sixteen before. Documents and RSC payloads no longer carry `no-store`; `/admin` still does; `/_next/static` keeps `immutable`. |
 | 4. Contrast and ARIA | done | `.sessionLen` measures **5.87:1 light and 5.93:1 dark** on the selected chip, from 4.46. The `aria-expanded` is off the grid row. |
 | 5. Touch targets | part | The time axis clears 24px at every width. The timeline bands and the answer's inline controls are untouched and still need the design decision. |
 | 6. Cleanup | not started | |
@@ -30,9 +29,46 @@ on any of them. Pressing a citation builds the player and the recording plays,
 at 375px as well as at desktop width. The month cells and the fold row measure
 24px, and the length of a recording on a selected chip measures 5.93:1.
 
-The one thing that did NOT take: **the back/forward cache is still refused on
-production**, tested the same way and with the same result as locally. The
-header was necessary and is not sufficient.
+One thing looked as though it had not taken. A hand-rolled back-button test
+said the cache was still refused, on production and locally both. It was wrong,
+and finding 2 below says how: Lighthouse, re-run against the deployed site,
+scores the audit as passing on all sixteen.
+
+### The sixteen runs again, 23 August 2026
+
+Same tool, same flags, same URLs. `bf` is the `bf-cache` audit with its count of
+blocking reasons; `agent` is the Agentic Browsing category, which did not exist
+when the first sweep ran.
+
+| page | ff | perf | a11y | best prac | agent | CLS | KiB | bf |
+|---|---|---|---|---|---|---|---|---|
+| browse | mobile | 97 | 97 → **100** | 96 → **100** | 100 | 0 | 1,432 → **388** | 0 (2) → **1 (0)** |
+| browse | desktop | 100 | 94 → **100** | 96 → **100** | 100 | 0 | 1,434 → **390** | 0 (2) → **1 (0)** |
+| about | mobile | 100 → 99 | 100 | 96 → **100** | 100 | 0 | 1,378 → **334** | 0 (2) → **1 (0)** |
+| about | desktop | 100 | 100 | 96 → **100** | 100 | 0 | 1,377 → **334** | 0 (2) → **1 (0)** |
+| search | mobile | 90 | 100 | 92 → **100** | 100 | 0 | 1,404 → **360** | 0 (2) → **1 (0)** |
+| search | desktop | 100 | 100 | 92 → **100** | 100 | 0 | 1,411 → **369** | 0 (2) → **1 (0)** |
+| ask | mobile | 99 | 100 | 96 → **100** | 100 | 0 | 1,393 → **348** | 0 (2) → **1 (0)** |
+| ask | desktop | 100 | 100 | 96 → **100** | 100 | 0 | 1,393 → **348** | 0 (2) → **1 (0)** |
+| meeting | mobile | 96 → 99 | 93 → **97** | 92 → **100** | 100 | 0 | 1,486 → **444** | 0 (2) → **1 (0)** |
+| meeting | desktop | 99 → 100 | 93 → **97** | 92 → **100** | 100 | 0 | 1,486 → **442** | 0 (2) → **1 (0)** |
+| item | mobile | 99 | 100 | 96 → **100** | 100 | 0 | 1,392 → **349** | 0 (2) → **1 (0)** |
+| item | desktop | 100 | 100 | 96 → **100** | 100 | 0 | 1,394 → **352** | 0 (2) → **1 (0)** |
+| case | mobile | 99 | 100 | 96 → **100** | 100 | 0 | 1,387 → **346** | 0 (2) → **1 (0)** |
+| case | desktop | 100 | 100 | 96 → **100** | 100 | 0 | 1,391 → **349** | 0 (2) → **1 (0)** |
+| answer | mobile | 97 | 96 | 92 → **100** | 100 | 0 | 1,442 → **397** | 0 (2) → **1 (0)** |
+| answer | desktop | 100 | 100 | 92 → **100** | 100 | 0 | 1,442 → **397** | 0 (2) → **1 (0)** |
+
+**Best practices is 100 on all sixteen**, from 92 and 96. **CLS is still 0 on
+all sixteen**, which was the thing to protect. **Page weight is down by about a
+megabyte everywhere**, 1,377-1,486 KiB to 334-444.
+
+Performance barely moves here, and that is the harness rather than the site:
+these were already 90-100 on a fast machine before any of this. PSI, throttled
+on Google's hardware, is where the same change reads 88 → 98 on mobile. LCP and
+TBT wander in both directions between the two sweeps (about mobile LCP 1.66 s →
+1.95 s, meeting mobile 2.72 s → 2.10 s, search mobile TBT 24 ms → 66 ms); the
+runs are single samples and that spread is noise, not signal.
 
 **PageSpeed Insights, on the live site, 23 August 2026 at 01:45**, which is the
 number that counts because it runs on Google's hardware under Google's
@@ -185,79 +221,26 @@ Verified at the wire on a production build: documents, RSC payloads and
 The one response still stamped `no-store` is Next's own 404, which it writes
 itself and `headers()` does not reach.
 
-**And it is not enough. This has now been confirmed on production**, not only
-locally: `/search` marked, `/about`, back, and the mark is gone.
-Tested by marking `window` on a page, navigating away, and going back: if the
-mark survives, the document came out of the back/forward cache. On the same
-server, on the same origin, under the same header, a plain HTML file in
-`public/` **is** restored and a Next-rendered page **is not** — including a page
-stripped down to a paragraph, with the providers, the header and the player all
-removed from the root layout. So at least one blocker remains and it is in the
-framework's own output rather than in this site's code. The built client bundles
-contain no `unload` handler, no `WebSocket`, no `BroadcastChannel`, no
-`navigator.locks` and no `indexedDB`, so it is none of the usual ones.
+**It did work, and the way I established that it had not was wrong.**
 
-Chrome would not say which: `notRestoredReasons` reports `masked` in this
-browser even for the page it restored. Lighthouse names reasons outright, and
-against production it named only the two `no-store` ones — both now gone — so
-**re-running it after this deploys is the check that settles whether the back
-button is fixed or only unblocked.** Docker was not running on this machine and
-there is no local Chrome, so that run could not be done here.
+The check that said otherwise was a hand-rolled one: mark `window` on a page,
+navigate away, press back, see whether the mark survived. In the automated
+browser used for that test, a plain HTML file on the same server was restored
+and a Next-rendered page was not, even stripped to a paragraph, so the reading
+was "the header is necessary and not sufficient, and the remaining blocker is
+in the framework". Both halves of that were reported here as fact.
 
-### 3. The public site probes an admin endpoint on three templates
+Lighthouse says the opposite, on the deployed site, on every one of the sixteen
+runs: `bf-cache` scores **1, "Page didn't prevent back/forward cache
+restoration", with zero blocking reasons**, where before it scored 0 with two,
+both naming `no-store`. Lighthouse drives a clean Chrome profile and performs a
+real back navigation, and it is the instrument the original finding came from,
+so it is the one that settles this.
 
-`https://pasco.watch/api/admin/session` returns **404 on every page load** of
-`/search`, `/meeting/:id` and `/ask/:id`. It is the only console error on the
-site, and it appears in all six of those runs.
-
-The path is `DisputePassage` → `useOperator()` → `getAdminSession()`. That
-component renders beside search hits, transcript lines and answer passages, so
-every public reader of those pages asks whether they are an operator, and is
-told 404. Browse, about, item and case do not render it and are clean.
-
-**Fix.** Do not ask on the public site. The console error is the visible part;
-the request itself is waste on every view, and probing an admin path from a
-reader's browser is noise nobody benefits from.
-
-### 4. Accessibility, all page-specific
-
-| page | audit | detail |
-|---|---|---|
-| meeting | colour contrast | `.sessionLen` at **4.46:1**, needs 4.5:1. Foreground `#726c64`. One token away. |
-| meeting | touch targets | 9 failures. `Timeline` bands are **10px tall** against a 24px minimum; widths vary from 11px to 174px. |
-| browse (desktop) | touch targets | `TimeAxis` cells **88.8 × 21.6px** — 2.4px short. |
-| answer (mobile) | touch targets | `.itemHead` 19.2px tall, `.at` 17.6px. |
-| browse | ARIA | `aria-expanded` on an element with `role="row"` inside a `grid`. Valid on `treegrid` rows, not `grid` rows. Either the container becomes a `treegrid` or the attribute goes. |
-
-The contrast and ARIA ones are small and unambiguous. The touch targets are a
-design question as much as a fix: the timeline bands are deliberately thin, and
-making them 24px tall changes what that component looks like. Spacing counts
-toward the same criterion, so there may be a way through without resizing.
-
-### 5. Small and cheap
-
-- **Render-blocking CSS**: three files, 22 KiB, 151 ms.
-- **Legacy JavaScript**: 13.8 KiB in `chunks/354-*.js` — transpilation for
-  browsers this project does not target.
-- **Unused CSS** ~14 KiB and **unused JavaScript** ~26 KiB in our own bundles,
-  once YouTube is excluded.
-
-Worth doing after the first three, not before. Together they are smaller than
-one of YouTube's nine requests.
-
-## Things that look like problems and are not
-
-- **SEO 63 on `/search` and `/ask/:id`.** Both fail one audit: "Page is blocked
-  from indexing". Both are blocked deliberately — `/search` is disallowed in
-  robots.txt because each query runs the embedding model, and saved answers are
-  `noindex` on purpose. The score is the audit doing its job. Every indexable
-  template scores 100.
-- **A 6,580 ms server response on `/search` mobile.** This appeared once, in
-  one Lighthouse run, and drove that run's 10.3 s Speed Index. It did not
-  reproduce: three uncached queries against production immediately afterwards
-  returned in 0.55, 0.55 and 0.63 s, and item and meeting pages in 0.07 and
-  0.08 s. Most likely contention during the sixteen-run sweep. Worth watching,
-  not worth acting on.
+What the hand-rolled test was measuring was its own browser. Worth remembering
+next time an instrument disagrees with a purpose-built tool: the tool was not
+run because Docker was down, and rather than say "unknown until Docker is up" I
+went and built a substitute and believed it.
 
 ### A new one, from a category that did not exist when this was written
 
@@ -290,7 +273,26 @@ filter and the fold both still work, and the axis is pixel-identical at desktop
 and at 375px. A scan of every `<a>` and `<Link>` in the app says the time axis
 was the only place this happened.
 
-Whether the category now reads 2 of 2 needs another deploy and another run.
+Deployed and re-run: **2 of 2, "Accessibility tree is well-formed, all audits
+passed"**, and the category scores 100 on all sixteen Lighthouse runs as well.
+
+**The sweep also caught a fault the sweep's own fix had introduced.** With the
+anchor no longer claiming `role="row"`, it is a link again, and a rule that only
+applies to controls started applying: `label-content-name-mismatch`, which
+scored 1 before this work and 0 after it. The `aria-label` said "2015 to 2021"
+where the row says "2015-2021", and omitted "none before 2017" entirely, so the
+accessible name did not contain the visible text. That is WCAG 2.5.3, and it
+matters most to somebody driving the page by voice: they say what they can see.
+
+`aria-label` REPLACES the content rather than adding to it, which is what made
+the two drift apart in the first place. It is a visually hidden prefix now, so
+the name is built out of the row's own words: "Show 7 earlier years: 2015-2021
+507 meetings, 88 recorded, none before 2017". Verified with Lighthouse against a
+local production build: the audit scores 1, accessibility 100, agentic 100.
+
+The audit carries zero weight in the accessibility score, so nothing would have
+shown it except reading the audit list. Worth knowing that a score of 100 is not
+the same as no findings.
 
 Worth saying why this category is worth passing here rather than treating as a
 curiosity: this archive publishes an MCP endpoint and an /ask agent that use
@@ -322,16 +324,18 @@ call rather than a fix.
    reading surfaces ask only when the mark is there. A reader sends nothing.
    The session cookie, the loopback listener and the port boundary are
    unchanged: the mark says whether it is worth asking, never who is asking.
-3. **Decide the caching story per route.** Header shipped; back/forward cache
-   not yet proven to be restored. Finish this by re-running Lighthouse against
-   production once this deploys, and by finding the framework-level blocker if
-   it names one.
+3. ~~**Decide the caching story per route.**~~ Done. `headers()` sets
+   `private, no-cache, max-age=0, must-revalidate` on everything the public
+   reads and keeps `no-store` on `/admin`. Confirmed restored: `bf-cache` 1
+   with zero reasons, sixteen runs out of sixteen.
 4. ~~**Contrast and ARIA** on meeting and browse.~~ Done.
-5. **Touch targets.** The time axis is done at all three widths. The timeline
-   bands (10px) and the answer's `.itemHead` and `.at` are not, and both are a
-   design decision rather than a fix: the bands are deliberately thin, and the
-   answer's two are inline controls in prose, which WCAG 2.5.8 exempts and
-   Lighthouse flags anyway.
+5. **Touch targets.** The time axis is done at all three widths. What the
+   re-run still fails is **three of sixteen**: meeting at both form factors and
+   answer on mobile. Those are the timeline bands (10px) and the answer's
+   `.itemHead` and `.at`, and both are a design decision rather than a fix: the
+   bands are deliberately thin, and the answer's two are inline controls in
+   prose, which WCAG 2.5.8 exempts and Lighthouse flags anyway. It is what
+   keeps meeting at 97 rather than 100.
 6. **Render-blocking CSS, legacy JS, unused bundles.** Cleanup.
 
 Re-run the sixteen-run sweep after 1–3 and compare against the table above.

@@ -231,12 +231,30 @@ export function TimeAxis({
               e.preventDefault();
               toggle(!expanded);
             }}
-            aria-label={
-              `${expanded ? "Hide" : "Show"} ${earlier.length} earlier years: ` +
-              `${earlier[0]} to ${earlier[earlier.length - 1]}, ` +
-              `${fold.meetings} meetings, ${fold.recorded} recorded`
-            }
           >
+            {/*
+              *  THE NAME CONTAINS WHAT THE ROW SAYS, because it is built out
+              * of it.
+              *
+              * This was an `aria-label`, which REPLACES the content rather
+              * than adding to it, and the label it wrote said "2015 to 2021"
+              * where the row says "2015-2021" and left out "none before 2017"
+              * altogether. So the accessible name did not contain the visible
+              * text, which is WCAG 2.5.3, and matters most to somebody driving
+              * the page by voice: they say what they can see, and nothing here
+              * answered to it.
+              *
+              * It went unnoticed because the anchor used to claim
+              * `role="row"`, and the rule only applies to a control. Making
+              * the markup honest is what exposed it.
+              *
+              * A prefix instead: the verb and the count, then the row's own
+              * words. "Show 7 earlier years: 2015-2021 507 meetings, 88
+              * recorded, none before 2017".
+              */}
+            <span className="sr-only">
+              {expanded ? "Hide" : "Show"} {earlier.length} earlier years:{" "}
+            </span>
             <span className={s.foldYears}>
               {earlier[0]}&ndash;{earlier[earlier.length - 1]}
             </span>
