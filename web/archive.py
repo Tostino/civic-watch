@@ -757,12 +757,64 @@ def facets(con):
         # carries; `speaker_display` is only the label. Sending one string for
         # both would mean either a filter that no longer matches
         # passages.speaker or a rail that reads "Starkey".
+        #
+        # NOT THROUGH `utterance_speaker`, and this is the only query in the
+        # archive that has to care.
+        #
+        # The view is right and this is a question about scale. Its
+        # `display_name` column is a function, and a function in a projection
+        # runs ONCE PER ROW: over one recording that is two thousand calls and
+        # nobody notices, and over every utterance in the archive it is
+        # 237,000. Each call looks a surname up in `people`, and the index
+        # there is on `surname` while the function compares `lower(surname)`,
+        # so each one is a scan of all 1,298 rows. Measured: the joins finish
+        # in 255 ms and the projection takes another 6.4 seconds.
+        #
+        # It was not a slow page, it was a slow page every ten minutes. This
+        # sits behind Held(600) in web/server.py, so the reader who arrived
+        # after a quiet spell paid 6.5 seconds for the search rail and
+        # everybody searching alongside them queued behind it. Three Lighthouse
+        # sweeps caught it; a run of searches back to back never did.
+        #
+        # So: count first, name second. The counting is a plain aggregate over
+        # 237,000 rows into 1,751 groups, and the naming is a hash join against
+        # `people` that then happens 1,751 times instead of 237,000. 6,413 ms
+        # to 625, and byte-identical output - which is the part that matters,
+        # because `speaker` is a KEY and a facet that stopped agreeing with
+        # `passages.speaker` would filter to nothing.
+        #
+        # `bp` is `display_name` unrolled into that join. It keeps the
+        # function's rules: board members only, a full_name only where there is
+        # one, and the raw text otherwise.
+        #
+        # The join to `utterances` stays although `speaker_resolved` is keyed
+        # to it, because nothing in the schema FORCES that: no foreign key, so
+        # a resolved row whose utterance went away would be counted by a query
+        # that trusted it. It costs about 200 ms to not have to trust it.
         "speakers": [dict(r) for r in con.execute("""
-            SELECT name AS speaker, display_name AS speaker_display,
-                   COUNT(*) AS lines
-              FROM utterance_speaker
-             WHERE name IS NOT NULL AND NOT (name = ANY(%s))
-             GROUP BY name, display_name HAVING COUNT(*) >= 500
+            WITH said AS (
+                SELECT sr.name_text, sr.person_id, COUNT(*) AS lines
+                  FROM utterances u
+                  JOIN speaker_resolved sr
+                    ON sr.video_id = u.video_id AND sr.idx = u.idx
+                 GROUP BY 1, 2),
+            named AS (
+                SELECT CASE WHEN pe.kind = 'board'
+                            THEN COALESCE(pe.surname, s.name_text)
+                            ELSE COALESCE(pe.full_name, s.name_text) END
+                           AS speaker,
+                       COALESCE(pe.full_name, bp.full_name, s.name_text)
+                           AS speaker_display,
+                       s.lines
+                  FROM said s
+                  LEFT JOIN people pe ON pe.id = s.person_id
+                  LEFT JOIN people bp ON bp.kind = 'board'
+                                     AND lower(bp.surname) = lower(s.name_text)
+                                     AND bp.full_name IS NOT NULL)
+            SELECT speaker, speaker_display, SUM(lines)::bigint AS lines
+              FROM named
+             WHERE speaker IS NOT NULL AND NOT (speaker = ANY(%s))
+             GROUP BY 1, 2 HAVING SUM(lines) >= 500
              ORDER BY lines DESC LIMIT 40""", (list(NOT_A_PERSON),))],
         "years": [dict(r) for r in con.execute("""
             SELECT left(m.date, 4) AS year, COUNT(*) AS meetings
