@@ -244,12 +244,16 @@
  * wide enough for "2024" and 6px short of "2015-2021", so the range overran
  * its cell and collided with the summary beside it. This row has three parts
  * and none of them is a month, so it has no business borrowing a month grid. */
-/* The row and its one cell are structure and nothing else: the link inside
-   keeps every line of the look, so neither of these may introduce a box that
-   the layout has to account for. */
+/* Structure and nothing else. Each of these carries a grid role and no
+   appearance at all: the block or the link inside it keeps every line of the
+   look, so none of them may introduce a box the layout has to account for.
+   They exist because a link may not BE a cell, only sit in one. */
 .foldRow,
-.foldCell {
+.foldCell,
+.headCell,
+.holder {
   display: block;
+  min-width: 0;
 }
 
 .fold {

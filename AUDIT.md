@@ -273,6 +273,25 @@ hung on standing: a grid owns rows, and a link is not a row. It is now a real
 holding the link. Every level says what it is, the grid owns nothing but rows,
 and the strip is still one click of the same size in the same place.
 
+**And that fixed one element out of eight hundred.** Re-run after deploying, the
+category still scored 1 of 2, now naming `<a role="rowheader">` on the year
+label. The audit reports ONE failing element, so it cannot be read as a to-do
+list: it is a sample of a class, and the class here was every link in the time
+axis that had been handed a grid role. `rowheader` on the year, `gridcell` on
+each of the 12 months of each row.
+
+A link may take on a small set of roles — button, tab, option, treeitem — and
+none of the roles a grid is built from is among them. So the rule for this
+component, written into it: **structure outside, appearance inside.** Each grid
+role is on a span that does nothing else, and the link, or the coloured block,
+sits inside that span. Verified on a build: no anchor in the grid carries a role
+at all, every child of the grid is a row, every cell measures 24px, the month
+filter and the fold both still work, and the axis is pixel-identical at desktop
+and at 375px. A scan of every `<a>` and `<Link>` in the app says the time axis
+was the only place this happened.
+
+Whether the category now reads 2 of 2 needs another deploy and another run.
+
 Worth saying why this category is worth passing here rather than treating as a
 curiosity: this archive publishes an MCP endpoint and an /ask agent that use
 its own tools. A record built to be read by machines should not fail the audit

@@ -274,14 +274,23 @@ export function TimeAxis({
           const ahead = cells.reduce((n, c) => n + (c?.scheduled ?? 0), 0);
           return (
             <div key={y} className={s.row} role="row">
-              <Link
-                href={href({ year: year === y ? undefined : y, month: undefined })}
-                className={`${s.yearHead} ${year === y ? s.on : ""}`}
-                aria-current={year === y ? "true" : undefined}
-                role="rowheader"
-              >
-                {y}
-              </Link>
+              {/* STRUCTURE OUTSIDE, APPEARANCE INSIDE, all the way down this
+                  grid. A link is allowed to take on a handful of roles -
+                  button, tab, option, treeitem - and the roles a grid is built
+                  from are not among them: `rowheader` and `gridcell` on an
+                  `<a>` say "this is a cell" over the top of "this is a link",
+                  and the second one is the true statement. Every structural
+                  role here is therefore on a span that does nothing else, and
+                  the link, or the coloured block, sits inside it. */}
+              <span className={s.headCell} role="rowheader">
+                <Link
+                  href={href({ year: year === y ? undefined : y, month: undefined })}
+                  className={`${s.yearHead} ${year === y ? s.on : ""}`}
+                  aria-current={year === y ? "true" : undefined}
+                >
+                  {y}
+                </Link>
+              </span>
 
               {cells.map((c, i) => {
                 const key = `${y}-${String(i + 1).padStart(2, "0")}`;
@@ -297,10 +306,12 @@ export function TimeAxis({
                     <span
                       key={key}
                       role="gridcell"
-                      className={`${s.cell} ${s.ahead}`}
+                      className={s.holder}
                       title={`${label}: ${c.scheduled} scheduled, not yet held`}
                       aria-label={`${label}, ${c.scheduled} meetings scheduled, not yet held`}
-                    />
+                    >
+                      <span className={`${s.cell} ${s.ahead}`} />
+                    </span>
                   );
                 }
                 if (!c || !c.meetings) {
@@ -308,10 +319,12 @@ export function TimeAxis({
                     <span
                       key={key}
                       role="gridcell"
-                      className={`${s.cell} ${s.empty}`}
+                      className={s.holder}
                       title={`${label}: no meetings`}
                       aria-label={`${label}, no meetings`}
-                    />
+                    >
+                      <span className={`${s.cell} ${s.empty}`} />
+                    </span>
                   );
                 }
                 const on = month === key;
@@ -319,27 +332,27 @@ export function TimeAxis({
                 // standing inside that month, and the cell should say so.
                 const also = c.scheduled ? `, ${c.scheduled} not yet held` : "";
                 return (
-                  <Link
-                    key={key}
-                    role="gridcell"
-                    href={href({ year: undefined, month: on ? undefined : key })}
-                    className={`${s.cell} ${on ? s.on : ""} ${c.scheduled ? s.part : ""}`}
-                    aria-current={on ? "true" : undefined}
-                    /* A number per cell would be 4px tall at this density, so
-                       the count is in the label where a screen reader and a
-                       hover both reach it. */
-                    aria-label={`${label}, ${c.meetings} meetings, ${c.recorded} recorded${also}`}
-                    title={`${label}: ${c.meetings} meetings, ${c.recorded} recorded${also}`}
-                    style={{ "--fill": fill(c.meetings).toFixed(3) } as React.CSSProperties}
-                  >
-                    {c.recorded ? (
-                      <span
-                        aria-hidden
-                        className={s.rec}
-                        style={{ "--rec": (c.recorded / c.meetings).toFixed(3) } as React.CSSProperties}
-                      />
-                    ) : null}
-                  </Link>
+                  <span key={key} role="gridcell" className={s.holder}>
+                    <Link
+                      href={href({ year: undefined, month: on ? undefined : key })}
+                      className={`${s.cell} ${on ? s.on : ""} ${c.scheduled ? s.part : ""}`}
+                      aria-current={on ? "true" : undefined}
+                      /* A number per cell would be 4px tall at this density, so
+                         the count is in the label where a screen reader and a
+                         hover both reach it. */
+                      aria-label={`${label}, ${c.meetings} meetings, ${c.recorded} recorded${also}`}
+                      title={`${label}: ${c.meetings} meetings, ${c.recorded} recorded${also}`}
+                      style={{ "--fill": fill(c.meetings).toFixed(3) } as React.CSSProperties}
+                    >
+                      {c.recorded ? (
+                        <span
+                          aria-hidden
+                          className={s.rec}
+                          style={{ "--rec": (c.recorded / c.meetings).toFixed(3) } as React.CSSProperties}
+                        />
+                      ) : null}
+                    </Link>
+                  </span>
                 );
               })}
 
