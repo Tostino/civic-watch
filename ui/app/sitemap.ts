@@ -14,7 +14,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
   const fixed: MetadataRoute.Sitemap = [
     { url: base, changeFrequency: "daily", priority: 1 },
-    { url: `${base}/search`, changeFrequency: "weekly", priority: 0.8 },
+    /* NOT /search. robots.txt disallows it - a search endpoint has an
+       unbounded query space and each query runs the embedding model - and a
+       URL that is both submitted here and refused there is a contradiction a
+       crawler reports back as an error against the whole sitemap. */
     { url: `${base}/ask`, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/about`, changeFrequency: "monthly", priority: 0.5 },
   ];

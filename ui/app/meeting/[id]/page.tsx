@@ -43,6 +43,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return {
       title: `${d.meeting.body}, ${meetingDate(d.meeting.date, "short")}`,
       description: bits.join(" · "),
+      /* Its own, because the root layout no longer speaks for it. */
+      alternates: { canonical: `/meeting/${id}` },
+      openGraph: { url: `/meeting/${id}` },
     };
   } catch {
     return { title: "Meeting" };

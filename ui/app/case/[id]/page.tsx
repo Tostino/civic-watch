@@ -35,6 +35,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ]
         .filter(Boolean)
         .join(" · "),
+      /* Case ids are free text from a PDF, so the same encoding the link
+         uses - or the canonical points at a URL that does not resolve. */
+      alternates: { canonical: `/case/${encodeURIComponent(id)}` },
+      openGraph: { url: `/case/${encodeURIComponent(id)}` },
     };
   } catch {
     return { title: "Case" };

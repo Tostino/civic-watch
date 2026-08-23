@@ -23,6 +23,12 @@ type Props = {
 const YEAR = /^\d{4}$/;
 const MONTH = /^\d{4}-\d{2}$/;
 
+/* The one page the root layout used to speak for. See layout.tsx. */
+export const metadata = {
+  alternates: { canonical: "/" },
+  openGraph: { url: "/" },
+};
+
 export default async function BrowsePage({ searchParams }: Props) {
   const q = await searchParams;
   const body = q.body || undefined;

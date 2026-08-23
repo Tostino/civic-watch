@@ -35,13 +35,26 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl()),
   title: { default: TITLE, template: `%s · ${BRAND}` },
   description: DESCRIPTION,
-  alternates: { canonical: "/" },
+  /*
+   *  NO `canonical` HERE, AND THAT IS THE POINT.
+   *
+   * Next merges this object into every page that does not override the field,
+   * so `canonical: "/"` did not mean "the homepage is at /" - it meant EVERY
+   * page on the site declared itself a duplicate of the homepage. Twelve
+   * hundred meetings, twenty-six thousand items and every saved answer told
+   * a crawler to index the front page instead of them. Which is exactly what
+   * a search engine did: the site ranked for its own name and for nothing
+   * else it holds.
+   *
+   * The homepage sets its own in app/page.tsx. Every other route sets its own
+   * in `generateMetadata`. `openGraph.url` is left out for the same reason -
+   * inherited, it put the homepage's address on every share card.
+   */
   openGraph: {
     type: "website",
     siteName: BRAND,
     title: TITLE,
     description: DESCRIPTION,
-    url: "/",
     locale: "en_US",
   },
   twitter: { card: "summary", title: TITLE, description: DESCRIPTION },

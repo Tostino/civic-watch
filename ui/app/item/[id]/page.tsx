@@ -35,6 +35,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ]
         .filter(Boolean)
         .join(" · "),
+      alternates: { canonical: `/item/${id}` },
+      openGraph: { url: `/item/${id}` },
     };
   } catch {
     return { title: "Agenda item" };
