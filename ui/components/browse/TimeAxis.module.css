@@ -244,6 +244,14 @@
  * wide enough for "2024" and 6px short of "2015-2021", so the range overran
  * its cell and collided with the summary beside it. This row has three parts
  * and none of them is a month, so it has no business borrowing a month grid. */
+/* The row and its one cell are structure and nothing else: the link inside
+   keeps every line of the look, so neither of these may introduce a box that
+   the layout has to account for. */
+.foldRow,
+.foldCell {
+  display: block;
+}
+
 .fold {
   grid-template-columns: auto minmax(0, 1fr) auto;
   padding-block: 0.15rem;

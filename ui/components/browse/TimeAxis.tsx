@@ -201,31 +201,46 @@ export function TimeAxis({
           </span>
         </div>
 
+        {/*
+          *  A ROW THAT IS A CONTROL IS STILL A ROW.
+          *
+          * This was one `<a role="row">`, which is two claims that do not sit
+          * together: a grid owns rows, and a link is not one. It carried
+          * `aria-expanded` as well, which belongs to a treegrid and not to a
+          * grid, and the note that used to be here reasoned about that
+          * attribute alone while leaving the role it hung on in place.
+          *
+          * So: a real row, holding one cell that spans the width of the
+          * others, holding the link. Every level says what it is, the grid
+          * still owns nothing but rows, and the whole strip is still one
+          * click. `aria-colspan` because the other rows have fourteen cells
+          * and this one covers them all; without it the row reads as a
+          * fourteen-column row with one column filled.
+          *
+          * NO `aria-expanded` anywhere: the label says both the action and,
+          * by saying it, the state.
+          */}
         {earlier.length ? (
+          <div className={s.foldRow} role="row">
+          <span className={s.foldCell} role="gridcell" aria-colspan={14}>
           <a
             href={href({ axis: expanded ? undefined : "all" })}
             className={`${s.row} ${s.fold}`}
-            role="row"
             onClick={(e) => {
               if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
               e.preventDefault();
               toggle(!expanded);
             }}
-            /* NO `aria-expanded`. It is valid on the rows of a `treegrid` and
-               not on the rows of a `grid`, and this is a grid: making it a
-               treegrid to keep one attribute would take on a whole keyboard
-               contract for a fold. The label below says both the action and,
-               by saying it, the state. */
             aria-label={
               `${expanded ? "Hide" : "Show"} ${earlier.length} earlier years: ` +
               `${earlier[0]} to ${earlier[earlier.length - 1]}, ` +
               `${fold.meetings} meetings, ${fold.recorded} recorded`
             }
           >
-            <span className={s.foldYears} role="rowheader">
+            <span className={s.foldYears}>
               {earlier[0]}&ndash;{earlier[earlier.length - 1]}
             </span>
-            <span className={s.foldSays} role="gridcell" >
+            <span className={s.foldSays}>
               {fold.meetings.toLocaleString()} meetings
               {fold.recorded ? `, ${fold.recorded} recorded` : ""}
               {/* Explicit: JSX strips the newline between two expressions, so
@@ -246,6 +261,8 @@ export function TimeAxis({
               {expanded ? "hide" : "show"}
             </span>
           </a>
+          </span>
+          </div>
         ) : null}
 
         {shown.map((y) => {

@@ -34,6 +34,32 @@ The one thing that did NOT take: **the back/forward cache is still refused on
 production**, tested the same way and with the same result as locally. The
 header was necessary and is not sufficient.
 
+**PageSpeed Insights, on the live site, 23 August 2026 at 01:45**, which is the
+number that counts because it runs on Google's hardware under Google's
+throttling rather than on this workstation:
+
+| | before | after |
+|---|---|---|
+| mobile performance | 88 | **98** |
+| mobile TBT | 370 ms | **30 ms** |
+| desktop performance | — | 99 |
+| accessibility, both | 94 desktop | **100 and 100** |
+| best practices, both | 96 | **100 and 100** |
+| SEO, both | 100 | 100 |
+| CLS, both | 0 | **0** |
+| total payload | 1,432 KiB | **387 KiB** |
+
+The third-party cookie audit and the font-display failure are gone from both
+form factors, as expected: they were YouTube's and YouTube is no longer there.
+Contrast and touch targets pass. What remains under Performance is exactly
+item 6 and nothing else — render-blocking requests, 13 KiB of legacy
+JavaScript, 27 KiB of unused JavaScript, 14 KiB of unused CSS.
+
+**PSI does not run the back/forward-cache audit at all.** It is not among the
+136 audits on that report, passing, failing or not-applicable. So PSI cannot
+settle item 3 however good the scores look, and the local Lighthouse container
+remains the only instrument that can.
+
 ## How this was measured, and what the numbers are worth
 
 Lighthouse 13.4.1 in a container, against production, eight templates by two
@@ -232,6 +258,25 @@ one of YouTube's nine requests.
   returned in 0.55, 0.55 and 0.63 s, and item and meeting pages in 0.07 and
   0.08 s. Most likely contention during the sixteen-run sweep. Worth watching,
   not worth acting on.
+
+### A new one, from a category that did not exist when this was written
+
+PSI now scores **Agentic Browsing**, "high-quality, browsable websites for AI
+agents", and the archive scored **1 of 2**. The failure was
+`ARIA role should be appropriate for the element`, and the element was the
+fold on the time axis: `<a role="row">`.
+
+That is the same element as finding 4's ARIA item, and the first fix only went
+half way. Removing `aria-expanded` answered the attribute and left the claim it
+hung on standing: a grid owns rows, and a link is not a row. It is now a real
+`<div role="row">` holding one `role="gridcell"` with `aria-colspan={14}`,
+holding the link. Every level says what it is, the grid owns nothing but rows,
+and the strip is still one click of the same size in the same place.
+
+Worth saying why this category is worth passing here rather than treating as a
+curiosity: this archive publishes an MCP endpoint and an /ask agent that use
+its own tools. A record built to be read by machines should not fail the audit
+that asks whether machines can read it.
 
 ## Noticed while verifying, and not acted on
 
