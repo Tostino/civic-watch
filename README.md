@@ -277,6 +277,10 @@ rest is a model inferring the rules from copy a model wrote, so check it against
 the pages, not the pages against it.
 * `deploy/postgres-unraid.md` and `deploy/nginx-proxy-manager.md` cover the
 database and the edge, both of which are set up by hand.
+* `AUDIT.md` is a front-end audit from 2026-08-23: every page template at both
+form factors, what is wrong, and in what order to fix it. The numbers in it
+come from a local Lighthouse and are more generous than PageSpeed Insights;
+it says so, and says why.
 
 ## Not the official record
 
