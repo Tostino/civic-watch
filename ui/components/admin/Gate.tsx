@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AdminApiError, adminLogin, getAdminState } from "@/lib/admin";
+import { markOperator } from "./useOperator";
 import s from "./Gate.module.css";
 
 /**
@@ -28,6 +29,15 @@ export function Gate({ children }: { children: React.ReactNode }) {
       void qc.invalidateQueries({ queryKey: ["admin"] });
     },
   });
+
+  /* The one place that knows, first hand, whether there is a session on this
+     machine - so it is the one place that writes the mark the reading surfaces
+     read. See useOperator: without it they do not ask at all, which is what
+     keeps an admin request off every public page view. Both directions, so
+     signing out and a server restart both take it away. */
+  useEffect(() => {
+    if (data) markOperator(data.authenticated);
+  }, [data]);
 
   if (isPending) {
     return (

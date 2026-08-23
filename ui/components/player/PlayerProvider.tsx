@@ -335,10 +335,37 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const until = segment?.state === "armed" ? segment.at : null;
   /** Bumped by retry(); re-runs the setup effect below. */
   const [attempt, setAttempt] = useState(0);
+  /**
+   * Whether anybody has asked for a recording yet, this session.
+   *
+   * NOT `source`, and that is the whole point of it being separate state.
+   * `source` is what is loaded NOW, and it goes back to null when the reader
+   * closes the dock; this only ever goes true. The iframe outliving a close is
+   * as much a part of the design as it outliving a navigation.
+   */
+  const [wanted, setWanted] = useState(false);
 
-  // Created once per attempt. Not tied to `source`, so switching recordings
-  // reuses the same iframe and navigation never tears it down.
+  /*
+   *  Built on the first request for a recording, and not before.
+   *
+   * Created once per attempt, and not tied to `source`: switching recordings
+   * reuses the same iframe and navigation never tears it down. That has always
+   * been true and is unchanged. What changed is WHEN the first one is built.
+   *
+   * This effect used to run on mount, so every page in the archive loaded
+   * YouTube's player: nine requests and 987 KiB on /about and /search, where
+   * there is no recording to open at all, and where it came to 72% of the
+   * weight of the page. It also brought a third-party cookie warning and a
+   * webfont this site does not use onto pages that are otherwise text.
+   *
+   * Never tearing the player down does not require building it immediately.
+   * `play()` sets `wanted`, which runs this; `play()` also parks its arguments
+   * in `pendingRef` when there is no player yet, and `onReady` below plays
+   * them. That path already existed for the reader who clicked a citation
+   * while the API was still loading, which is now every first click.
+   */
   useEffect(() => {
+    if (!wanted) return;
     let cancelled = false;
     loadApi()
       .then(() => {
@@ -382,7 +409,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [attempt]);
+  }, [attempt, wanted]);
 
   // Poll while playing. The YouTube API has no timeupdate event, and this is
   // what the transcript follows, and what stops it at the end of a citation.
@@ -421,6 +448,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, [playing, disarm]);
 
   const play = useCallback((next: Source, seconds = 0, autoplay = true, until: number | null = null) => {
+    /* The one place a player is asked for. Idempotent after the first call,
+       and safe here rather than behind a branch: React drops a set to the
+       value the state already holds, so this costs one render per session and
+       nothing after it. */
+    setWanted(true);
     setSource((cur) => (cur?.videoId === next.videoId ? cur : next));
     setPosition(seconds);
     /* Armed before anything is loaded, so the poll has it whichever branch

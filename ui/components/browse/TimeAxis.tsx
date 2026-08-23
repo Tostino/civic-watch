@@ -211,7 +211,11 @@ export function TimeAxis({
               e.preventDefault();
               toggle(!expanded);
             }}
-            aria-expanded={expanded}
+            /* NO `aria-expanded`. It is valid on the rows of a `treegrid` and
+               not on the rows of a `grid`, and this is a grid: making it a
+               treegrid to keep one attribute would take on a whole keyboard
+               contract for a fold. The label below says both the action and,
+               by saying it, the state. */
             aria-label={
               `${expanded ? "Hide" : "Show"} ${earlier.length} earlier years: ` +
               `${earlier[0]} to ${earlier[earlier.length - 1]}, ` +

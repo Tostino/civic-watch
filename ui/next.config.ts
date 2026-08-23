@@ -44,6 +44,43 @@ const nextConfig: NextConfig = {
     proxyTimeout: 900_000,
   },
 
+  /*
+   *  WHAT THE BACK BUTTON COSTS, and the one token that decides it.
+   *
+   * Every page here is dynamically rendered - each one reads search params, or
+   * fetches from the Python API with `cache: "no-store"`, or both - and Next
+   * gives a dynamically rendered page `private, no-cache, no-store, max-age=0,
+   * must-revalidate`. `no-store` in that list is the reason a reader who opens
+   * an item from a meeting and presses BACK re-fetches and re-renders the whole
+   * meeting, transcript and all, instead of getting it back instantly: Chrome
+   * refuses the back/forward cache outright for a main resource stored with
+   * `no-store`, and it was refused on all sixteen runs of the audit.
+   *
+   * Nothing else in that header is doing harm, and nothing else changes here.
+   * `no-cache` still means the browser revalidates before it shows a stored
+   * copy on an ordinary navigation, so the archive is as fresh as it was.
+   * `private` still keeps it out of any shared cache. What goes is the
+   * instruction not to keep a copy at all - which is a promise about DISK, and
+   * the back/forward cache is memory, and this site has no accounts, no session
+   * and nothing in a page that belongs to the reader looking at it.
+   *
+   * The console is the exception and keeps `no-store`: it is the one surface
+   * that renders the archive's unpublished working state.
+   */
+  async headers() {
+    return [
+      { source: "/admin/:path*",
+        headers: [{ key: "Cache-Control",
+                    value: "private, no-store, max-age=0, must-revalidate" }] },
+      // Everything the public reads. The exclusions are the paths that set
+      // their own and must keep it: `/_next/static` is content-addressed and
+      // immutable, and the API and the tool endpoint answer for themselves.
+      { source: "/((?!admin|api|mcp|_next).*)",
+        headers: [{ key: "Cache-Control",
+                    value: "private, no-cache, max-age=0, must-revalidate" }] },
+    ];
+  },
+
   async rewrites() {
     return [
       // BEFORE the general rule, because the first match wins. Absent entirely

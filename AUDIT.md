@@ -5,6 +5,23 @@ follows is the evidence first and the plan second, because two of the six
 findings are the same cause wearing different hats and that is only obvious
 once the numbers are side by side.
 
+## What has been done since, 23 August 2026
+
+Items 1, 2 and 4 of the plan below are implemented, and most of 5. Item 3 is
+implemented at the wire and is **not confirmed to have worked**; the paragraph
+under finding 2 says exactly what was and was not established. Everything here
+was verified against a production build of this branch, served by `next start`,
+not against the dev server, whose headers and bundles are both different.
+
+| plan item | state | what was verified |
+|---|---|---|
+| 1. Defer the YouTube player | done | `/about`, `/search`, `/`, `/meeting/:id` load with **0 YouTube requests and no iframe**. Clicking a citation builds the player and the recording plays: no autoplay was lost. |
+| 2. Stop the admin probe | done | `/search` with hits, `/meeting/:id` and `/ask` make **no request to `/api/admin/*`** and log no console error. |
+| 3. Caching | partly | Documents and RSC payloads no longer carry `no-store`; `/admin` still does; `/_next/static` keeps `immutable`. Whether the browser then grants bfcache is unresolved. See below. |
+| 4. Contrast and ARIA | done | `.sessionLen` measures **5.87:1 light and 5.93:1 dark** on the selected chip, from 4.46. The `aria-expanded` is off the grid row. |
+| 5. Touch targets | part | The time axis clears 24px at every width. The timeline bands and the answer's inline controls are untouched and still need the design decision. |
+| 6. Cleanup | not started | |
+
 ## How this was measured, and what the numbers are worth
 
 Lighthouse 13.4.1 in a container, against production, eight templates by two
@@ -116,12 +133,37 @@ The practical effect is that a reader who opens an item from a meeting and
 presses back re-fetches and re-renders the meeting, transcript and all, instead
 of having it restored instantly.
 
-**Fix.** This needs care rather than a flag: the pages are dynamic because the
-archive changes and because `/admin` must never be cached. The work is to
-decide which routes can carry an ordinary `max-age`/`s-maxage` — the reading
-surfaces, almost certainly — and to stop the `no-store` on API fetches from
-propagating to the document. Chrome classes the reason as "Not actionable",
-which means Lighthouse cannot fix it, not that we cannot.
+**Fix, as shipped.** `headers()` in `next.config.ts` now sets
+`private, no-cache, max-age=0, must-revalidate` on everything the public reads,
+and keeps `private, no-store` on `/admin/:path*`. Nothing about freshness
+changes: `no-cache` still makes the browser revalidate before it shows a stored
+copy, and the archive is exactly as current as it was. What goes is the
+instruction not to keep a copy at all, which is a promise about disk, where the
+back/forward cache is memory.
+
+Verified at the wire on a production build: documents, RSC payloads and
+`Next-Router-Prefetch` responses all carry the new header, `/admin` keeps
+`no-store`, and `/_next/static` keeps `public, max-age=31536000, immutable`.
+The one response still stamped `no-store` is Next's own 404, which it writes
+itself and `headers()` does not reach.
+
+**And it is still not enough, which is worth knowing before anyone celebrates.**
+Tested by marking `window` on a page, navigating away, and going back: if the
+mark survives, the document came out of the back/forward cache. On the same
+server, on the same origin, under the same header, a plain HTML file in
+`public/` **is** restored and a Next-rendered page **is not** — including a page
+stripped down to a paragraph, with the providers, the header and the player all
+removed from the root layout. So at least one blocker remains and it is in the
+framework's own output rather than in this site's code. The built client bundles
+contain no `unload` handler, no `WebSocket`, no `BroadcastChannel`, no
+`navigator.locks` and no `indexedDB`, so it is none of the usual ones.
+
+Chrome would not say which: `notRestoredReasons` reports `masked` in this
+browser even for the page it restored. Lighthouse names reasons outright, and
+against production it named only the two `no-store` ones — both now gone — so
+**re-running it after this deploys is the check that settles whether the back
+button is fixed or only unblocked.** Docker was not running on this machine and
+there is no local Chrome, so that run could not be done here.
 
 ### 3. The public site probes an admin endpoint on three templates
 
@@ -178,19 +220,41 @@ one of YouTube's nine requests.
   0.08 s. Most likely contention during the sixteen-run sweep. Worth watching,
   not worth acting on.
 
+## Noticed while verifying, and not acted on
+
+**The wordmark is clipped mid-word on a phone.** At 375px the brand link is
+39px wide against a 56px name, so the header reads "Pasc / Wat" over two lines.
+This is half a deliberate decision: `SiteHeader.module.css` gives the brand
+`overflow: hidden` below 40rem on purpose, because the row cannot wrap and the
+brand is the one item that still says what it is when shortened. The comment
+there describes the endpoint as "clipped to the mark alone", which is a clean
+outcome; a name broken across two lines and cut on both is not the same thing,
+and is most likely a wrap the author did not expect. Lighthouse cannot see this,
+which is why it is not among the findings above. What to give up instead at that
+width — the repo link, nav padding, the second line of the lockup — is a design
+call rather than a fix.
+
 ## Plan, in order
 
-1. **Defer the YouTube player until first play.** One component, one flag.
-   Removes ~987 KiB from every page view, and with it the Cookie issue and the
-   font-display failure. Re-measure CLS.
-2. **Stop the admin-session probe on public pages.** Removes the site's only
-   console error and a wasted request on three templates.
-3. **Decide the caching story per route** and recover back/forward cache for
-   the reading surfaces. Largest remaining win and the one needing the most
-   thought.
-4. **Contrast and ARIA** on meeting and browse. Two small, unambiguous fixes.
-5. **Touch targets** on the timeline, time axis and answer. Needs a design
-   decision first.
+1. ~~**Defer the YouTube player until first play.**~~ Done. `PlayerProvider`
+   builds the player on the first `play()` rather than on mount, and still
+   never tears it down. Removes ~987 KiB from every page view, and with it the
+   Cookie issue and the font-display failure. CLS still wants re-measuring.
+2. ~~**Stop the admin-session probe on public pages.**~~ Done. The console
+   writes a readable `civic_operator` mark beside the httpOnly session, and the
+   reading surfaces ask only when the mark is there. A reader sends nothing.
+   The session cookie, the loopback listener and the port boundary are
+   unchanged: the mark says whether it is worth asking, never who is asking.
+3. **Decide the caching story per route.** Header shipped; back/forward cache
+   not yet proven to be restored. Finish this by re-running Lighthouse against
+   production once this deploys, and by finding the framework-level blocker if
+   it names one.
+4. ~~**Contrast and ARIA** on meeting and browse.~~ Done.
+5. **Touch targets.** The time axis is done at all three widths. The timeline
+   bands (10px) and the answer's `.itemHead` and `.at` are not, and both are a
+   design decision rather than a fix: the bands are deliberately thin, and the
+   answer's two are inline controls in prose, which WCAG 2.5.8 exempts and
+   Lighthouse flags anyway.
 6. **Render-blocking CSS, legacy JS, unused bundles.** Cleanup.
 
 Re-run the sixteen-run sweep after 1–3 and compare against the table above.

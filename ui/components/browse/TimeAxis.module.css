@@ -123,7 +123,11 @@
 
 .cell {
   display: block;
-  height: 1.35rem;
+  /* 24px, and it is a floor rather than a look: WCAG 2.2's target size is 24
+     by 24 and these were 21.6 tall, so every month in the grid failed by 2.4
+     pixels. Twelve of them in a row and a dozen rows, all missing it by the
+     same hair. The grid is 24px taller per year, which is the whole cost. */
+  height: 1.5rem;
   position: relative;
   border-radius: 2px;
   border: 1px solid var(--rule);
@@ -210,8 +214,13 @@
     grid-template-columns: 2.4rem repeat(12, minmax(0.9rem, 1fr)) 2rem;
   }
 
+  /* 1.375rem, the same as the coarse-pointer rule below and for the same
+     arithmetic: with the 2px gap the vertical pitch is exactly 24px. A narrow
+     window is not always a phone - a desktop split in half has a mouse and
+     these cells - and 2.5.8 is about pointers, not about touch. At 1.1rem they
+     were 17.6 tall on a 19.6 pitch, which fails either way. */
   .cell {
-    height: 1.1rem;
+    height: 1.375rem;
   }
 }
 
@@ -238,6 +247,10 @@
 .fold {
   grid-template-columns: auto minmax(0, 1fr) auto;
   padding-block: 0.15rem;
+  /* The same 24px floor as a cell. It is the one row in this grid that is
+     itself a control, and at 22.4 it missed by less than the cells did. */
+  min-height: 1.5rem;
+  align-items: center;
   border-radius: var(--radius-sm);
   text-decoration: none;
   color: inherit;

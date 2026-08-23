@@ -49,6 +49,15 @@
   color: var(--ink-4);
 }
 
+/* THE CHOSEN CHIP IS NOT ON `--surface`. `--ink-4` clears 4.5:1 against every
+   background in tokens.css, in both themes, and the length of a recording sat
+   at 4.46:1 anyway: the selected chip swaps its background for `--accent-soft`,
+   which is not one of those backgrounds. One step up the same scale, on the
+   one chip that needs it. 5.87:1 light, 5.93:1 dark. */
+.session[aria-checked="true"] .sessionLen {
+  color: var(--ink-3);
+}
+
 .trackNote {
   margin-top: 0.2rem;
   font-size: var(--text-2xs);
