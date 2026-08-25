@@ -34,3 +34,6 @@ PRIOR_ART.md
 SPEAKER_PLAN.md
 UI_PLAN.md
 UI_REQUIREMENTS.md
+# Worker locks (bin/run.sh). Held by the kernel for a worker's lifetime;
+# nothing here outlives the process that made it.
+run/
