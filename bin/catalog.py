@@ -72,21 +72,54 @@ def classify(title):
     return "other"
 
 
+# A BROADCAST THAT IS NOT OVER IS NOT A RECORDING, and must not be catalogued
+# as one.
+#
+# Almost every meeting here is streamed live, so the moment the county starts
+# an afternoon session this scraper can see it - and what it can see at that
+# moment is a partial one. yt-dlp's own word for the state is the right thing
+# to test:
+#
+#   is_upcoming  scheduled, not started. There is nothing there at all.
+#   is_live      happening now. Whatever length it reports is "so far".
+#   post_live    JUST ENDED, and this is the dangerous one. The broadcast is
+#                over, the VOD is still being cut, and a duration can be
+#                present and wrong.
+#
+# Until now the only thing standing in the way was an accident: a live entry
+# prints `NA` for its duration, `float("NA")` raises, and the `except` below
+# dropped the row. That works and it is not a guard - it is a side effect of
+# parsing, one yt-dlp output change away from silently cataloguing a meeting
+# that is still being held. It now says what it means, and says out loud when
+# it skips something, because "the sweep found nothing" and "the sweep refused
+# something" should never look the same to an operator.
+UNFINISHED = {"is_upcoming", "is_live", "post_live"}
+
+
 def fetch(tab):
     out = subprocess.run(
-        [YTDLP, "--flat-playlist", "--print", "%(id)s\t%(title)s\t%(duration)s",
+        [YTDLP, "--flat-playlist",
+         "--print", "%(id)s\t%(title)s\t%(duration)s\t%(live_status)s",
          tab], capture_output=True, text=True, timeout=2400)
-    rows = []
+    rows, held = [], []
     for line in out.stdout.splitlines():
         parts = line.split("\t")
-        if len(parts) != 3:
+        if len(parts) != 4:
             continue
-        vid, title, dur = parts
+        vid, title, dur, live = parts
+        if live in UNFINISHED:
+            held.append((vid, title, live))
+            continue
         try:
             duration = float(dur)
         except ValueError:
             continue
         rows.append((vid, title, duration))
+    for vid, title, live in held:
+        print(f"  holding {vid} ({live}): {title[:60]}")
+    if held:
+        print(f"  {len(held)} not finished - they will be catalogued by a "
+              f"later sweep, once YouTube has finished with them")
     return rows
 
 
@@ -143,11 +176,27 @@ def main():
     keep = [r for r in rows if r[2] >= args.min_duration
             and (wanted is None or r[4] in wanted)]
     before = con.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+    # A DURATION THAT WAS WRONG ONCE STAYED WRONG FOR EVER. `DO NOTHING` is
+    # right about everything a person or a later stage may have touched, and
+    # it was also right about the one field that is a measurement rather than a
+    # decision: a row catalogued from a broadcast YouTube had not finished
+    # cutting kept that length no matter how many sweeps ran afterwards, and
+    # the ingest would transcribe a truncated meeting from it and look healthy
+    # doing it. The guard above should stop such a row ever being written; this
+    # is what makes the mistake survivable if it is.
+    #
+    # ONLY BEFORE IT IS DOWNLOADED, which is what keeps this safe. After that
+    # the audio on disk, its diarization and its transcript are all measured
+    # against this number, and moving it would describe a recording nobody
+    # holds. Before it, nothing downstream exists to contradict.
     with con.cursor() as cur:
         cur.executemany(
             "INSERT INTO videos "
             "(id, title, duration, upload_date, kind, source) "
-            "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO NOTHING", keep)
+            "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (id) DO UPDATE "
+            "SET duration = EXCLUDED.duration "
+            "WHERE NOT videos.downloaded "
+            "  AND videos.duration IS DISTINCT FROM EXCLUDED.duration", keep)
     con.commit()
     after = con.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
 
