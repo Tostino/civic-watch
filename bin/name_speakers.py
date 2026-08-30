@@ -131,11 +131,31 @@ VAGUE = {"county commissioner", "commissioner", "board member", "staff",
          "applicant", "presenter", "unknown"}
 
 
-def canonical(name, roster):
+def canonical(name, roster, board=None):
     """Fold an honorific form onto the identity that already exists.
 
     Left alone, "Commissioner Oakley" becomes a second Oakley sitting beside
     the real one, and every question about him then sees half his record.
+
+    A SHARED SURNAME IS NOT A SHARED PERSON, and this used to assume it was.
+    The second test below folds a full name onto a bare surname, which is right
+    for a board member because the surname IS their key - "Ron Oakley" and
+    "Oakley" are one identity. It fired on last-word alone, so every other
+    person in the county who happens to share a commissioner's surname was
+    folded onto the commissioner. Doug Anderson, Assistant Director of
+    Facilities Management, introduces himself by name and was stored as
+    "Anderson"; 121 such claims were one resolve away from publishing county
+    staff and members of the public under sitting commissioners' names.
+
+    This is the fifth time a surname has been treated as a natural key here.
+    The previous four merged Sean Poole into Commissioner Poole, collapsed
+    every public "Camp" into one facet key, blocked residents from existing
+    behind UNIQUE(surname), and left roster.py doing ON CONFLICT (surname)
+    after the constraint was dropped.
+
+    `board` maps a surname to that member's full name, so the fold happens only
+    when the GIVEN name agrees too. Absent it, the old behaviour would return,
+    so it is required rather than optional in practice - the caller passes it.
     """
     n = " ".join((name or "").split())
     stripped = n
@@ -143,11 +163,21 @@ def canonical(name, roster):
                 "Mr. ", "Mrs. ", "Ms. ", "Dr. "):
         if stripped.startswith(pre):
             stripped = stripped[len(pre):]
+    board = board or {}
     for existing in roster:
         if stripped.lower() == existing.lower():
             return existing              # exact identity already in the roster
         if (" " not in existing and existing.lower() == stripped.split()[-1].lower()):
-            return existing              # surname matches a known surname
+            # Same surname. Same person only if the given name agrees with the
+            # one the roster holds; otherwise this is somebody else and keeps
+            # the name they gave.
+            given = stripped.rsplit(" ", 1)[0].strip()
+            full = board.get(existing.lower()) or ""
+            if given and full and given.lower() in full.lower():
+                return existing
+            if not given:
+                return existing
+            continue
     return stripped or n
 
 
@@ -294,11 +324,16 @@ def main():
 
     roster = [r[0] for r in con.execute(
         "SELECT DISTINCT name FROM speaker_identity WHERE name IS NOT NULL")]
+    # Surname -> the full name the county's own roster holds. What makes
+    # "Ron Oakley" foldable onto "Oakley" and "Doug Anderson" not.
+    board = {r[0].lower(): r[1] for r in con.execute(
+        "SELECT surname, full_name FROM people "
+        " WHERE kind='board' AND surname IS NOT NULL")}
     accepted, rejected = [], []
     for p in results:
         ok, why = verify(p)
         if ok:
-            p["name"] = canonical(p["name"], roster)
+            p["name"] = canonical(p["name"], roster, board)
         (accepted if ok else rejected).append((p, why))
 
     print(f"{'cluster':>8} {'mtgs':>5} {'conf':>5}  {'kind':<6} name")
