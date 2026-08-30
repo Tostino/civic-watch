@@ -12,6 +12,12 @@ MIN_MEETINGS = 2
 CONFIDENCE = 0.7
 SAMPLES = 6
 MAX_WORKERS = 4
+# How many self-identifying voices one run will take. There are 452 of them
+# today, so the first run clears the backlog and later ones handle a meeting's
+# worth. Separate from --limit because the two arms are not competing for the
+# same budget: one is expensive judgement over sparse evidence, the other is
+# reading a name out of a sentence.
+SELF_LIMIT = 500
 
 SYS = """You identify speakers in county government meeting transcripts.
 
@@ -41,22 +47,51 @@ Hard rules:
 - If torn between two identities, return null. A wrong name is worse than none."""
 
 
+# THE PODIUM CONVENTION, as a candidate test rather than as an extractor.
+#
+# `speaker_claims.PODIUM` has to be strict: it writes a name straight into the
+# archive, so it demands a comma and a house number in digits and rejects
+# everything else. That strictness is right there and wrong here. This decides
+# only whether a voice is WORTH ASKING THE MODEL ABOUT, and a false positive
+# costs one API call that `verify()` then throws away. So it is deliberately
+# loose: any line that opens with something name-shaped, or says "my name is"
+# anywhere.
+#
+# The two are not redundant. The regex fails on the forms people actually use
+# at a Florida podium - "Jeff Gray. Forty three hundred, Lanna Lakes
+# Boulevard" (a full stop, and a house number the ASR spelled out in words),
+# "I'm Carl Wright. I live at ...", "Hey everybody, Jonathan Federa" - and
+# reading a name out of a sentence whose SHAPE varies is what a model is good
+# at and a pattern is bad at.
+SELF_SHAPED = (r"text ~* 'my name is' "
+               r"OR text ~ '^[A-Z][a-z]+ [A-Z][a-z]+[,.] '")
+
+
 def bundle(con, cluster):
     """Evidence for one voice: what they say, and how they get introduced."""
-    self_lines = [r["text"] for r in con.execute("""
-        SELECT text FROM utterances WHERE cluster=%s AND LENGTH(text)>80
-        ORDER BY LENGTH(text) DESC LIMIT %s""", (cluster, SAMPLES))]
+    # LENGTH>80 keeps the model reading substance rather than "Thank you." It
+    # also threw away the one line that matters for somebody who came to the
+    # podium once: "Natasha Surewood. Thirty five eleven cat can bloom." is 50
+    # characters and is the entire evidence for her name. Anything name-shaped
+    # is kept whatever its length; everything else still has to earn its place.
+    self_lines = [r["text"] for r in con.execute(f"""
+        SELECT text FROM utterances
+         WHERE cluster=%s AND (LENGTH(text)>80 OR {SELF_SHAPED})
+        ORDER BY ({SELF_SHAPED}) DESC, LENGTH(text) DESC LIMIT %s""",
+        (cluster, SAMPLES))]
     intros = [r["text"] for r in con.execute("""
         SELECT u2.text FROM utterances u1
         JOIN utterances u2 ON u2.video_id=u1.video_id AND u2.idx=u1.idx-1
         WHERE u1.cluster=%s AND (u2.cluster IS NULL OR u2.cluster<>u1.cluster)
           AND LENGTH(u2.text)>30
         ORDER BY LENGTH(u2.text) DESC LIMIT %s""", (cluster, SAMPLES))]
-    named_self = [r["text"] for r in con.execute("""
+    named_self = [r["text"] for r in con.execute(f"""
         SELECT text FROM utterances WHERE cluster=%s
           AND (text LIKE '%%my name is%%' OR text LIKE '%%I am the%%'
                OR text LIKE '%%director%%' OR text LIKE '%%administrator%%'
-               OR text LIKE '%%attorney%%')
+               OR text LIKE '%%attorney%%'
+               -- The podium form, which none of the above reaches.
+               OR {SELF_SHAPED})
         ORDER BY LENGTH(text) DESC LIMIT 4""", (cluster,))]
     return self_lines, intros, named_self
 
@@ -136,28 +171,52 @@ def verify(p):
 
 
 def _claim(con, p):
-    """Record the proposal as evidence, WITH the quote that justified it."""
+    """Record the proposal as evidence, with the quote ON THE RUN THAT CARRIES IT.
+
+    A proposal is about a CLUSTER, and a cluster is a voice heard in many
+    places; the quote that justified it was said in exactly one of them. The
+    first version of this attached that one quote to every run of the cluster
+    archive-wide, which put "So as much as Mr. Homby, I've been working with
+    you very" onto 1,413 claims across 93 recordings where nobody said it.
+    2,928 of 2,945 claims failed `audit.py claims.quotes_are_verbatim`, which
+    is the check that exists to assert exactly this and had never had a quoted
+    llm claim to bite on before.
+
+    So the quote travels only as far as it is true. Each run is tested against
+    it and carries it only if it contains it; every other run makes the same
+    claim with no quote, which is honest - that run IS the cluster's, and the
+    reason to believe it was said elsewhere.
+
+    Whitespace-and-case normalised, the same comparison `verify()` makes
+    against the evidence bundle, so a quote cannot pass one test and fail the
+    other on spacing alone.
+    """
     try:
         import speaker_claims
     except ImportError:
         return 0
-    n = 0
+    quote = (p.get("evidence_quote") or "").strip()
+    flat = " ".join(quote.split()).lower()
+    n, carried = 0, 0
     for r in con.execute("""
             WITH marked AS (
-                SELECT u.video_id, u.local_label, u.idx,
+                SELECT u.video_id, u.local_label, u.idx, u.text,
                        u.idx - ROW_NUMBER() OVER (PARTITION BY u.video_id,
                                                                u.local_label
                                                   ORDER BY u.idx) AS island
                   FROM utterances u
                  WHERE u.cluster = %s AND u.local_label IS NOT NULL)
-            SELECT video_id, local_label, MIN(idx) lo, MAX(idx) hi
+            SELECT video_id, local_label, MIN(idx) lo, MAX(idx) hi,
+                   string_agg(text, ' ' ORDER BY idx) AS said
               FROM marked GROUP BY video_id, local_label, island""",
             (p["cluster"],)):
+        here = bool(flat) and flat in " ".join((r["said"] or "").split()).lower()
         speaker_claims.append(con, r["video_id"], r["lo"], r["hi"], p["name"],
-                              "llm", quote=p.get("evidence_quote"),
+                              "llm", quote=quote if here else None,
                               label=r["local_label"])
         n += 1
-    return n
+        carried += here
+    return n, carried
 
 
 def main():
@@ -165,10 +224,34 @@ def main():
     ap.add_argument("--limit", type=int, default=25)
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--min-lines", type=int, default=MIN_LINES)
+    ap.add_argument("--self-limit", type=int, default=SELF_LIMIT,
+                    help="voices below the impact gate that state a name")
     args = ap.parse_args()
 
     con = db.connect()
-    groups = [dict(r) for r in con.execute("""
+    # TWO POPULATIONS, AND THE GATE ONLY EVER FITTED ONE OF THEM.
+    #
+    # `lines >= 60 AND mtgs >= 2`, ordered by `mtgs*lines`, is an IMPACT
+    # ranking: spend the model where naming one voice moves the most
+    # utterances. That is right for a staffer who appears in forty meetings and
+    # is never introduced, and it selects precisely AGAINST the person the
+    # archive most owes a name to - a resident who walks to the podium once,
+    # speaks for two minutes, and produces five lines in one meeting.
+    #
+    # Measured before this changed: of the unnamed voices, 32 were eligible and
+    # 1,720 were below the gate - and 452 of those below it say a name in their
+    # own words. Jonathan Federa (5 lines) and Jeff Gray (7 lines) both stand at
+    # the podium, give their name and their address, and were never once put to
+    # the model.
+    #
+    # So the second arm asks for the opposite thing. No line threshold, no
+    # meeting threshold, and no impact ordering, because impact is not the
+    # question: the evidence is INSIDE the utterance being read, so the model
+    # needs no cross-meeting context and the call is cheap and self-contained.
+    # `verify()` is what keeps it honest - a proposal whose quote is not in the
+    # evidence is rejected, which is what stops "Four" and "Heights" becoming
+    # people.
+    impact = [dict(r, why="impact") for r in con.execute("""
         WITH agg AS (SELECT cluster, COUNT(*) lines,
                             COUNT(DISTINCT video_id) mtgs
                      FROM utterances WHERE cluster IS NOT NULL GROUP BY cluster),
@@ -179,7 +262,28 @@ def main():
           AND lines >= %s AND mtgs >= %s
         ORDER BY mtgs*lines DESC LIMIT %s""",
         (args.min_lines, MIN_MEETINGS, args.limit))]
-    print(f"{len(groups)} unnamed voices above the impact threshold\n", flush=True)
+    spoken = [dict(r, why="self") for r in con.execute(f"""
+        WITH agg AS (SELECT cluster, COUNT(*) lines,
+                            COUNT(DISTINCT video_id) mtgs
+                     FROM utterances WHERE cluster IS NOT NULL GROUP BY cluster),
+             named AS (SELECT cluster FROM speaker_identity
+                       WHERE name IS NOT NULL GROUP BY cluster),
+             says AS (SELECT DISTINCT cluster FROM utterances
+                       WHERE cluster IS NOT NULL AND ({SELF_SHAPED}))
+        SELECT * FROM agg
+        WHERE cluster NOT IN (SELECT cluster FROM named)
+          AND cluster IN (SELECT cluster FROM says)
+          AND NOT (lines >= %s AND mtgs >= %s)
+        ORDER BY lines DESC LIMIT %s""",
+        (args.min_lines, MIN_MEETINGS, args.self_limit))]
+    seen, groups = set(), []
+    for g in impact + spoken:
+        if g["cluster"] in seen:
+            continue
+        seen.add(g["cluster"])
+        groups.append(g)
+    print(f"{len(impact)} unnamed voices above the impact threshold, "
+          f"{len(spoken)} below it that state a name\n", flush=True)
 
     # DB reads first (main thread), then parallelise only the LLM calls.
     evidence = [make_evidence(con, g) for g in groups]
@@ -209,17 +313,23 @@ def main():
         print(f"   rejected cluster {cl}: {why}" + (f" (proposed {nm!r})" if nm else ""))
 
     if args.write and accepted:
-        n = claimed = 0
+        n = claimed = quoted = 0
         for p, _ in accepted:
             cur = con.execute(
                 "UPDATE speaker_identity SET name=%s, confidence=%s, "
                 "source='llm' WHERE cluster=%s AND name IS NULL",
                 (p["name"], float(p["confidence"]), p["cluster"]))
             n += cur.rowcount
-            claimed += _claim(con, p)
+            c, q = _claim(con, p)
+            claimed += c
+            quoted += q
         con.commit()
+        # `quoted` is deliberately printed beside `claimed`, because the gap
+        # between them is the thing worth watching: it is how many runs make
+        # this claim on the strength of a sentence said somewhere else.
         print(f"\nwrote {n} voice assignments (source='llm'; human labels and "
-              f"existing names untouched), {claimed} claims")
+              f"existing names untouched), {claimed} claims, "
+              f"{quoted} of them carrying the quote that justified them")
     return 0
 
 
