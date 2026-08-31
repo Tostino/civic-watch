@@ -46,6 +46,10 @@ def loopback(request):
     `request` is a Starlette Request. No peer at all is not this machine.
     """
     ip = request.client.host if request.client else ""
+    # `::ffff:127.0.0.1` is 127.0.0.1 from a dual-stack socket, which is what
+    # Node hands the UI's rewrite. The boundary is the port, not this test.
+    if ip.startswith("::ffff:"):
+        ip = ip[len("::ffff:"):]
     return ip == "::1" or ip.startswith("127.")
 
 def session_of(request):

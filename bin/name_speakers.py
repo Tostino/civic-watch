@@ -47,28 +47,10 @@ Hard rules:
 - If torn between two identities, return null. A wrong name is worse than none."""
 
 
-# THE PODIUM CONVENTION, as a candidate test rather than as an extractor.
-#
-# `speaker_claims.PODIUM` has to be strict: it writes a name straight into the
-# archive, so it demands a comma and a house number in digits and rejects
-# everything else. That strictness is right there and wrong here. This decides
-# only whether a voice is WORTH ASKING THE MODEL ABOUT, and a false positive
-# costs one API call that `verify()` then throws away. So it is deliberately
-# loose: any line that opens with something name-shaped, or says "my name is"
-# anywhere.
-#
-# The two are not redundant. The regex fails on the forms people actually use
-# at a Florida podium - "Jeff Gray. Forty three hundred, Lanna Lakes
-# Boulevard" (a full stop, and a house number the ASR spelled out in words),
-# "I'm Carl Wright. I live at ...", "Hey everybody, Jonathan Federa" - and
-# reading a name out of a sentence whose SHAPE varies is what a model is good
-# at and a pattern is bad at.
-# The greeting comes first and the name comes second, which the anchored form
-# missed: "Hello, Adam Brusselback. I live at 3636 Hunting Creek Loop" opens
-# with a word and a COMMA, so the name never reaches the front of the line and
-# the voice was never a candidate. Up to two leading words of anything are
-# allowed to precede it. Loose on purpose - this only decides who is worth
-# asking about, and verify() is the gate.
+# Worth ASKING the model about: anything name-shaped, or "my name is".
+# Looser than speaker_claims.PODIUM on purpose - that one writes a name
+# straight into the archive, this only picks candidates and verify() is the
+# gate. Up to two leading words, so "Hello, Adam Brusselback." counts.
 SELF_SHAPED = (r"text ~* 'my name is' "
                r"OR text ~ '^(?:[A-Za-z'']+[,.]?[[:space:]]+){0,2}"
                r"[A-Z][a-z]+[[:space:]][A-Z][a-z]+[,.][[:space:]]'")
@@ -76,11 +58,9 @@ SELF_SHAPED = (r"text ~* 'my name is' "
 
 def bundle(con, cluster):
     """Evidence for one voice: what they say, and how they get introduced."""
-    # LENGTH>80 keeps the model reading substance rather than "Thank you." It
-    # also threw away the one line that matters for somebody who came to the
-    # podium once: "Natasha Surewood. Thirty five eleven cat can bloom." is 50
-    # characters and is the entire evidence for her name. Anything name-shaped
-    # is kept whatever its length; everything else still has to earn its place.
+    # LENGTH>80 keeps the model on substance, and threw away the only line
+    # that matters for a one-off speaker: "Natasha Surewood. Thirty five
+    # eleven cat can bloom." is 50 characters and is the whole evidence.
     self_lines = [r["text"] for r in con.execute(f"""
         SELECT text FROM utterances
          WHERE cluster=%s AND (LENGTH(text)>80 OR {SELF_SHAPED})
@@ -136,13 +116,8 @@ def propose(g, evidence):
 VAGUE = {"county commissioner", "commissioner", "board member", "staff",
          "county staff", "speaker", "member of the public", "citizen",
          "applicant", "presenter", "unknown",
-         # Single-word offices, which name a chair rather than a person. The
-         # prompt asks for a role where it beats a guess, and "Planning
-         # Director" or "County Attorney" does - it says WHICH one. These do
-         # not: the archive holds many attorneys and one "Madam Clerk"
-         # already, so a bare "Clerk" arrives as a second person doing the
-         # same job. Observed in the first widened run: Clerk twice, plus
-         # Coach and Professor.
+         # Single-word offices name a chair, not a person: the archive holds
+         # many attorneys and one Madam Clerk already.
          "clerk", "attorney", "coach", "professor", "director", "manager",
          "engineer", "planner", "chairman", "chairwoman", "chair"}
 
@@ -153,25 +128,10 @@ def canonical(name, roster, board=None):
     Left alone, "Commissioner Oakley" becomes a second Oakley sitting beside
     the real one, and every question about him then sees half his record.
 
-    A SHARED SURNAME IS NOT A SHARED PERSON, and this used to assume it was.
-    The second test below folds a full name onto a bare surname, which is right
-    for a board member because the surname IS their key - "Ron Oakley" and
-    "Oakley" are one identity. It fired on last-word alone, so every other
-    person in the county who happens to share a commissioner's surname was
-    folded onto the commissioner. Doug Anderson, Assistant Director of
-    Facilities Management, introduces himself by name and was stored as
-    "Anderson"; 121 such claims were one resolve away from publishing county
-    staff and members of the public under sitting commissioners' names.
-
-    This is the fifth time a surname has been treated as a natural key here.
-    The previous four merged Sean Poole into Commissioner Poole, collapsed
-    every public "Camp" into one facet key, blocked residents from existing
-    behind UNIQUE(surname), and left roster.py doing ON CONFLICT (surname)
-    after the constraint was dropped.
-
-    `board` maps a surname to that member's full name, so the fold happens only
-    when the GIVEN name agrees too. Absent it, the old behaviour would return,
-    so it is required rather than optional in practice - the caller passes it.
+    A SHARED SURNAME IS NOT A SHARED PERSON. Folding on the last word alone
+    put Doug Anderson, Assistant Director of Facilities Management, under
+    Commissioner Donald E. Anderson's key. `board` maps surname -> full name
+    so the fold needs the given name to agree too.
     """
     n = " ".join((name or "").split())
     stripped = n
@@ -211,20 +171,10 @@ def verify(p, board=None):
     # key, and "Thomas", "Radman", "Land" and "JN" - the last from a line the
     # ASR mangled. Somebody at a podium giving their name gives both halves.
     #
-    # NO EXEMPTION FOR BOARD SURNAMES, and the first version of this rule had
-    # one. The reasoning was that a surname IS the archive's key for a member,
-    # so a bare "Oakley" is a whole identity rather than half of one. True, and
-    # it made the rule useless exactly where it was needed: "Fitzpatrick" is a
-    # board surname, so a bare "Fitzpatrick" was waved through onto a voice in
-    # a 2024 meeting, two years after Christina Fitzpatrick left the board.
-    # The roster veto refused to publish it and audit.py caught it in
-    # speaker_identity, where it would have fed the next run.
-    #
-    # Nothing is lost by dropping the exemption. A model that has read the
-    # evidence produces "Commissioner Oakley" or "Ron Oakley", both two words,
-    # and canonical() folds either onto the key afterwards - this runs BEFORE
-    # canonical. A model that can produce only a bare surname has not found
-    # enough to name anybody with.
+    # A one-word person is a collision waiting to happen ("Mike" proposed for
+    # two voices). No exemption for board surnames: a bare "Fitzpatrick" went
+    # onto a 2024 voice two years after she left the board. This runs BEFORE
+    # canonical(), so "Ron Oakley" is two words here and folds afterwards.
     name = " ".join(p["name"].split())
     if p.get("kind") == "person" and len(name.split()) < 2:
         return False, f"one word for a person ({name!r})"
@@ -242,38 +192,18 @@ def verify(p, board=None):
 def _claim(con, p):
     """Record the proposal as evidence, with the quote ON THE RUN THAT CARRIES IT.
 
-    A proposal is about a CLUSTER, and a cluster is a voice heard in many
-    places; the quote that justified it was said in exactly one of them. The
-    first version of this attached that one quote to every run of the cluster
-    archive-wide, which put "So as much as Mr. Homby, I've been working with
-    you very" onto 1,413 claims across 93 recordings where nobody said it.
-    2,928 of 2,945 claims failed `audit.py claims.quotes_are_verbatim`, which
-    is the check that exists to assert exactly this and had never had a quoted
-    llm claim to bite on before.
-
-    So the quote travels only as far as it is true. Each run is tested against
-    it and carries it only if it contains it; every other run makes the same
-    claim with no quote, which is honest - that run IS the cluster's, and the
-    reason to believe it was said elsewhere.
-
-    Whitespace-and-case normalised, the same comparison `verify()` makes
-    against the evidence bundle, so a quote cannot pass one test and fail the
-    other on spacing alone.
+    A proposal is about a cluster; the quote was said in one place. Stamping
+    it on every run put one sentence on 1,413 claims across 93 recordings
+    and failed quotes_are_verbatim 2,928 times. Each run carries the quote
+    only if it contains it; the rest claim the name with none.
     """
     try:
         import speaker_claims
     except ImportError:
         return 0
-    # THE ARCHIVE'S OWN WORDS, not the model's retyping of them. `verify()`
-    # compares case-insensitively, and so did the first version of this, so a
-    # quote came back as "Tammy Snyder, planning and development." against a
-    # transcript that reads "Tammy Snyder, Planning and Development." - close
-    # enough to be true and not close enough to be verbatim, which is what
-    # audit.py checks. Fifteen claims failed on capitalisation alone.
-    #
-    # So the match is found case-insensitively and the SOURCE substring is what
-    # gets stored. A quote in this table is then the text that is actually in
-    # the range, character for character.
+    # The archive's own words, not the model's retyping: it returned
+    # "planning and development." against a transcript reading "Planning and
+    # Development." - true, not verbatim. Match loosely, store the source.
     quote = (p.get("evidence_quote") or "").strip()
     flat = " ".join(quote.split()).lower()
     n, carried = 0, 0
@@ -310,28 +240,11 @@ def main():
     args = ap.parse_args()
 
     con = db.connect()
-    # TWO POPULATIONS, AND THE GATE ONLY EVER FITTED ONE OF THEM.
-    #
-    # `lines >= 60 AND mtgs >= 2`, ordered by `mtgs*lines`, is an IMPACT
-    # ranking: spend the model where naming one voice moves the most
-    # utterances. That is right for a staffer who appears in forty meetings and
-    # is never introduced, and it selects precisely AGAINST the person the
-    # archive most owes a name to - a resident who walks to the podium once,
-    # speaks for two minutes, and produces five lines in one meeting.
-    #
-    # Measured before this changed: of the unnamed voices, 32 were eligible and
-    # 1,720 were below the gate - and 452 of those below it say a name in their
-    # own words. Jonathan Federa (5 lines) and Jeff Gray (7 lines) both stand at
-    # the podium, give their name and their address, and were never once put to
-    # the model.
-    #
-    # So the second arm asks for the opposite thing. No line threshold, no
-    # meeting threshold, and no impact ordering, because impact is not the
-    # question: the evidence is INSIDE the utterance being read, so the model
-    # needs no cross-meeting context and the call is cheap and self-contained.
-    # `verify()` is what keeps it honest - a proposal whose quote is not in the
-    # evidence is rejected, which is what stops "Four" and "Heights" becoming
-    # people.
+    # Two populations. `lines>=60 AND mtgs>=2` ranked by mtgs*lines is an
+    # IMPACT gate - right for a staffer in forty meetings, and it excluded
+    # every resident who speaks once. Measured: 32 eligible, 1,720 below it,
+    # 452 of those saying a name out loud. The second arm drops the
+    # thresholds because the evidence is inside the utterance being read.
     impact = [dict(r, why="impact") for r in con.execute("""
         WITH agg AS (SELECT cluster, COUNT(*) lines,
                             COUNT(DISTINCT video_id) mtgs
