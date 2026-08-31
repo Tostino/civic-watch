@@ -63,8 +63,15 @@ Hard rules:
 # "I'm Carl Wright. I live at ...", "Hey everybody, Jonathan Federa" - and
 # reading a name out of a sentence whose SHAPE varies is what a model is good
 # at and a pattern is bad at.
+# The greeting comes first and the name comes second, which the anchored form
+# missed: "Hello, Adam Brusselback. I live at 3636 Hunting Creek Loop" opens
+# with a word and a COMMA, so the name never reaches the front of the line and
+# the voice was never a candidate. Up to two leading words of anything are
+# allowed to precede it. Loose on purpose - this only decides who is worth
+# asking about, and verify() is the gate.
 SELF_SHAPED = (r"text ~* 'my name is' "
-               r"OR text ~ '^[A-Z][a-z]+ [A-Z][a-z]+[,.] '")
+               r"OR text ~ '^(?:[A-Za-z'']+[,.]?[[:space:]]+){0,2}"
+               r"[A-Z][a-z]+[[:space:]][A-Z][a-z]+[,.][[:space:]]'")
 
 
 def bundle(con, cluster):
@@ -128,7 +135,16 @@ def propose(g, evidence):
 # people; storing it would merge them into one fictional speaker.
 VAGUE = {"county commissioner", "commissioner", "board member", "staff",
          "county staff", "speaker", "member of the public", "citizen",
-         "applicant", "presenter", "unknown"}
+         "applicant", "presenter", "unknown",
+         # Single-word offices, which name a chair rather than a person. The
+         # prompt asks for a role where it beats a guess, and "Planning
+         # Director" or "County Attorney" does - it says WHICH one. These do
+         # not: the archive holds many attorneys and one "Madam Clerk"
+         # already, so a bare "Clerk" arrives as a second person doing the
+         # same job. Observed in the first widened run: Clerk twice, plus
+         # Coach and Professor.
+         "clerk", "attorney", "coach", "professor", "director", "manager",
+         "engineer", "planner", "chairman", "chairwoman", "chair"}
 
 
 def canonical(name, roster, board=None):
@@ -181,7 +197,7 @@ def canonical(name, roster, board=None):
     return stripped or n
 
 
-def verify(p):
+def verify(p, board=None):
     """Reject anything the evidence does not actually support."""
     if not p or not p.get("name"):
         return False, "no name proposed"
@@ -189,6 +205,23 @@ def verify(p):
         return False, f"confidence {p.get('confidence')}"
     if p["name"].strip().lower() in VAGUE:
         return False, f"too generic ({p['name']!r})"
+    # A PERSON HAS TWO NAMES HERE, and one word is not a person, it is a
+    # collision waiting to happen. The first widened run proposed "Mike" for
+    # two different voices, which would have merged two people into one facet
+    # key, and "Thomas", "Radman", "Land" and "JN" - the last from a line the
+    # ASR mangled. Somebody at a podium giving their name gives both halves.
+    #
+    # A board surname is the exception and is not an exception to the rule: it
+    # IS the archive's key for that person, so a bare "Oakley" is a complete
+    # identity rather than half of one. Checked against the county's roster
+    # rather than against a guess about capitalisation.
+    #
+    # This runs BEFORE canonical(), so "Ron Oakley" is still two words here and
+    # is folded to its key afterwards.
+    name = " ".join(p["name"].split())
+    if (p.get("kind") == "person" and len(name.split()) < 2
+            and name.lower() not in (board or {})):
+        return False, f"one word for a person ({name!r})"
     q = (p.get("evidence_quote") or "").strip()
     if len(q) < 12:
         return False, "no usable quote"
@@ -331,7 +364,7 @@ def main():
         " WHERE kind='board' AND surname IS NOT NULL")}
     accepted, rejected = [], []
     for p in results:
-        ok, why = verify(p)
+        ok, why = verify(p, board)
         if ok:
             p["name"] = canonical(p["name"], roster, board)
         (accepted if ok else rejected).append((p, why))
