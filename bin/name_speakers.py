@@ -211,16 +211,22 @@ def verify(p, board=None):
     # key, and "Thomas", "Radman", "Land" and "JN" - the last from a line the
     # ASR mangled. Somebody at a podium giving their name gives both halves.
     #
-    # A board surname is the exception and is not an exception to the rule: it
-    # IS the archive's key for that person, so a bare "Oakley" is a complete
-    # identity rather than half of one. Checked against the county's roster
-    # rather than against a guess about capitalisation.
+    # NO EXEMPTION FOR BOARD SURNAMES, and the first version of this rule had
+    # one. The reasoning was that a surname IS the archive's key for a member,
+    # so a bare "Oakley" is a whole identity rather than half of one. True, and
+    # it made the rule useless exactly where it was needed: "Fitzpatrick" is a
+    # board surname, so a bare "Fitzpatrick" was waved through onto a voice in
+    # a 2024 meeting, two years after Christina Fitzpatrick left the board.
+    # The roster veto refused to publish it and audit.py caught it in
+    # speaker_identity, where it would have fed the next run.
     #
-    # This runs BEFORE canonical(), so "Ron Oakley" is still two words here and
-    # is folded to its key afterwards.
+    # Nothing is lost by dropping the exemption. A model that has read the
+    # evidence produces "Commissioner Oakley" or "Ron Oakley", both two words,
+    # and canonical() folds either onto the key afterwards - this runs BEFORE
+    # canonical. A model that can produce only a bare surname has not found
+    # enough to name anybody with.
     name = " ".join(p["name"].split())
-    if (p.get("kind") == "person" and len(name.split()) < 2
-            and name.lower() not in (board or {})):
+    if p.get("kind") == "person" and len(name.split()) < 2:
         return False, f"one word for a person ({name!r})"
     q = (p.get("evidence_quote") or "").strip()
     if len(q) < 12:
@@ -258,6 +264,16 @@ def _claim(con, p):
         import speaker_claims
     except ImportError:
         return 0
+    # THE ARCHIVE'S OWN WORDS, not the model's retyping of them. `verify()`
+    # compares case-insensitively, and so did the first version of this, so a
+    # quote came back as "Tammy Snyder, planning and development." against a
+    # transcript that reads "Tammy Snyder, Planning and Development." - close
+    # enough to be true and not close enough to be verbatim, which is what
+    # audit.py checks. Fifteen claims failed on capitalisation alone.
+    #
+    # So the match is found case-insensitively and the SOURCE substring is what
+    # gets stored. A quote in this table is then the text that is actually in
+    # the range, character for character.
     quote = (p.get("evidence_quote") or "").strip()
     flat = " ".join(quote.split()).lower()
     n, carried = 0, 0
@@ -273,10 +289,12 @@ def _claim(con, p):
                    string_agg(text, ' ' ORDER BY idx) AS said
               FROM marked GROUP BY video_id, local_label, island""",
             (p["cluster"],)):
-        here = bool(flat) and flat in " ".join((r["said"] or "").split()).lower()
+        said = " ".join((r["said"] or "").split())
+        at = said.lower().find(flat) if flat else -1
+        exact = said[at:at + len(flat)] if at >= 0 else None
         speaker_claims.append(con, r["video_id"], r["lo"], r["hi"], p["name"],
-                              "llm", quote=quote if here else None,
-                              label=r["local_label"])
+                              "llm", quote=exact, label=r["local_label"])
+        here = exact is not None
         n += 1
         carried += here
     return n, carried
