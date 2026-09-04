@@ -23,7 +23,25 @@ const ORIGIN = typeof window === "undefined"
 
 async function get<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${ORIGIN}${path}`, { cache: "no-store", ...init });
-  if (!res.ok) throw new ApiError(res.status, path);
+  if (!res.ok) {
+    /* DRAINED BEFORE THROWING, or the connection is spent.
+     *
+     * Node's fetch keeps connections to the API in a pool and reuses them,
+     * but it will not put one back until its response body has been read to
+     * the end or cancelled. Thrown away unread, as this line used to do, the
+     * socket is dropped and the next call dials a fresh one. Measured against
+     * a stand-in: five 429s discarded this way cost two extra connections,
+     * five cancelled ones cost none.
+     *
+     * The error path is not a rare path here. `/api/find` answers 429 by
+     * design when a reader searches quickly or the archive is already running
+     * SEARCH_MAX_CONCURRENT of them, and app/search/page.tsx catches exactly
+     * that and renders a wait-a-moment line. Churning a connection per refusal
+     * is also what feeds the reuse race `web/server.py:_server` documents.
+     */
+    await res.body?.cancel().catch(() => {});
+    throw new ApiError(res.status, path);
+  }
   return res.json() as Promise<T>;
 }
 

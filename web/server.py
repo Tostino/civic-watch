@@ -920,9 +920,36 @@ def admin_app():
     )
 
 def _server(app, host, port):
-    """One uvicorn, quiet, with the socket already bound."""
+    """One uvicorn, quiet, with the socket already bound.
+
+    `timeout_keep_alive` IS SET BECAUSE THE UI IS THE CLIENT AND IT GUESSES.
+
+    uvicorn's default is 5 seconds, and when the timer fires it closes the
+    connection without ever having told the other end that number - there is
+    no `Keep-Alive: timeout=` header on the way out. Node's fetch, which is
+    what every server-rendered page uses to reach this process over loopback,
+    therefore guesses: undici drops an idle pooled socket after its own
+    default of 4s minus a 1s threshold, so 3s, and 3 < 5 means the client
+    normally lets go first and nothing is ever reused after we have closed it.
+
+    That 3s is a TIMER ON NODE'S EVENT LOOP, and this container gives that
+    loop plenty of reasons to be late: the search path holds up to
+    SEARCH_MAX_CONCURRENT torch searches beside it on the same cores.
+    Delay the eviction past 5s and the order inverts - we close, Node writes
+    the next request into a socket we have already dropped, and the render
+    fails with `TypeError: fetch failed` / `read ECONNRESET`. Reproduced
+    against a stand-in server at this default, and it takes the whole
+    /search route to its error boundary because `getFacets()` there has no
+    catch.
+
+    65s is longer than any guess undici makes, so the client is always the
+    one to hang up. It costs an idle file descriptor per pooled connection
+    and nothing else: the peer is the UI in this same container, not the
+    public.
+    """
     config = uvicorn.Config(app, host=host, port=port, log_level="warning",
-                            access_log=False, lifespan="on")
+                            access_log=False, lifespan="on",
+                            timeout_keep_alive=65)
     return uvicorn.Server(config), config.bind_socket()
 
 def main():
