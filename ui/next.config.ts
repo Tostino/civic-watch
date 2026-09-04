@@ -89,6 +89,31 @@ const nextConfig: NextConfig = {
         ? [{ source: "/api/admin/:path*",
              destination: `${ADMIN_API}/api/admin/:path*` }]
         : []),
+      /*
+       *  THE SITEMAPS ANSWER AT THE ROOT, and these two lines are how.
+       *
+       * A sitemap only affects descendants of its parent directory. Next's
+       * metadata route publishes ours at `/sitemap/<n>.xml`, whose parent is
+       * `/sitemap/`, while every URL inside is `/meeting/...`, `/item/...`,
+       * `/case/...` or `/` - so all 48,199 were out of scope, and Search
+       * Console read all twelve as "Sitemap could not be read", 0 discovered
+       * pages, twice. lib/sitemaps.ts carries the full argument and what was
+       * ruled out first.
+       *
+       * A rewrite rather than a route: a dynamic segment at the root would
+       * have to be `/[file]`, which swallows every 404 on the site. And
+       * rather than a redirect: a sitemap URL that hops is one more thing for
+       * a crawler to be unsure about. The old `/sitemap/<n>.xml` keeps
+       * answering, because that is what Search Console already holds.
+       *
+       * `/sitemap.xml` cannot be a route handler while app/sitemap.ts exists
+       * - Turbopack refuses with "Conflicting route and metadata at
+       * /sitemap.xml", checked rather than assumed - so the index lives at
+       * `/sitemap-index.xml` and the conventional path is rewritten onto it.
+       * The `\\d+` is what keeps that name out of the numeric rule below it.
+       */
+      { source: "/sitemap.xml", destination: "/sitemap-index.xml" },
+      { source: "/sitemap-:n(\\d+).xml", destination: "/sitemap/:n.xml" },
       { source: "/api/:path*", destination: `${API}/api/:path*` },
       // The tool surface (web/mcp_server.py), which is public on purpose:
       // an MCP client asks the archive its own questions, and the answer it

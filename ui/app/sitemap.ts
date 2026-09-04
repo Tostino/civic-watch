@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 
 import { getIndexable, getMeetings } from "@/lib/api";
 import { siteUrl } from "@/lib/site";
+import { CHUNK, fileCount, pages, totals } from "@/lib/sitemaps";
 
 /**
  * EVERYTHING THE ARCHIVE HOLDS A PAGE FOR, split across several files.
@@ -19,24 +20,17 @@ import { siteUrl } from "@/lib/site";
  */
 export const revalidate = 3600;
 
-const CHUNK = 5_000;
-
-/** The endpoint caps `limit`; ask for one row to learn the total. */
-async function totals() {
-  const [items, cases] = await Promise.all([
-    getIndexable("item", 1, 0).catch(() => ({ total: 0 })),
-    getIndexable("case", 1, 0).catch(() => ({ total: 0 })),
-  ]);
-  return { items: items.total, cases: cases.total };
-}
-
-const pages = (n: number) => Math.max(1, Math.ceil(n / CHUNK));
-
+/* CHUNK, pages(), totals() and the file count moved to lib/sitemaps.ts, which
+ * is now the only thing that decides how many files there are. This file
+ * generates them, app/sitemap-index.xml lists them and app/robots.ts points at
+ * that index; two of the three used to hold copied arithmetic under a comment
+ * promising they agreed. They agree because they read the same function now.
+ *
+ * These files also answer at `/sitemap-<n>.xml`, rewritten in next.config.ts,
+ * and that root path is what the index and robots.txt hand out. lib/sitemaps.ts
+ * has the argument. */
 export async function generateSitemaps() {
-  const { items, cases } = await totals();
-  /* 0 is the entry points and every meeting; then the items; then the cases. */
-  const n = 1 + pages(items) + pages(cases);
-  return Array.from({ length: n }, (_, id) => ({ id }));
+  return Array.from({ length: await fileCount() }, (_, id) => ({ id }));
 }
 
 export default async function sitemap(

@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
 
-import { getIndexable } from "@/lib/api";
 import { siteUrl } from "@/lib/site";
 
 /**
@@ -34,32 +33,23 @@ import { siteUrl } from "@/lib/site";
  */
 export const dynamic = "force-dynamic";
 
-const CHUNK = 5_000;
-const pages = (n: number) => Math.max(1, Math.ceil(n / CHUNK));
-
 /**
- * EVERY SITEMAP FILE, NAMED HERE.
+ * ONE SITEMAP LINE, NOT TWELVE.
  *
- * app/sitemap.ts splits the archive across /sitemap/0.xml … /sitemap/N.xml,
- * and Next publishes no index over them - /sitemap.xml simply 404s once the
- * sitemap is split, which is the URL this file used to give out. A route
- * handler at that address cannot fix it either: the metadata route already
- * claims the path and Next refuses to build with both.
+ * This used to derive the file count here and print a `Sitemap:` line per
+ * file, and it carried a comment promising the arithmetic matched
+ * app/sitemap.ts. Two problems, and the comment was the smaller one.
  *
- * So the list goes here, which the protocol allows and every crawler reads.
- * The count is derived the same way app/sitemap.ts derives it, from the same
- * totals, so the two cannot disagree about how many files there are.
+ * A sitemap scopes to its own parent directory when a crawler finds it this
+ * way - Google states it plainly, and nothing here is submitted through
+ * anybody's console - so twelve files under `/sitemap/` listing `/meeting/`,
+ * `/item/` and `/case/` URLs put all 48,199 of them out of scope for every
+ * crawler that reads this file. `/sitemap.xml` is at the root, so its scope is
+ * the whole site, and the files it points at answer at the root too.
+ *
+ * It is also the path a crawler probes without being told, and it 404'd.
  */
-async function sitemaps(base: string): Promise<string[]> {
-  const [items, cases] = await Promise.all([
-    getIndexable("item", 1, 0).catch(() => ({ total: 0 })),
-    getIndexable("case", 1, 0).catch(() => ({ total: 0 })),
-  ]);
-  const n = 1 + pages(items.total) + pages(cases.total);
-  return Array.from({ length: n }, (_, i) => `${base}/sitemap/${i}.xml`);
-}
-
-export default async function robots(): Promise<MetadataRoute.Robots> {
+export default function robots(): MetadataRoute.Robots {
   const base = siteUrl();
   return {
     rules: {
@@ -85,6 +75,6 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
        * that nothing links to it without `rel="nofollow"` any more. */
       disallow: ["/admin", "/api", "/search"],
     },
-    sitemap: await sitemaps(base),
+    sitemap: `${base}/sitemap.xml`,
   };
 }
