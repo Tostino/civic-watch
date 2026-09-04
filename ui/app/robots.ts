@@ -65,7 +65,25 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/api", "/ask/", "/search"],
+      /* `/ask/` IS NOT HERE, AND ITS ABSENCE IS THE POINT.
+       *
+       * app/ask/[id] already answers `robots: { index: false }` in its
+       * metadata, which is the right instruction: an answer the model wrote
+       * is not the record, and it should not sit in an index beside pages
+       * that are. Blocking the path here made that instruction unreadable -
+       * a crawler refused the page never sees the tag - so Google indexed the
+       * shared links it found anyway, with no title and no description, and
+       * reported them back as "Indexed, though blocked by robots.txt": 17
+       * pages, first seen 29 August 2026. Reading one costs a single row
+       * (`/api/answer/<id>`, no model, no search), so there was never a cost
+       * argument for the block either. Crawlable, and refused by the page
+       * itself, which is the only combination that actually keeps them out.
+       *
+       * `/search` STAYS, for the reason above: the block there is about CPU,
+       * not about the index, and a `noindex` cannot be read by a crawler that
+       * has been told not to look. What kept /search out of this report is
+       * that nothing links to it without `rel="nofollow"` any more. */
+      disallow: ["/admin", "/api", "/search"],
     },
     sitemap: await sitemaps(base),
   };

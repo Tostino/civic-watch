@@ -299,7 +299,13 @@ export default async function AboutPage() {
 
       <footer className={s.foot}>
         <Link href="/">Browse the meetings</Link>
-        <Link href="/search">Search the record</Link>
+        {/* `nofollow` because robots.txt refuses /search and this was one of
+            the two links that told a crawler it was there anyway. A URL a
+            crawler is refused but keeps being pointed at is one it indexes
+            from the link alone, with no title and no description, which is
+            what "Indexed, though blocked by robots.txt" means. Readers keep
+            the link; the crawler stops being handed it. */}
+        <Link href="/search" rel="nofollow">Search the record</Link>
         <Link href="/ask">Ask a question</Link>
         {/* The header carries this as a mark, except on the narrowest screens
             where the bar has no room for it. Here it is words, and it is the

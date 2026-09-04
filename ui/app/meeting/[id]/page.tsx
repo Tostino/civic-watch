@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 
 import { MeetingView } from "@/components/meeting/MeetingView";
 import { ApiError, getMeeting } from "@/lib/api";
-import { meetingDate } from "@/lib/format";
+import { duration, meetingDate, sessionLabel } from "@/lib/format";
+import type { MeetingDetail } from "@/lib/types";
 
 /* Next 16: params and searchParams are Promises. */
 type Props = {
@@ -52,6 +53,73 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 }
 
+/** Seconds to the form schema.org reads: 7713 becomes "PT2H8M33S". */
+function iso8601(seconds: number): string {
+  const whole = Math.round(seconds);
+  const h = Math.floor(whole / 3600);
+  const m = Math.floor((whole % 3600) / 60);
+  const sec = whole % 60;
+  if (!h && !m && !sec) return "PT0S";
+  return `PT${h ? `${h}H` : ""}${m ? `${m}M` : ""}${sec ? `${sec}S` : ""}`;
+}
+
+/**
+ * WHAT THE RECORDINGS ARE, for something that cannot watch them.
+ *
+ * Search Console reported "No thumbnail URL provided" against this site on
+ * 24 August 2026. The finding is exactly right: the player embeds YouTube, so
+ * Google sees a video on the page, and the archive emitted no structured data
+ * of any kind - `grep -rn "application/ld+json"` over app/, components/ and
+ * lib/ returned nothing - so every recording on 1,251 meeting pages was a
+ * video Google knew was there and could say nothing about.
+ *
+ * Every field is read off the row rather than composed, which is the same
+ * rule the rest of this archive keeps. `uploadDate` is a bare date because
+ * `videos.upload_date` is a bare date; schema.org accepts one, and putting a
+ * time on it would be inventing evidence about when the county published a
+ * tape. A recording missing that date is LEFT OUT rather than dated from the
+ * meeting beside it - the two are near each other and are not the same fact.
+ * Measured before choosing that: 0 of 22 sampled recordings lack it, so the
+ * strict reading costs approximately nothing.
+ *
+ * `name` prefers the county's own YouTube title over anything composed here,
+ * for the reason `recordingName` gives: it is what the channel actually calls
+ * the tape. The thumbnail is YouTube's for the id, which is the only picture
+ * of a recording this archive has or should have.
+ */
+function recordings(d: MeetingDetail) {
+  const when = meetingDate(d.meeting.date, "long");
+  return d.videos
+    .filter((v) => v.upload_date)
+    .map((v) => {
+      const bits = [
+        `Pasco County's own recording of the ${d.meeting.body} meeting`
+        + (when ? ` of ${when}` : ""),
+      ];
+      if (d.videos.length > 1) {
+        bits.push(sessionLabel(v.session_seq, d.videos.length).toLowerCase());
+      }
+      const long = duration(v.duration);
+      if (long) bits.push(long);
+      const said = v.words
+        ? ` Machine transcribed and searchable, ${v.words.toLocaleString("en-US")} words.`
+        : "";
+      return {
+        "@context": "https://schema.org",
+        "@type": "VideoObject",
+        name: v.title || `${d.meeting.body}${when ? `, ${when}` : ""}`,
+        description: `${bits.join(", ")}.${said}`,
+        thumbnailUrl: `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+        uploadDate: v.upload_date,
+        ...(v.duration ? { duration: iso8601(v.duration) } : {}),
+        /* The host the player actually uses, so the two agree about what is
+           embedded here. See components/player/PlayerProvider.tsx. */
+        embedUrl: `https://www.youtube-nocookie.com/embed/${v.id}`,
+        contentUrl: `https://www.youtube.com/watch?v=${v.id}`,
+      };
+    });
+}
+
 export default async function MeetingPage({ params, searchParams }: Props) {
   const [{ id }, q] = await Promise.all([params, searchParams]);
   // the URL carries enough to reproduce the view, including the moment
@@ -76,9 +144,24 @@ export default async function MeetingPage({ params, searchParams }: Props) {
     Number.isInteger(from) && Number.isInteger(to) && to >= from
       ? [from, to]
       : undefined;
+  const data = await load(id);
+  const videos = recordings(data);
   return (
+    <>
+      {/* Next's own guidance for this is a plain <script> with the payload
+          scrubbed of "<", which is the XSS hole JSON.stringify does not close:
+          a YouTube title is somebody else's text. See
+          node_modules/next/dist/docs/01-app/02-guides/json-ld.md. */}
+      {videos.length ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(videos).replace(/</g, "\\u003c"),
+          }}
+        />
+      ) : null}
     <MeetingView
-      data={await load(id)}
+      data={data}
       location={{
         videoId: q.v,
         t: Number.isFinite(t) && t >= 0 ? t : undefined,
@@ -90,5 +173,6 @@ export default async function MeetingPage({ params, searchParams }: Props) {
         focus,
       }}
     />
+    </>
   );
 }

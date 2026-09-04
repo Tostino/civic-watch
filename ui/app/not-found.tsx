@@ -28,7 +28,10 @@ export default function NotFound() {
         2015. Search finds an item by its words; browse finds a meeting by its date.
       </p>
       <div className={s.actions}>
-        <Link href="/search" className={s.primary}>
+        {/* nofollow, for the reason app/about/page.tsx gives at its own copy
+            of this link: /search is refused in robots.txt and a link is the
+            only way a crawler learns it exists. */}
+        <Link href="/search" className={s.primary} rel="nofollow">
           Search the record
         </Link>
         <Link href="/" className={s.secondary}>

@@ -14,9 +14,22 @@ import s from "./SiteHeader.module.css";
  * workbench in the reader's navigation is the single largest reason the old UI
  * felt incoherent.
 */
+/* `nofollow` ON SEARCH, AND ONLY ON SEARCH.
+ *
+ * robots.txt refuses /search - every query runs the embedding model and the
+ * query space is unbounded, which app/robots.ts argues at length - and this
+ * bar is on every page in the archive, so it was the loudest of the three
+ * links telling a crawler that a page it may not read exists. A URL that is
+ * refused and still pointed at gets indexed from the link alone, with no
+ * title and no description, which is what Search Console means by "Indexed,
+ * though blocked by robots.txt".
+ *
+ * It changes nothing for a reader: the link works, looks the same, and is
+ * still the second thing in the bar. `/ask` is not marked, because it is
+ * crawlable and wants to be found. */
 const NAV = [
   { href: "/", label: "Browse", exact: true },
-  { href: "/search", label: "Search" },
+  { href: "/search", label: "Search", nofollow: true },
   { href: "/ask", label: "Ask" },
   { href: "/about", label: "About" },
 ] as const;
@@ -94,6 +107,7 @@ export function SiteHeader() {
                 key={n.href}
                 href={n.href}
                 className={s.link}
+                rel={"nofollow" in n && n.nofollow ? "nofollow" : undefined}
                 aria-current={active ? "page" : undefined}
               >
                 {n.label}
